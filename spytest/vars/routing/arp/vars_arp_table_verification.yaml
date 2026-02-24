@@ -7,7 +7,7 @@
 defaults:
   cli_type: klish
   verify_timeout: 10
-  cleanup: false        # Read-only test — no DUT configuration, no teardown needed
+  cleanup: false        # Read-only test - no DUT configuration, no teardown needed
   min_topology:
     - "D1"
 

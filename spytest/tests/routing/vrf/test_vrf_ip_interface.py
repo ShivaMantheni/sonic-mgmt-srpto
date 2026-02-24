@@ -31,11 +31,12 @@ Pre-requisites:
         # Topology - 1 node
         # +--------------------+
         # |    smic_sonic1     |
-        # |   Ethernet8        |
+        # | (test_interface)   |
         # +--------------------+
 
   - Minimum SONiC version: any with klish (IS-CLI) enabled
   - Required test variables (YAML): vars/routing/vrf/vars_vrf_ip_interface.yaml
+  - Testbed must define 'test_interface' in device properties
 """
 
 from __future__ import annotations
@@ -291,6 +292,21 @@ class TestVrfIpInterface:
         cls.data.cleanup_enabled = bool(defaults.get("cleanup", True))
         cls.data.testcases = SpyTestDict(config.get("testcases", {}))
 
+        # Get test_interface from testbed properties (required)
+        # Try multiple ways to get the test_interface
+        cls.data.test_interface = st.get_device_param(cls.data.dut, "test_interface", None)
+
+        # If not found via device param, try getting from DUT names
+        if not cls.data.test_interface:
+            dut_names = st.get_dut_names()
+            if dut_names:
+                cls.data.test_interface = st.get_device_param(dut_names[0], "test_interface", None)
+
+        # If still not found, use default from testbed
+        if not cls.data.test_interface:
+            cls.data.test_interface = "Ethernet8"  # Default from testbed
+            st.log(f"Using default test_interface: {cls.data.test_interface}")
+
         # Per-test bookkeeping — reset in setup_method / teardown_method
         cls.data.active_vrf = None
         cls.data.active_intf = None
@@ -362,7 +378,7 @@ class TestVrfIpInterface:
         dut = cls.data.dut
         cli_type = cls.data.cli_type
         tc1 = cls.data.testcases.get("TC_VRF_IP_01", {})
-        interface = tc1.get("interface", "Ethernet8")
+        interface = cls.data.test_interface
         known_vrfs = [tc1.get("vrf_name", "Vrf111")]
 
         # Step 1 — Remove ALL IPs from the interface
@@ -407,7 +423,7 @@ class TestVrfIpInterface:
         tc = self._get_testcase(TC_IDS.vrf_binding_ip_assignment)
 
         vrf_name = tc.get("vrf_name", "Vrf111")
-        interface = tc.get("interface", "Ethernet8")
+        interface = self.data.test_interface
         ip_address = tc.get("ip_address", "10.0.1.1")
         subnet = str(tc.get("subnet", "24"))
         expected_status = tc.get("expected_status", "up/up")
@@ -507,3 +523,4 @@ class TestVrfIpInterface:
         st.report_tc_pass(TC_IDS.vrf_binding_ip_assignment, "test_case_passed")
         st.banner("TC_VRF_IP_01: VRF Interface Binding and IP Assignment - PASS")
         st.report_pass("test_case_passed")
+

@@ -1,3 +1,4 @@
+
 """
 ARP TABLE VERIFICATION
 Author: Shiva
@@ -13,18 +14,18 @@ How to run:
 Description:
   Validates ARP table output formatting and entry integrity on a standalone SONiC DUT.
   TC_ARP_01 executes 'show ip arp | no-more' and verifies:
-    Step 1 – Command executes and returns output.
-    Step 2 – Table is non-empty (minimum entry count met).
-    Step 3 – Every row conforms to standard formats:
+    Step 1 - Command executes and returns output.
+    Step 2 - Table is non-empty (minimum entry count met).
+    Step 3 - Every row conforms to standard formats:
                * Address    : valid IPv4 (e.g. 192.168.100.1)
                * MacAddress : valid 48-bit MAC (e.g. 7c:5a:1c:b1:f2:f6)
-               * Iface      : non-empty interface name (Management0, PortChannel12, …)
+               * Iface      : non-empty interface name (Management0, PortChannel12, ...)
                * Type       : Dynamic or Static
                * Action     : Fwd (or configured valid actions)
-    Step 4 – Optionally verifies specific known IP→MAC→Interface mappings
+    Step 4 - Optionally verifies specific known IP?MAC?Interface mappings
              (controlled-environment check; disabled by default in YAML).
 
-  The test is read-only — it does NOT modify DUT configuration.
+  The test is read-only - it does NOT modify DUT configuration.
 
 Pre-requisites:
   - Topology: Standalone (D1 only) | Supported: HW and Virtual
@@ -124,7 +125,7 @@ def _validate_arp_rows(
       - macaddress : valid 48-bit MAC
       - iface      : non-empty string (interface name)
       - type       : one of valid_types (Dynamic / Static)
-      - action     : one of valid_actions (Fwd …) — skipped if list is empty
+      - action     : one of valid_actions (Fwd ...) - skipped if list is empty
 
     Returns a list of human-readable error strings.
     An empty list means all rows passed validation.
@@ -208,7 +209,7 @@ class TestArpTableVerification:
 
     @classmethod
     def teardown_class(cls) -> None:
-        """No teardown required — test is read-only."""
+        """No teardown required - test is read-only."""
         st.banner("TEARDOWN_CLASS: TestArpTableVerification - complete (no-op)")
 
     # ------------------------------------------------------------------
@@ -223,17 +224,17 @@ class TestArpTableVerification:
         return tc
 
     # ------------------------------------------------------------------
-    # TC_ARP_01 — ARP Table Output Formatting and Mapping
+    # TC_ARP_01 - ARP Table Output Formatting and Mapping
     # ------------------------------------------------------------------
 
     @pytest.mark.inventory(feature="ARP", testcases=["TC_ARP_01"])
     def test_arp_table_formatting_and_mapping(self) -> None:
         """
-        TC_ARP_01 — Execute 'show ip arp | no-more' and verify:
-          Step 1 – Command returns non-empty output.
-          Step 2 – Table meets minimum entry count.
-          Step 3 – Every row has valid IPv4, MAC, Interface, Type, and Action.
-          Step 4 – (Optional) Specific known IP→MAC→Interface entries are present.
+        TC_ARP_01 - Execute 'show ip arp | no-more' and verify:
+          Step 1 - Command returns non-empty output.
+          Step 2 - Table meets minimum entry count.
+          Step 3 - Every row has valid IPv4, MAC, Interface, Type, and Action.
+          Step 4 - (Optional) Specific known IP?MAC?Interface entries are present.
 
         Command: show ip arp | no-more
         Expected output columns: Address, Hardware address, Interface,
@@ -253,7 +254,7 @@ class TestArpTableVerification:
         known_entries = tc.get("known_entries", [])
 
         # ------------------------------------------------------------------
-        # Step 1 — Execute 'show ip arp | no-more'
+        # Step 1 - Execute 'show ip arp | no-more'
         # Uses | no-more to suppress klish --more-- pagination.
         # Template index pattern 'show ip arp.*' matches this command
         # and routes output through show_ip_arp.tmpl for structured parsing.
@@ -265,14 +266,14 @@ class TestArpTableVerification:
         if not arp_table:
             st.report_tc_fail(
                 TC_IDS.arp_table_formatting, "msg",
-                f"Step 1 FAIL: '{cmd}' returned empty output — "
+                f"Step 1 FAIL: '{cmd}' returned empty output - "
                 "no ARP entries found on the DUT",
             )
 
         st.log(f"Step 1 PASS: Retrieved {len(arp_table)} ARP entries")
 
         # ------------------------------------------------------------------
-        # Step 2 — Verify table has minimum expected entries
+        # Step 2 - Verify table has minimum expected entries
         # An empty ARP table on an active DUT indicates a connectivity or
         # configuration issue rather than a CLI format error.
         # ------------------------------------------------------------------
@@ -289,7 +290,7 @@ class TestArpTableVerification:
         st.log(f"Step 2 PASS: {len(arp_table)} ARP entries found")
 
         # ------------------------------------------------------------------
-        # Step 3 — Validate format of every row
+        # Step 3 - Validate format of every row
         # Checks: valid IPv4 (Address), valid MAC (Hardware address),
         #         non-empty interface (Interface), allowed Type, allowed Action.
         # All errors are collected before reporting so the full picture is
@@ -314,7 +315,7 @@ class TestArpTableVerification:
         )
 
         # ------------------------------------------------------------------
-        # Step 4 — (Optional) Verify specific known IP→MAC→Interface entries
+        # Step 4 - (Optional) Verify specific known IP?MAC?Interface entries
         # Enabled via 'verify_known_entries: true' in YAML.
         # Uses arp_api.verify_arp() from apis/routing/arp.py which checks
         # a specific IP entry in the ARP table for the expected MAC and

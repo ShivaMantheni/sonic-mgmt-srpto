@@ -14,8 +14,6 @@ defaults:
 testcases:
   TC_VRF_IP_01:
     title: "Verify VRF Binding and Interface State"
-    # Target interface on smic_sonic1 (standalone DUT)
-    interface: "Ethernet8"
     # VRF to create and bind the interface to
     vrf_name: "Vrf111"
     # IP address to assign inside the VRF context
