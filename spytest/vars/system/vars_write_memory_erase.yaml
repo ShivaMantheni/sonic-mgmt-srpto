@@ -1,0 +1,35 @@
+# SONiC Configuration Management - Write Memory & Write Erase Test Variables
+# Test Case: SM_ISCLI_P2_119 (SONIC-CFG-MGMT-001)
+# Author: Shiva
+# Copyright (C) 2026
+
+# Default settings for all test cases
+defaults:
+  cli_type: klish                # Use IS-CLI (klish) mode for configuration
+  verify_timeout: 30             # Timeout for verification polling (seconds)
+  reboot_wait: 180               # Wait time for device to come up after reboot (seconds)
+  cleanup: true                  # Enable cleanup after tests
+  min_topology:
+    - "D1"                       # Minimum topology: 1 DUT (standalone)
+
+# Test case definitions
+testcases:
+  # TC 1: Configuration Persistence with Write Memory
+  "write_memory_persistence":
+    title: "Verify configuration persistence with write memory across reboot"
+    description: "Configure IP on interface, save with write memory, reboot, verify config persisted"
+    interface_config:
+      ip_address: "190.100.100.2"
+      subnet: "24"
+      shutdown: false
+    verify:
+      config_persisted: true
+      expected_ip: "190.100.100.2/24"
+
+  # TC 2: Configuration Reset with Write Erase
+  "write_erase_reset":
+    title: "Verify configuration reset with write erase after reboot"
+    description: "Execute write erase, reboot, verify custom config is wiped and reverted to default"
+    verify:
+      config_erased: true
+      custom_ip_removed: true
