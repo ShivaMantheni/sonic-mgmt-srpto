@@ -24,14 +24,6 @@
 
 This document describes the comprehensive test plan for validating Link Aggregation Control Protocol (LACP) functionality in SONiC. LACP (IEEE 802.3ad/802.1AX) enables the bundling of multiple physical links into a single logical link for increased bandwidth and redundancy.
 
-**Testbed Configuration:**
-- This test plan is designed for the `testbed_2VS_LACP.yaml` testbed
-- Uses two SONiC-VS devices with 4 interconnected ports
-- Features **asymmetric port mapping** between DUTs:
-  - D1 (vs_sonic2): Ethernet20, Ethernet16, Ethernet8, Ethernet12
-  - D2 (vs_sonic3): Ethernet24, Ethernet20, Ethernet8, Ethernet16
-- Port connections: D1D2P1-P4 mapped as described in Section 3 (Topology)
-
 **Test Scope:**
 - LACP protocol functionality validation
 - Port channel creation, deletion, and member management
@@ -49,22 +41,16 @@ This document describes the comprehensive test plan for validating Link Aggregat
 ## Test Environment
 
 ### Hardware/Software Requirements
-- **DUT1** (vs_sonic2): SONiC-VS device at 192.168.100.68
-- **DUT2** (vs_sonic3): SONiC-VS device at 192.168.100.222
-- **Testbed File**: `testbeds/testbed_2VS_LACP.yaml`
-- **Traffic Generator**: Scapy-based traffic generation from DUTs
-- **Physical Links**: 4 ports between DUT1 and DUT2 (asymmetric port mapping)
-  - D1: Ethernet20, Ethernet16, Ethernet8, Ethernet12
-  - D2: Ethernet24, Ethernet20, Ethernet8, Ethernet16
+- **DUT**: SONiC device under test
+- **Partner Device**: SONiC-VS image or physical SONiC device
+- **Traffic Generator**: Scapy-based traffic generation
+- **Minimum Links**: 4 ports between DUT and partner device
 - **Test Framework**: SPyTest
-- **Access Protocol**: SSH (port 22)
-- **Credentials**: admin/root@123
 
 ### Configuration Management
 - All configurations will be verified using `show running-config`
-- Test packets will be transmitted using Scapy from DUTs
+- Test packets will be transmitted using Scapy
 - CLI types tested: Click, Klish, REST, gNMI
-- Interface naming: Native mode (Ethernet* format)
 
 ---
 
@@ -72,30 +58,34 @@ This document describes the comprehensive test plan for validating Link Aggregat
 
 ### Two-Node Back-to-Back Topology
 
-**Testbed File**: `testbeds/testbed_2VS_LACP.yaml`
-
 ```
                                     PortChannel7
-    ┌─────────────┐      ╔═══════════════════════════╗      ┌─────────────┐
-    │             │      ║   Ethernet20 ◄──────► Ethernet24  ║      │             │
-    │             │      ║   Ethernet16 ◄──────► Ethernet20  ║      │             │
-    │    DUT1     │◄─────╬   Ethernet8  ◄──────► Ethernet8   ╬─────►│    DUT2     │
-    │  vs_sonic2  │      ║   Ethernet12 ◄──────► Ethernet16  ║      │  vs_sonic3  │
-    │ (SONiC-VS)  │      ╚═══════════════════════════╝      │ (SONiC-VS)  │
-    │.100.68      │                                           │.100.222     │
-    └─────────────┘                                           └─────────────┘
+    ┌─────────────┐      ╔═══════════════════════╗      ┌─────────────┐
+    │             │      ║   Ethernet0 ◄──────► Ethernet0   ║      │             │
+    │             │      ║   Ethernet4 ◄──────► Ethernet4   ║      │             │
+    │    DUT1     │◄─────╬   Ethernet8 ◄──────► Ethernet8   ╬─────►│    DUT2     │
+    │  (SONiC)    │      ║   Ethernet12◄──────► Ethernet12  ║      │ (SONiC-VS)  │
+    │             │      ╚═══════════════════════╝      │             │
+    └──────┬──────┘                                     └──────┬──────┘
+           │                                                   │
+           │ Ethernet16                           Ethernet16   │
+           │                                                   │
+    ┌──────▼──────┐                              ┌──────▼──────┐
+    │   TG Port1  │                              │   TG Port2  │
+    │   (Scapy)   │                              │   (Scapy)   │
+    └─────────────┘                              └─────────────┘
 ```
 
 ### Topology Details
-- **D1** (vs_sonic2): Primary DUT running SONiC-VS (IP: 192.168.100.68)
-- **D2** (vs_sonic3): Secondary DUT/Partner running SONiC-VS (IP: 192.168.100.222)
+- **D1**: Primary DUT running SONiC
+- **D2**: Secondary DUT/Partner running SONiC-VS
 - **D1D2P1-P4**: Four interconnected ports between D1 and D2
-  - D1D2P1 ↔ D2D1P1 (Ethernet20 ↔ Ethernet24)
-  - D1D2P2 ↔ D2D1P2 (Ethernet16 ↔ Ethernet20)
+  - D1D2P1 ↔ D2D1P1 (Ethernet0 ↔ Ethernet0)
+  - D1D2P2 ↔ D2D1P2 (Ethernet4 ↔ Ethernet4)
   - D1D2P3 ↔ D2D1P3 (Ethernet8 ↔ Ethernet8)
-  - D1D2P4 ↔ D2D1P4 (Ethernet12 ↔ Ethernet16)
-- **Note**: This topology uses asymmetric port assignments between D1 and D2
-- **Traffic Generation**: Scapy-based traffic will be generated from the DUTs themselves for testing
+  - D1D2P4 ↔ D2D1P4 (Ethernet12 ↔ Ethernet12)
+- **D1T1P1**: DUT1 to Traffic Generator Port (Ethernet16)
+- **D2T1P1**: DUT2 to Traffic Generator Port (Ethernet16)
 
 ---
 
@@ -136,16 +126,16 @@ This document describes the comprehensive test plan for validating Link Aggregat
 
 **Test Procedure**:
 1. Configure PortChannel7 on DUT1
-2. Add Ethernet20 (D1D2P1) as member to PortChannel7
+2. Add Ethernet0 as member to PortChannel7
 3. Configure PortChannel7 on DUT2
-4. Add Ethernet24 (D2D1P1) as member to PortChannel7
+4. Add Ethernet0 as member to PortChannel7
 5. Verify PortChannel7 is created on both DUTs
-6. Verify member interface is part of PortChannel7
+6. Verify member interface Ethernet0 is part of PortChannel7
 7. Check LACP protocol state is "up"
 
 **Expected Result**:
 - PortChannel7 created successfully on both DUTs
-- Member interface shows as member in `show interface PortChannel 7`
+- Ethernet0 shows as member in `show interface PortChannel 7`
 - LACP state transitions to "up"
 - LACP PDUs exchanged between partners
 
@@ -163,9 +153,9 @@ show lacp neighbor
 
 **Test Procedure**:
 1. Configure PortChannel7 on DUT1
-2. Add Ethernet20, Ethernet16, Ethernet8, Ethernet12 (D1D2P1-P4) as members to PortChannel7
+2. Add Ethernet0, Ethernet4, Ethernet8, Ethernet12 as members to PortChannel7
 3. Configure PortChannel7 on DUT2
-4. Add Ethernet24, Ethernet20, Ethernet8, Ethernet16 (D2D1P1-P4) as members to PortChannel7
+4. Add Ethernet0, Ethernet4, Ethernet8, Ethernet12 as members to PortChannel7
 5. Verify all members are added successfully
 6. Verify PortChannel7 protocol state is "up"
 7. Verify all member states are "Selected"
@@ -190,22 +180,21 @@ show lacp interface PortChannel 7
 
 **Test Procedure**:
 1. Start with PortChannel7 having 4 members (from TC_LACP_BASIC_002)
-2. Remove D1D2P4 (Ethernet12 on D1, Ethernet16 on D2) from PortChannel7 on both DUTs
-3. Verify the member is removed from PortChannel7
+2. Remove Ethernet12 from PortChannel7 on both DUTs
+3. Verify Ethernet12 is removed from PortChannel7
 4. Verify remaining 3 members still operational
 5. Verify PortChannel7 remains "up" with 3 members
 
 **Expected Result**:
-- Member successfully removed from PortChannel7 on both DUTs
-- Remaining members (D1D2P1-P3) continue forwarding
+- Ethernet12 successfully removed from PortChannel7
+- Remaining members (Ethernet0, 4, 8) continue forwarding
 - No traffic loss on remaining members
 - PortChannel7 stays operational
 
 **Verification Commands**:
 ```bash
 show interface PortChannel 7
-show interface Ethernet12  # on D1
-show interface Ethernet16  # on D2
+show interface Ethernet12
 show running-config interface PortChannel 7
 ```
 
@@ -240,15 +229,15 @@ show running-config
 **Objective**: Verify dynamic addition of member to operational port channel
 
 **Test Procedure**:
-1. Create PortChannel7 with 2 members (D1D2P1-P2: Ethernet20/Ethernet24 and Ethernet16/Ethernet20)
+1. Create PortChannel7 with 2 members (Ethernet0, Ethernet4)
 2. Verify PortChannel7 is operational
-3. Dynamically add D1D2P3 (Ethernet8 on both DUTs) to PortChannel7
-4. Verify new member joins PortChannel7
+3. Dynamically add Ethernet8 to PortChannel7 on both DUTs
+4. Verify Ethernet8 joins PortChannel7
 5. Verify LACP negotiation on new member
 6. Verify traffic distribution includes new member
 
 **Expected Result**:
-- New member successfully added to operational PortChannel7
+- Ethernet8 successfully added to operational PortChannel7
 - LACP negotiation completes on new member
 - No disruption to existing traffic on other members
 - Traffic load-balancing includes new member
@@ -1033,23 +1022,23 @@ show running-config interface PortChannel 7
 **Objective**: Verify error when adding member already in different LAG
 
 **Test Procedure**:
-1. Configure PortChannel7 with member D1D2P1 (Ethernet20 on D1)
+1. Configure PortChannel7 with member Ethernet0
 2. Configure PortChannel8
-3. Attempt to add same member (Ethernet20) to PortChannel8
+3. Attempt to add Ethernet0 to PortChannel8
 4. Verify operation fails with appropriate error
-5. Verify member remains in PortChannel7 only
+5. Verify Ethernet0 remains in PortChannel7 only
 
 **Expected Result**:
 - Error message indicating port already in LAG
 - Operation rejected by system
-- Member remains in PortChannel7 only
+- Ethernet0 remains member of PortChannel7 only
 - System integrity maintained
 
 **Verification Commands**:
 ```bash
 show interface PortChannel 7
 show interface PortChannel 8
-show interface Ethernet20  # on D1
+show interface Ethernet0
 ```
 
 ---
@@ -1154,7 +1143,7 @@ show lacp interface PortChannel 7
 **Objective**: Verify error when mixing incompatible interface types in LAG
 
 **Test Procedure**:
-1. Configure PortChannel7 with Ethernet20 (physical port on D1)
+1. Configure PortChannel7 with Ethernet0 (physical port)
 2. Attempt to add management port to PortChannel7
 3. Verify operation rejected
 4. Attempt to add VLAN interface to PortChannel7
@@ -1730,24 +1719,24 @@ cd /home/hp/jitendra/sonic-mgmt/spytest
 ./bin/upgrade_requirements.sh
 
 # Verify testbed connectivity
-./bin/spytest --testbed testbeds/testbed_2VS_LACP.yaml --test-suite validation
+./bin/spytest --testbed testbeds/testbed_2vs.yaml --test-suite validation
 ```
 
 #### Running Tests
 ```bash
 # Run all LACP tests
-./bin/spytest --testbed testbeds/testbed_2VS_LACP.yaml \
+./bin/spytest --testbed testbeds/testbed_2vs.yaml \
     tests/LACP/ \
     --logs-path ./logs/lacp_$(date +%F_%H%M%S) \
     --log-level debug --skip-init-config --ifname-type native
 
 # Run specific test category
-./bin/spytest --testbed testbeds/testbed_2VS_LACP.yaml \
+./bin/spytest --testbed testbeds/testbed_2vs.yaml \
     tests/LACP/test_lacp_basic.py \
     --logs-path ./logs/lacp_basic
 
 # Run by test marker
-./bin/spytest --testbed testbeds/testbed_2VS_LACP.yaml \
+./bin/spytest --testbed testbeds/testbed_2vs.yaml \
     -m lacp_sanity \
     --logs-path ./logs/lacp_sanity
 ```
@@ -1880,16 +1869,8 @@ interface PortChannel 7 min-links 2
 # Enable fast rate
 interface PortChannel 7 fast_rate
 
-# Add member to PortChannel (D1 example)
-interface Ethernet20
-  channel-group 7 mode active
-
-# Add multiple members (D1 example)
-interface Ethernet16
-  channel-group 7 mode active
-interface Ethernet8
-  channel-group 7 mode active
-interface Ethernet12
+# Add member to PortChannel
+interface Ethernet0
   channel-group 7 mode active
 ```
 
@@ -1898,14 +1879,11 @@ interface Ethernet12
 # Create PortChannel
 config portchannel add PortChannel7
 
-# Add members (D1 example - use corresponding ports on D2: Ethernet24, Ethernet20, Ethernet8, Ethernet16)
-config portchannel member add PortChannel7 Ethernet20
-config portchannel member add PortChannel7 Ethernet16
-config portchannel member add PortChannel7 Ethernet8
-config portchannel member add PortChannel7 Ethernet12
+# Add member
+config portchannel member add PortChannel7 Ethernet0
 
 # Remove member
-config portchannel member del PortChannel7 Ethernet20
+config portchannel member del PortChannel7 Ethernet0
 
 # Delete PortChannel
 config portchannel del PortChannel7
