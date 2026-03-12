@@ -25,12 +25,10 @@
 This document describes the comprehensive test plan for validating Link Aggregation Control Protocol (LACP) functionality in SONiC. LACP (IEEE 802.3ad/802.1AX) enables the bundling of multiple physical links into a single logical link for increased bandwidth and redundancy.
 
 **Testbed Configuration:**
-- This test plan is designed for the `testbed_2VS_LACP.yaml` testbed
-- Uses two SONiC-VS devices with 4 interconnected ports
-- Features **asymmetric port mapping** between DUTs:
-  - D1 (vs_sonic2): Ethernet20, Ethernet16, Ethernet8, Ethernet12
-  - D2 (vs_sonic3): Ethernet24, Ethernet20, Ethernet8, Ethernet16
+- This test plan requires a two-node topology with minimum 4 interconnected ports
+- Uses two SONiC devices (physical or virtual) with back-to-back connections
 - Port connections: D1D2P1-P4 mapped as described in Section 3 (Topology)
+- Testbed file should be configured according to your specific environment
 
 **Test Scope:**
 - LACP protocol functionality validation
@@ -49,16 +47,14 @@ This document describes the comprehensive test plan for validating Link Aggregat
 ## Test Environment
 
 ### Hardware/Software Requirements
-- **DUT1** (vs_sonic2): SONiC-VS device at 192.168.100.68
-- **DUT2** (vs_sonic3): SONiC-VS device at 192.168.100.222
-- **Testbed File**: `testbeds/testbed_2VS_LACP.yaml`
-- **Traffic Generator**: Scapy-based traffic generation from DUTs
-- **Physical Links**: 4 ports between DUT1 and DUT2 (asymmetric port mapping)
-  - D1: Ethernet20, Ethernet16, Ethernet8, Ethernet12
-  - D2: Ethernet24, Ethernet20, Ethernet8, Ethernet16
+- **DUT1**: SONiC device (physical or virtual)
+- **DUT2**: SONiC device (physical or virtual)
+- **Testbed File**: Your environment-specific testbed YAML file
+- **Traffic Generator**: Scapy-based traffic generation or external traffic generator (Ixia/Spirent)
+- **Physical Links**: Minimum 4 ports between DUT1 and DUT2
 - **Test Framework**: SPyTest
 - **Access Protocol**: SSH (port 22)
-- **Credentials**: admin/root@123
+- **Credentials**: As configured in your testbed file
 
 ### Configuration Management
 - All configurations will be verified using `show running-config`
@@ -72,30 +68,27 @@ This document describes the comprehensive test plan for validating Link Aggregat
 
 ### Two-Node Back-to-Back Topology
 
-**Testbed File**: `testbeds/testbed_2VS_LACP.yaml`
-
 ```
                                     PortChannel7
     ┌─────────────┐      ╔═══════════════════════════╗      ┌─────────────┐
-    │             │      ║   Ethernet20 ◄──────► Ethernet24  ║      │             │
-    │             │      ║   Ethernet16 ◄──────► Ethernet20  ║      │             │
-    │    DUT1     │◄─────╬   Ethernet8  ◄──────► Ethernet8   ╬─────►│    DUT2     │
-    │  vs_sonic2  │      ║   Ethernet12 ◄──────► Ethernet16  ║      │  vs_sonic3  │
-    │ (SONiC-VS)  │      ╚═══════════════════════════╝      │ (SONiC-VS)  │
-    │.100.68      │                                           │.100.222     │
+    │             │      ║   D1D2P1     ◄──────►   D2D1P1   ║      │             │
+    │             │      ║   D1D2P2     ◄──────►   D2D1P2   ║      │             │
+    │    DUT1     │◄─────╬   D1D2P3     ◄──────►   D2D1P3   ╬─────►│    DUT2     │
+    │   (SONiC)   │      ║   D1D2P4     ◄──────►   D2D1P4   ║      │   (SONiC)   │
+    │             │      ╚═══════════════════════════╝      │             │
     └─────────────┘                                           └─────────────┘
 ```
 
 ### Topology Details
-- **D1** (vs_sonic2): Primary DUT running SONiC-VS (IP: 192.168.100.68)
-- **D2** (vs_sonic3): Secondary DUT/Partner running SONiC-VS (IP: 192.168.100.222)
+- **D1**: Primary DUT running SONiC
+- **D2**: Secondary DUT/Partner running SONiC
 - **D1D2P1-P4**: Four interconnected ports between D1 and D2
-  - D1D2P1 ↔ D2D1P1 (Ethernet20 ↔ Ethernet24)
-  - D1D2P2 ↔ D2D1P2 (Ethernet16 ↔ Ethernet20)
-  - D1D2P3 ↔ D2D1P3 (Ethernet8 ↔ Ethernet8)
-  - D1D2P4 ↔ D2D1P4 (Ethernet12 ↔ Ethernet16)
-- **Note**: This topology uses asymmetric port assignments between D1 and D2
-- **Traffic Generation**: Scapy-based traffic will be generated from the DUTs themselves for testing
+  - D1D2P1 ↔ D2D1P1 (First port pair)
+  - D1D2P2 ↔ D2D1P2 (Second port pair)
+  - D1D2P3 ↔ D2D1P3 (Third port pair)
+  - D1D2P4 ↔ D2D1P4 (Fourth port pair)
+- **Note**: Port names will vary based on your testbed configuration (e.g., Ethernet0, Ethernet4, etc.)
+- **Traffic Generation**: Scapy-based traffic from DUTs or external traffic generators
 
 ---
 
@@ -124,6 +117,538 @@ This document describes the comprehensive test plan for validating Link Aggregat
 - System MAC address
 - System priority
 - Port priority
+
+---
+
+## Traffic Testing Methodology
+
+This section provides detailed explanation of how Layer 2 (L2) and Layer 3 (L3) traffic will be tested across the LACP port channel to validate load balancing, redundancy, and forwarding behavior.
+
+### L2 Traffic Testing
+
+Layer 2 traffic testing validates Ethernet frame forwarding across the LAG without IP routing. This tests MAC-based switching and load balancing at the data link layer.
+
+#### L2 Traffic Test Setup
+
+**Configuration Steps:**
+1. Configure PortChannel7 on both DUT1 and DUT2 with 4 member ports (D1D2P1-P4)
+2. Create VLAN (e.g., VLAN 100) on both DUTs
+3. Add PortChannel7 as a tagged or untagged member to VLAN 100
+4. Ensure L2 forwarding is enabled (no IP addresses on PortChannel)
+5. Configure MAC aging time (optional, for MAC learning tests)
+
+**Traffic Generation Methods:**
+
+**Method 1: Scapy-based L2 Traffic (from DUTs)**
+```python
+# Generate L2 frames with varied source MACs
+from scapy.all import Ether, sendp
+
+# Test 1: Source MAC variation
+for i in range(100):
+    src_mac = f"00:11:22:33:44:{i:02x}"
+    dst_mac = "00:aa:bb:cc:dd:ee"
+    frame = Ether(src=src_mac, dst=dst_mac) / Raw(load="X"*1400)
+    sendp(frame, iface="PortChannel7", count=100)
+
+# Test 2: Destination MAC variation
+src_mac = "00:11:22:33:44:55"
+for i in range(100):
+    dst_mac = f"00:aa:bb:cc:dd:{i:02x}"
+    frame = Ether(src=src_mac, dst=dst_mac) / Raw(load="X"*1400)
+    sendp(frame, iface="PortChannel7", count=100)
+
+# Test 3: Both source and destination MAC variation
+for i in range(100):
+    src_mac = f"00:11:22:33:{i//16:02x}:{i%16:02x}"
+    dst_mac = f"00:aa:bb:cc:{i//16:02x}:{i%16:02x}"
+    frame = Ether(src=src_mac, dst=dst_mac) / Raw(load="X"*1400)
+    sendp(frame, iface="PortChannel7", count=100)
+```
+
+**Method 2: External Traffic Generator (Ixia/Spirent)**
+- Configure traffic streams with L2 Ethernet frames
+- Vary source MAC addresses: Generate 1000+ unique source MACs
+- Vary destination MAC addresses: Generate 1000+ unique destination MACs
+- Frame size variation: 64, 128, 512, 1500, 9000 bytes (if jumbo frames enabled)
+- Traffic rate: 10%, 50%, 100% of line rate
+- Duration: Continuous traffic for 60+ seconds
+
+#### L2 Traffic Validation Points
+
+**1. MAC Address Learning:**
+```bash
+# Verify MACs learned on PortChannel
+show mac address-table | grep PortChannel7
+
+# Verify MAC count matches traffic streams
+show mac address-table count
+```
+
+**2. Load Balancing Verification:**
+```bash
+# Check per-member interface statistics
+show interfaces counters | grep -E "Ethernet(20|16|8|12)"  # or your ports
+
+# Verify traffic distribution across members (should be roughly equal)
+# Example output analysis:
+# Member 1: 250,000 packets (25%)
+# Member 2: 255,000 packets (25.5%)
+# Member 3: 245,000 packets (24.5%)
+# Member 4: 250,000 packets (25%)
+# Distribution variance should be < 10%
+```
+
+**3. Hash Algorithm Testing:**
+- **Source MAC Hash**: Same source MAC always uses same member port
+- **Destination MAC Hash**: Same destination MAC always uses same member port
+- **Src+Dst MAC Hash**: Same MAC pair always uses same member port
+- **VLAN Tag Hash**: Same VLAN ID contributes to hash calculation
+
+**4. Forwarding Verification:**
+```bash
+# Zero packet drops expected
+show interfaces counters errors
+
+# Verify frame forwarding
+show interfaces counters | grep -A5 PortChannel7
+```
+
+#### L2 Traffic Test Scenarios
+
+**Scenario 1: Broadcast Traffic**
+- Send broadcast frames (dst MAC: FF:FF:FF:FF:FF:FF)
+- Verify broadcast forwarded on all LAG members
+- Check for packet duplication (should not occur)
+
+**Scenario 2: Multicast Traffic**
+- Send multicast frames (dst MAC: 01:00:5E:xx:xx:xx)
+- Verify multicast forwarding behavior
+- Test IGMP snooping if enabled
+
+**Scenario 3: Unknown Unicast Flooding**
+- Send unicast frames with unknown destination MAC
+- Verify flooding behavior across VLAN
+- Monitor MAC learning
+
+**Scenario 4: VLAN Tagged Traffic**
+```python
+from scapy.all import Ether, Dot1Q, Raw, sendp
+
+# Tagged frames for different VLANs
+for vlan_id in [100, 200, 300]:
+    for i in range(50):
+        src_mac = f"00:11:22:33:{vlan_id//100}:{i:02x}"
+        dst_mac = f"00:aa:bb:cc:{vlan_id//100}:{i:02x}"
+        frame = Ether(src=src_mac, dst=dst_mac) / \
+                Dot1Q(vlan=vlan_id) / \
+                Raw(load="X"*1400)
+        sendp(frame, iface=interface, count=100)
+```
+
+**Scenario 5: Jumbo Frames**
+- Configure MTU 9000 on PortChannel7
+- Send frames up to 9000 bytes
+- Verify forwarding without fragmentation
+
+### L3 Traffic Testing (IPv4)
+
+Layer 3 IPv4 traffic testing validates IP routing and forwarding across the LAG, including IP-based load balancing.
+
+#### L3 IPv4 Traffic Test Setup
+
+**Configuration Steps:**
+1. Configure PortChannel7 on both DUT1 and DUT2 with 4 member ports
+2. Assign IPv4 address to PortChannel7 on both DUTs
+   - DUT1: `ip address 10.1.1.1/24` on PortChannel7
+   - DUT2: `ip address 10.1.1.2/24` on PortChannel7
+3. Verify IP interface is up
+4. Configure additional routes if needed for traffic testing
+5. Enable routing protocols if testing dynamic scenarios (BGP, OSPF, etc.)
+
+**Traffic Generation Methods:**
+
+**Method 1: Scapy-based IPv4 Traffic (from DUTs)**
+```python
+from scapy.all import Ether, IP, TCP, UDP, ICMP, Raw, send, sr1
+
+# Test 1: Source IP variation
+base_dst_ip = "10.1.1.100"
+for i in range(1000):
+    src_ip = f"192.168.{i//256}.{i%256}"
+    packet = IP(src=src_ip, dst=base_dst_ip) / \
+             TCP(sport=1024, dport=80) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+
+# Test 2: Destination IP variation
+base_src_ip = "192.168.1.100"
+for i in range(1000):
+    dst_ip = f"10.2.{i//256}.{i%256}"
+    packet = IP(src=base_src_ip, dst=dst_ip) / \
+             TCP(sport=1024, dport=80) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+
+# Test 3: Source and Destination IP variation
+for i in range(1000):
+    src_ip = f"192.168.{i//256}.{i%256}"
+    dst_ip = f"10.2.{i//256}.{i%256}"
+    packet = IP(src=src_ip, dst=dst_ip) / \
+             TCP(sport=1024, dport=80) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+
+# Test 4: L4 port variation (for 5-tuple hashing)
+base_src_ip = "192.168.1.100"
+base_dst_ip = "10.1.1.100"
+for i in range(1000):
+    src_port = 1024 + i
+    dst_port = 8000 + i
+    packet = IP(src=base_src_ip, dst=base_dst_ip) / \
+             TCP(sport=src_port, dport=dst_port) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+```
+
+**Method 2: External Traffic Generator (Ixia/Spirent)**
+- Configure IPv4 traffic streams
+- Source IP range: 192.168.0.1 - 192.168.255.254 (65,000+ IPs)
+- Destination IP range: 10.1.1.1 - 10.1.255.254 (65,000+ IPs)
+- Protocol variations: TCP, UDP, ICMP
+- L4 port range: 1024-65535 (for TCP/UDP)
+- Packet size: 64, 128, 512, 1500, 9000 bytes
+- Traffic rate: 10%, 50%, 100% line rate
+- Duration: 60-300 seconds continuous
+
+#### L3 IPv4 Traffic Validation Points
+
+**1. IP Routing Verification:**
+```bash
+# Verify IP interface status
+show ip interface PortChannel7
+
+# Check routing table
+show ip route | grep PortChannel7
+
+# Verify IP connectivity
+ping 10.1.1.2 -I PortChannel7
+```
+
+**2. Load Balancing Verification:**
+```bash
+# Check per-member interface packet counters
+show interfaces counters
+
+# Verify L3 hash distribution
+# With source IP variation: Different source IPs use different members
+# With destination IP variation: Different dest IPs use different members
+# With 5-tuple hash: Best distribution with varied src/dst IP and ports
+```
+
+**3. Protocol-Specific Testing:**
+
+**TCP Traffic:**
+```python
+# TCP SYN flood test (connection-oriented)
+for i in range(1000):
+    src_ip = f"192.168.{i//256}.{i%256}"
+    dst_ip = "10.1.1.100"
+    packet = IP(src=src_ip, dst=dst_ip) / \
+             TCP(sport=1024+i, dport=80, flags="S")
+    send(packet, iface="PortChannel7", count=10)
+
+# Verify TCP statistics
+show ip tcp statistics
+```
+
+**UDP Traffic:**
+```python
+# UDP traffic with port variation
+for i in range(1000):
+    src_ip = f"192.168.{i//256}.{i%256}"
+    dst_ip = "10.1.1.100"
+    packet = IP(src=src_ip, dst=dst_ip) / \
+             UDP(sport=5000+i, dport=6000+i) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+```
+
+**ICMP Traffic:**
+```python
+# ICMP echo requests with varied source IPs
+for i in range(1000):
+    src_ip = f"192.168.{i//256}.{i%256}"
+    dst_ip = "10.1.1.100"
+    packet = IP(src=src_ip, dst=dst_ip) / \
+             ICMP(type=8, code=0, id=i) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=10)
+```
+
+**4. Performance Metrics:**
+```bash
+# Throughput measurement
+show interfaces counters rate
+
+# Latency measurement (if supported)
+show interface PortChannel7 performance
+
+# Packet loss check
+show interfaces counters errors
+show interfaces counters discards
+```
+
+#### L3 IPv4 Traffic Test Scenarios
+
+**Scenario 1: Routed Traffic Across LAG**
+- Configure PortChannel7 as L3 interface with IP
+- Send traffic from subnet A (via DUT1) to subnet B (via DUT2)
+- Verify routing and load balancing
+
+**Scenario 2: Multi-Subnet Testing**
+- Configure multiple IP subnets on subinterfaces (PortChannel7.100, PortChannel7.200)
+- Send traffic to different subnets
+- Verify VLAN tag and IP-based hashing
+
+**Scenario 3: QoS and DSCP Testing**
+```python
+# Traffic with different DSCP values
+for dscp in [0, 8, 16, 24, 32, 40, 46, 48]:
+    packet = IP(src="192.168.1.100", dst="10.1.1.100", tos=dscp<<2) / \
+             TCP(sport=1024, dport=80) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=1000)
+```
+
+### L3 Traffic Testing (IPv6)
+
+Layer 3 IPv6 traffic testing validates IPv6 routing and forwarding across the LAG, including IPv6-specific features.
+
+#### L3 IPv6 Traffic Test Setup
+
+**Configuration Steps:**
+1. Configure PortChannel7 on both DUT1 and DUT2 with 4 member ports
+2. Enable IPv6 on both DUTs
+3. Assign IPv6 addresses to PortChannel7
+   - DUT1: `ipv6 address 2001:db8:1::1/64` on PortChannel7
+   - DUT2: `ipv6 address 2001:db8:1::2/64` on PortChannel7
+4. Configure link-local addresses (auto-generated or manual)
+5. Enable IPv6 routing
+6. Configure IPv6 routing protocols if needed (OSPFv3, BGP)
+
+**Traffic Generation Methods:**
+
+**Method 1: Scapy-based IPv6 Traffic (from DUTs)**
+```python
+from scapy.all import Ether, IPv6, TCP, UDP, ICMPv6EchoRequest, Raw, send
+
+# Test 1: IPv6 Source Address Variation
+base_dst_ipv6 = "2001:db8:2::100"
+for i in range(1000):
+    src_ipv6 = f"2001:db8:1::{i:x}"
+    packet = IPv6(src=src_ipv6, dst=base_dst_ipv6) / \
+             TCP(sport=1024, dport=80) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+
+# Test 2: IPv6 Destination Address Variation
+base_src_ipv6 = "2001:db8:1::100"
+for i in range(1000):
+    dst_ipv6 = f"2001:db8:2::{i:x}"
+    packet = IPv6(src=base_src_ipv6, dst=dst_ipv6) / \
+             TCP(sport=1024, dport=80) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+
+# Test 3: IPv6 with Flow Label Variation
+for i in range(1000):
+    src_ipv6 = f"2001:db8:1::{i:x}"
+    dst_ipv6 = f"2001:db8:2::{i:x}"
+    packet = IPv6(src=src_ipv6, dst=dst_ipv6, fl=i) / \
+             TCP(sport=1024+i, dport=8000+i) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+
+# Test 4: ICMPv6 Traffic
+for i in range(1000):
+    src_ipv6 = f"2001:db8:1::{i:x}"
+    dst_ipv6 = "2001:db8:2::100"
+    packet = IPv6(src=src_ipv6, dst=dst_ipv6) / \
+             ICMPv6EchoRequest(id=i, seq=1) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=10)
+```
+
+**Method 2: External Traffic Generator (Ixia/Spirent)**
+- Configure IPv6 traffic streams
+- Source IPv6 range: 2001:db8:1::1 - 2001:db8:1::ffff (65,535 addresses)
+- Destination IPv6 range: 2001:db8:2::1 - 2001:db8:2::ffff (65,535 addresses)
+- Flow label variation: 0 - 1048575 (20-bit field)
+- Protocol: TCP, UDP, ICMPv6
+- L4 port range: 1024-65535
+- Traffic class: 0-255 (for QoS testing)
+- Packet size: 64, 128, 512, 1500, 9000 bytes
+- Rate: 10%, 50%, 100% line rate
+
+#### L3 IPv6 Traffic Validation Points
+
+**1. IPv6 Routing Verification:**
+```bash
+# Verify IPv6 interface status
+show ipv6 interface PortChannel7
+
+# Check IPv6 routing table
+show ipv6 route | grep PortChannel7
+
+# Verify IPv6 connectivity
+ping6 2001:db8:1::2 -I PortChannel7
+
+# Check neighbor discovery
+show ipv6 neighbors | grep PortChannel7
+```
+
+**2. IPv6 Load Balancing Verification:**
+```bash
+# Check interface statistics
+show interfaces counters
+
+# IPv6 hash fields typically include:
+# - Source IPv6 address (128 bits)
+# - Destination IPv6 address (128 bits)
+# - Flow label (20 bits)
+# - Next header (protocol)
+# - Source/Dest L4 ports (for TCP/UDP)
+```
+
+**3. IPv6-Specific Feature Testing:**
+
+**Neighbor Discovery Protocol (NDP):**
+```python
+from scapy.all import IPv6, ICMPv6ND_NS, ICMPv6ND_NA, send
+
+# Neighbor Solicitation
+ns = IPv6(dst="ff02::1:ff00:2") / \
+     ICMPv6ND_NS(tgt="2001:db8:1::2")
+send(ns, iface="PortChannel7")
+
+# Verify NDP cache
+# show ipv6 neighbors
+```
+
+**Router Advertisement:**
+```bash
+# Verify RA messages on PortChannel
+show ipv6 interface PortChannel7
+
+# Should show router advertisement info
+```
+
+**4. IPv6 Extension Headers:**
+```python
+# Test with IPv6 extension headers
+from scapy.all import IPv6, IPv6ExtHdrHopByHop, TCP, Raw
+
+packet = IPv6(src="2001:db8:1::100", dst="2001:db8:2::100") / \
+         IPv6ExtHdrHopByHop() / \
+         TCP(sport=1024, dport=80) / \
+         Raw(load="X"*1400)
+send(packet, iface="PortChannel7", count=1000)
+```
+
+#### L3 IPv6 Traffic Test Scenarios
+
+**Scenario 1: Basic IPv6 Routing**
+- Send IPv6 traffic across LAG
+- Verify routing and load balancing
+- Check for ICMPv6 errors
+
+**Scenario 2: IPv6 Multicast**
+```python
+# IPv6 multicast traffic
+multicast_addrs = [
+    "ff02::1",      # All nodes
+    "ff02::2",      # All routers
+    "ff02::1:2",    # All DHCP agents
+]
+
+for mcast_addr in multicast_addrs:
+    packet = IPv6(src="2001:db8:1::100", dst=mcast_addr) / \
+             ICMPv6EchoRequest() / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+```
+
+**Scenario 3: Dual-Stack Testing**
+```python
+# Simultaneous IPv4 and IPv6 traffic
+# IPv4 stream
+ipv4_packet = IP(src="192.168.1.100", dst="10.1.1.100") / \
+              TCP(sport=1024, dport=80)
+
+# IPv6 stream
+ipv6_packet = IPv6(src="2001:db8:1::100", dst="2001:db8:2::100") / \
+              TCP(sport=1024, dport=80)
+
+# Send both simultaneously
+send([ipv4_packet, ipv6_packet], iface="PortChannel7", inter=0.001, count=10000)
+```
+
+**Scenario 4: IPv6 Flow Label Hashing**
+```python
+# Test flow label contribution to hash
+base_src = "2001:db8:1::100"
+base_dst = "2001:db8:2::100"
+
+# Same src/dst but different flow labels
+for flow_label in range(1000):
+    packet = IPv6(src=base_src, dst=base_dst, fl=flow_label) / \
+             TCP(sport=1024, dport=80) / \
+             Raw(load="X"*1400)
+    send(packet, iface="PortChannel7", count=100)
+
+# Verify different flow labels use different LAG members
+```
+
+### Traffic Testing Best Practices
+
+1. **Pre-Test Verification:**
+   - Clear all interface counters before testing
+   - Verify all LAG members are "up" and "Selected"
+   - Check LACP state on all members
+   - Baseline system resources (CPU, memory)
+
+2. **During Test Monitoring:**
+   - Monitor interface counters in real-time
+   - Check for errors, discards, drops
+   - Monitor system resources
+   - Capture LACP PDUs to verify stability
+
+3. **Post-Test Analysis:**
+   - Calculate traffic distribution variance
+   - Analyze packet loss (if any)
+   - Verify no LACP state changes during test
+   - Check system logs for warnings/errors
+
+4. **Traffic Distribution Calculation:**
+```bash
+# Example calculation for 4-member LAG
+# Total packets sent: 1,000,000
+# Expected per-member: 250,000 (25%)
+# Acceptable variance: ±5% (237,500 - 262,500 packets)
+
+Member1: 248,523 packets (24.85%) ✓
+Member2: 251,847 packets (25.18%) ✓
+Member3: 246,092 packets (24.61%) ✓
+Member4: 253,538 packets (25.35%) ✓
+Variance: 0.74% ✓ PASS
+```
+
+5. **Performance Benchmarks:**
+   - **Throughput**: Should achieve line rate (e.g., 40Gbps for 4x10G LAG)
+   - **Latency**: < 1ms for local LAG switching
+   - **Packet Loss**: 0% in steady state
+   - **Convergence**: < 3 seconds with fast LACP rate
 
 ---
 
@@ -1726,28 +2251,28 @@ show logging | grep MTU
 #### Prerequisites
 ```bash
 # Install SPyTest framework
-cd /home/hp/jitendra/sonic-mgmt/spytest
+cd /path/to/sonic-mgmt/spytest
 ./bin/upgrade_requirements.sh
 
-# Verify testbed connectivity
-./bin/spytest --testbed testbeds/testbed_2VS_LACP.yaml --test-suite validation
+# Verify testbed connectivity (replace with your testbed file)
+./bin/spytest --testbed testbeds/your_testbed.yaml --test-suite validation
 ```
 
 #### Running Tests
 ```bash
-# Run all LACP tests
-./bin/spytest --testbed testbeds/testbed_2VS_LACP.yaml \
+# Run all LACP tests (replace with your testbed file)
+./bin/spytest --testbed testbeds/your_testbed.yaml \
     tests/LACP/ \
     --logs-path ./logs/lacp_$(date +%F_%H%M%S) \
     --log-level debug --skip-init-config --ifname-type native
 
 # Run specific test category
-./bin/spytest --testbed testbeds/testbed_2VS_LACP.yaml \
+./bin/spytest --testbed testbeds/your_testbed.yaml \
     tests/LACP/test_lacp_basic.py \
     --logs-path ./logs/lacp_basic
 
 # Run by test marker
-./bin/spytest --testbed testbeds/testbed_2VS_LACP.yaml \
+./bin/spytest --testbed testbeds/your_testbed.yaml \
     -m lacp_sanity \
     --logs-path ./logs/lacp_sanity
 ```
