@@ -154,7 +154,7 @@ interface Ethernet 4
 
 # Add static routes
 ip route 30.30.30.0/24 10.1.1.2
-ip route 40.40.40.0/24 10.2.1.1
+ip route 40.40.40.0/24 10.2.1.2
 
 exit
 ```
@@ -215,7 +215,7 @@ interface Ethernet 12
   exit
 
 # Add static route
-ip route 40.40.40.0/24 10.2.1.1
+ip route 40.40.40.0/24 10.2.1.2
 
 exit
 ```
@@ -282,7 +282,7 @@ interface Ethernet 12
 **Commands:**
 ```bash
 ip route 30.30.30.0/24 10.1.1.2
-ip route 40.40.40.0/24 10.2.1.1
+ip route 40.40.40.0/24 10.2.1.2
 ```
 **Verification:** Routes accepted without errors
 **Test Case ID:** TC-OC-SR-10-002
@@ -301,7 +301,7 @@ ip route 40.40.40.0/24 10.1.1.1
 **Action:** Configure 1 static route with next-hop IP
 **Commands:**
 ```bash
-ip route 40.40.40.0/24 10.2.1.1
+ip route 40.40.40.0/24 10.2.1.2
 ```
 **Verification:** Route accepted without errors
 **Test Case ID:** TC-OC-SR-10-002
@@ -336,14 +336,14 @@ show ip route static
 ```bash
 # DUT1
 no ip route 30.30.30.0/24 10.1.1.2
-no ip route 40.40.40.0/24 10.2.1.1
+no ip route 40.40.40.0/24 10.2.1.2
 
 # DUT2
 no ip route 30.30.30.0/24 10.2.1.2
 no ip route 40.40.40.0/24 10.1.1.1
 
 # DUT3
-no ip route 40.40.40.0/24 10.2.1.1
+no ip route 40.40.40.0/24 10.2.1.2
 ```
 **Verification:** Deletion commands complete without errors
 **Test Case ID:** TC-OC-SR-10-004
@@ -400,7 +400,7 @@ show running-configuration | grep "ip route"
 **Expected Output (DUT1):**
 ```
 ip route 30.30.30.0/24 10.1.1.2
-ip route 40.40.40.0/24 10.2.1.1
+ip route 40.40.40.0/24 10.2.1.2
 ```
 
 **Expected Output (DUT2):**
@@ -411,7 +411,7 @@ ip route 40.40.40.0/24 10.1.1.1
 
 **Expected Output (DUT3):**
 ```
-ip route 40.40.40.0/24 10.2.1.1
+ip route 40.40.40.0/24 10.2.1.2
 ```
 
 **Note:** Due to known bug SOCCI-6XX, the grep filter may show entire configuration instead of filtered output. This is a CLI display issue and does not affect route functionality.
@@ -487,7 +487,7 @@ configure terminal
 
 # Remove routes
 no ip route 30.30.30.0/24 10.1.1.2
-no ip route 40.40.40.0/24 10.2.1.1
+no ip route 40.40.40.0/24 10.2.1.2
 # (adjust per DUT)
 
 # Remove IPs

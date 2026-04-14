@@ -160,7 +160,7 @@ ip route 172.16.10.0/24 10.1.1.1
 ip route 172.16.20.0/24 blackhole
 
 # Add another normal route
-ip route 172.16.30.0/24 10.2.1.2
+ip route 172.16.30.0/24 10.1.1.1
 
 exit
 ```
@@ -231,7 +231,7 @@ ip route 172.16.20.0/24 10.1.1.2
 ```bash
 ip route 172.16.10.0/24 10.1.1.1
 ip route 172.16.20.0/24 blackhole
-ip route 172.16.30.0/24 10.2.1.2
+ip route 172.16.30.0/24 10.1.1.1
 ```
 **Expected:** All routes accepted without errors
 **Test Case ID:** TC-OC-SR-11-002
@@ -286,7 +286,7 @@ no ip route 172.16.20.0/24 10.1.1.2
 # DUT2
 no ip route 172.16.10.0/24 10.1.1.1
 no ip route 172.16.20.0/24 blackhole
-no ip route 172.16.30.0/24 10.2.1.2
+no ip route 172.16.30.0/24 10.1.1.1
 ```
 **Verification:** Deletion commands complete without errors
 **Test Case ID:** TC-OC-SR-11-004
@@ -344,7 +344,7 @@ ip route 172.16.20.0/24 10.1.1.2
 ```
 ip route 172.16.10.0/24 10.1.1.1
 ip route 172.16.20.0/24 blackhole
-ip route 172.16.30.0/24 10.2.1.2
+ip route 172.16.30.0/24 10.1.1.1
 ```
 
 **Note:** Due to known bug SOCCI-6XX, the grep filter may show entire configuration instead of filtered output.
@@ -437,7 +437,7 @@ configure terminal
 
 no ip route 172.16.10.0/24 10.1.1.1
 no ip route 172.16.20.0/24 blackhole
-no ip route 172.16.30.0/24 10.2.1.2
+no ip route 172.16.30.0/24 10.1.1.1
 
 interface Ethernet 0
   no ip address
@@ -474,7 +474,7 @@ cd /home/adminuser/draksha/sonic-mgmt/spytest
 
 ./bin/spytest --tryssh 1 \
   --testbed ./testbeds/testbed_2vs.yaml \
-  tests/system/Static_Route/test_oc_static_route_02_ipv4_blackhole.py \
+  tests/system/OC_Static_Route/test_oc_static_route_02_ipv4_blackhole.py \
   --logs-path ./logs/oc_sr11_$(date +%F_%H%M%S) \
   --log-level debug --skip-init-config --ifname-type native
 ```
