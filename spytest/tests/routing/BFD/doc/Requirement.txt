@@ -1,9 +1,49 @@
-1. BFD functionality will be tested using a leaf–spine topology.
-2. All BFD-related functionalities will be validated.
-3. The setup consists of 2 nodes running the SONiC-VS image.
-4. All functionalities will be validated by sending packets using Scapy.
-5. All configurations will first be verified using show running-config.
-6. All  CLI, functional,negative and scaling scenarion to be covered
-7. After verifying the configuration, test packets will be transmitted to validate the behavior.
-8. Test case IDs will follow the format:TC_<MODULE_NAME>_<SUBMODULE_NAME>_<THREE_DIGIT_NUMBER>.
+## BFD Test Suite Requirements
+
+### Infrastructure Requirements
+1. BFD functionality will be tested using a leaf-spine topology (2-node setup)
+2. The setup consists of 2 nodes running SONiC-VS image with Klish CLI support
+3. Direct connectivity required between DUT1 and DUT2 via Ethernet0
+4. Optional traffic generator connection for advanced validation scenarios
+
+### Test Coverage Requirements
+1. All BFD-related functionalities will be comprehensively validated across:
+   - CLI configuration and show commands
+   - Session establishment and state management
+   - Routing protocol integration (static routes, BGP, OSPF)
+   - Error handling and negative scenarios
+   - Performance and scaling characteristics
+   - Traffic validation with packet analysis
+
+2. Supported BFD Modes and Features:
+   - Single-hop BFD (direct peer connection)
+   - Multi-hop BFD (with local address specification)
+   - IPv4 and IPv6 address families
+   - VRF (Virtual Routing and Forwarding) support
+   - Echo mode for faster failure detection
+   - Configurable timers (transmit, receive, detect multiplier)
+   - BFD profiles for parameter reuse
+   - Integration with routing protocols
+
+### Validation Methodology
+1. All configurations will be verified using `show running-config bfd`
+2. Peer status verified using `show bfd peers` and `show bfd peer <IP>`
+3. All functionalities will be validated by sending packets using Scapy library
+4. After verifying the configuration, test packets will be transmitted to validate behavior
+5. Traffic validation includes RFC 5880 compliance checks, packet format verification, and statistical analysis
+6. Tcpdump capture and analysis for detailed packet inspection
+7. Cleanup of all temporary files (pcap, logs) after execution
+
+### Test Organization
+1. All CLI, functional, negative, and scaling scenarios to be covered (121 test cases total)
+2. Test case IDs will follow the format: `TC_BFD_<SUBMODULE>_<THREE_DIGIT_NUMBER>`
+3. Each test includes pre-requisites, detailed steps, expected results, and validation criteria
+4. Tests grouped by functional category for organized execution
+
+### Compliance and Standards
+- RFC 5880 (BFD) compliance verification
+- RFC 5881 (BFD for IPv4 and IPv6) for single-hop BFD
+- RFC 5883 (BFD for Multihop Paths) for multi-hop BFD
+- SONiC CLI conventions and command syntax
+- SPyTest framework patterns and best practices
 
