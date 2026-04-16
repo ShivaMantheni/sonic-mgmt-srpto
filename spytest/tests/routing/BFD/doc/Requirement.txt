@@ -1,0 +1,9 @@
+1. BFD functionality will be tested using a leaf–spine topology.
+2. All BFD-related functionalities will be validated.
+3. The setup consists of 2 nodes running the SONiC-VS image.
+4. All functionalities will be validated by sending packets using Scapy.
+5. All configurations will first be verified using show running-config.
+6. All  CLI, functional,negative and scaling scenarion to be covered
+7. After verifying the configuration, test packets will be transmitted to validate the behavior.
+8. Test case IDs will follow the format:TC_<MODULE_NAME>_<SUBMODULE_NAME>_<THREE_DIGIT_NUMBER>.
+
