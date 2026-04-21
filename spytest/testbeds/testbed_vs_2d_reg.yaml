@@ -1,0 +1,31 @@
+version: 2.0
+devices:
+  D1:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.35, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
+    properties: {services: default, build: default, config: default, errors: default}
+
+  D2:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.36, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
+    properties: {services: default, build: default, config: default, errors: default}
+
+topology:
+  D1:
+    interfaces:
+      Ethernet12: {EndDevice: D2, EndPort: Ethernet12}
+      Ethernet8: {EndDevice: D2, EndPort: Ethernet8}
+      Ethernet4: {EndDevice: D2, EndPort: Ethernet4}
+  D2:
+    interfaces:
+      Ethernet12: {EndDevice: D1, EndPort: Ethernet12}
+      Ethernet8: {EndDevice: D1, EndPort: Ethernet8}
+      Ethernet4: {EndDevice: D1, EndPort: Ethernet4}
+
+services: {default: {}}
+builds:   {default: {}}
+configs:  {default: {}}
+errors:   {default: {}}
+params:   {}

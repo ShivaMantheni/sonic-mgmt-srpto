@@ -1,0 +1,24 @@
+# Testbed configuration for SM18/SM47 hardware testing
+# Single hardware device testbed for port breakout and hardware-specific tests
+# Uses D1 from 6-node regression topology
+
+version: 2.0
+
+devices:
+  # D1 - 192.168.100.35 (Hardware device for SM18/SM47/port breakout tests)
+  D1:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.35, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
+    properties: {services: default, build: default, config: default, errors: default}
+
+topology:
+  # D1 - single device, no external connections required for port breakout tests
+  D1:
+    interfaces: {}
+
+services: {default: {}}
+builds:   {default: {}}
+configs:  {default: {}}
+errors:   {default: {}}
+params:   {}

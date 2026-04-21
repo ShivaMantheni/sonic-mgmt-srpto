@@ -115,7 +115,7 @@ $SPYTEST_PYTHON -m pip install --upgrade pip
 #$SPYTEST_PYTHON -m pip install --upgrade pyopenssl
 #$SPYTEST_PYTHON -m pip uninstall -y regex bitarray pyang pyangbind
 $SPYTEST_PYTHON -m pip --no-cache-dir install $INSTALL_OPTS wheel
-$SPYTEST_PYTHON -m pip --no-cache-dir install $INSTALL_OPTS sqlite3
+#$SPYTEST_PYTHON -m pip --no-cache-dir install $INSTALL_OPTS sqlite3
 $SPYTEST_PYTHON -m pip --no-cache-dir install $INSTALL_OPTS -r $TMPFILE.0
 
 if [ $is_v3 -ne 0 ]; then

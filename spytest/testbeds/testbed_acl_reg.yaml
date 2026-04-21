@@ -1,0 +1,123 @@
+# ACL Test Testbed Configuration
+# Topology: Three SONiC DUTs with Unidirectional L3 ACL Traffic
+# Traffic Flow: D2 (Scapy TX) → D1 (ACL Ingress) → Routing → D3 (Tcpdump RX)
+
+version: 2.0
+
+devices:
+  D1:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.35
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: YourPaSsWoRd
+    properties:
+      services: default
+      build: default
+      config: default
+      errors: default
+      params: def_dut
+    description: "ACL Device Under Test (D1)"
+
+  D2:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.36
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: YourPaSsWoRd
+    properties:
+      services: default
+      build: default
+      config: default
+      errors: default
+      params: def_tg_tx
+    description: "TX Traffic Generator (D2) - sends Scapy traffic"
+
+  D3:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.37
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: YourPaSsWoRd
+    properties:
+      services: default
+      build: default
+      config: default
+      errors: default
+      params: def_tg_rx
+    description: "RX Traffic Sink (D3) - receives and verifies via tcpdump"
+
+topology:
+  D1:
+    interfaces:
+      # D1 ↔ D2 connection (ACL ingress port)
+      Ethernet0: {EndDevice: D2, EndPort: Ethernet0, params: def_tg_link}
+      # D1 ↔ D3 connection (egress port)
+      Ethernet4: {EndDevice: D3, EndPort: Ethernet0, params: def_tg_link}
+  D2:
+    interfaces:
+      # D2 ↔ D1 connection (TX port)
+      Ethernet0: {EndDevice: D1, EndPort: Ethernet0, params: def_tg_link}
+  D3:
+    interfaces:
+      # D3 ↔ D1 connection (RX port)
+      Ethernet0: {EndDevice: D1, EndPort: Ethernet4, params: def_tg_link}
+
+# Service definitions
+services:
+  default:
+    name: default
+
+# Build definitions
+builds:
+  default:
+    name: default
+
+# Configuration profiles
+configs:
+  default:
+    name: default
+    current: []
+    restore: []
+
+# Error patterns
+errors:
+  default: {}
+
+# Parameters for devices and links
+params:
+  def_dut:
+    description: "DUT (Device Under Test)"
+    management_ip: "192.168.100.35"
+    hostname: "D1"
+
+  def_tg_tx:
+    description: "TX SONiC Host - Sends Scapy traffic"
+    type: sonic
+    hostname: "D2"
+    mgmt_ip: "192.168.100.36"
+    role: "traffic_generator_tx"
+
+  def_tg_rx:
+    description: "RX SONiC Host - Receives and verifies traffic via tcpdump"
+    type: sonic
+    hostname: "D3"
+    mgmt_ip: "192.168.100.37"
+    role: "traffic_generator_rx"
+
+  def_tg_link:
+    description: "TGen link parameters for L3 ACL testing"
+    speed: "1000"
+    autoneg: "enable"
