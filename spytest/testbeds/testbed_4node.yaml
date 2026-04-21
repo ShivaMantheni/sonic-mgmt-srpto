@@ -1,0 +1,128 @@
+version: 2.0
+
+devices:
+  D1:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.197
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: root@123
+
+  D2:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.233
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: root@123
+
+  D3:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.131
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: root@123
+
+  D4:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.248
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: root@123
+
+topology:
+  D1:
+    interfaces:
+      Ethernet0:
+        EndDevice: D2
+        EndPort: Ethernet0
+      Ethernet4:
+        EndDevice: D2
+        EndPort: Ethernet4
+      Ethernet8:
+        EndDevice: D2
+        EndPort: Ethernet8
+      Ethernet12:
+        EndDevice: D2
+        EndPort: Ethernet12
+  D2:
+    interfaces:
+      Ethernet0:
+        EndDevice: D1
+        EndPort: Ethernet0
+      Ethernet4:
+        EndDevice: D1
+        EndPort: Ethernet4
+      Ethernet8:
+        EndDevice: D1
+        EndPort: Ethernet8
+      Ethernet12:
+        EndDevice: D1
+        EndPort: Ethernet12
+      Ethernet16:
+        EndDevice: D4
+        EndPort: Ethernet16
+      Ethernet20:
+        EndDevice: D4
+        EndPort: Ethernet20
+      Ethernet24:
+        EndDevice: D4
+        EndPort: Ethernet24
+      Ethernet28:
+        EndDevice: D4
+        EndPort: Ethernet28
+  D3:
+    interfaces:
+      Ethernet32:
+        EndDevice: D4
+        EndPort: Ethernet32
+      Ethernet36:
+        EndDevice: D4
+        EndPort: Ethernet36
+      Ethernet40:
+        EndDevice: D4
+        EndPort: Ethernet40
+      Ethernet44:
+        EndDevice: D4
+        EndPort: Ethernet44
+  D4:
+    interfaces:
+      Ethernet16:
+        EndDevice: D2
+        EndPort: Ethernet16
+      Ethernet20:
+        EndDevice: D2
+        EndPort: Ethernet20
+      Ethernet24:
+        EndDevice: D2
+        EndPort: Ethernet24
+      Ethernet28:
+        EndDevice: D2
+        EndPort: Ethernet28
+      Ethernet32:
+        EndDevice: D3
+        EndPort: Ethernet32
+      Ethernet36:
+        EndDevice: D3
+        EndPort: Ethernet36
+      Ethernet40:
+        EndDevice: D3
+        EndPort: Ethernet40
+      Ethernet44:
+        EndDevice: D3
+        EndPort: Ethernet44

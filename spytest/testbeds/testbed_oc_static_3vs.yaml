@@ -1,0 +1,109 @@
+# Testbed configuration for OC Static Route testing
+# 3-node topology: DUT1 <-> DUT2 <-> DUT3 (Linear topology with 2 links between each pair)
+# Build: OC-build (OpenConfig integration)
+# Test Case: OC-SR-10 - IPv4 Static Route Basic Next-Hop
+
+version: 2.0
+
+devices:
+  # DUT1 - Primary source device
+  smic_sonic1:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.62
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: root@123
+    properties:
+      services: default
+      build: default
+      config: default
+      errors: default
+
+  # DUT2 - Middle device (transit)
+  smic_sonic2:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.245
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: root@123
+    properties:
+      services: default
+      build: default
+      config: default
+      errors: default
+
+  # DUT3 - Destination device
+  smic_sonic3:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.25
+      port: 22
+    credentials:
+      username: admin
+      password: root@123
+      altpassword: root@123
+    properties:
+      services: default
+      build: default
+      config: default
+      errors: default
+
+topology:
+  # DUT1 connections
+  smic_sonic1:
+    interfaces:
+      # DUT1 Ethernet0 <-> DUT2 Ethernet0
+      Ethernet0:
+        EndDevice: smic_sonic2
+        EndPort: Ethernet0
+      # DUT1 Ethernet4 <-> DUT2 Ethernet4
+      Ethernet4:
+        EndDevice: smic_sonic2
+        EndPort: Ethernet4
+
+  # DUT2 connections
+  smic_sonic2:
+    interfaces:
+      # DUT2 Ethernet0 <-> DUT1 Ethernet0
+      Ethernet0:
+        EndDevice: smic_sonic1
+        EndPort: Ethernet0
+      # DUT2 Ethernet4 <-> DUT1 Ethernet4
+      Ethernet4:
+        EndDevice: smic_sonic1
+        EndPort: Ethernet4
+      # DUT2 Ethernet8 <-> DUT3 Ethernet8
+      Ethernet8:
+        EndDevice: smic_sonic3
+        EndPort: Ethernet8
+      # DUT2 Ethernet12 <-> DUT3 Ethernet12
+      Ethernet12:
+        EndDevice: smic_sonic3
+        EndPort: Ethernet12
+
+  # DUT3 connections
+  smic_sonic3:
+    interfaces:
+      # DUT3 Ethernet8 <-> DUT2 Ethernet8
+      Ethernet8:
+        EndDevice: smic_sonic2
+        EndPort: Ethernet8
+      # DUT3 Ethernet12 <-> DUT2 Ethernet12
+      Ethernet12:
+        EndDevice: smic_sonic2
+        EndPort: Ethernet12
+
+services: {default: {}}
+builds:   {default: {}}
+configs:  {default: {}}
+errors:   {default: {}}
+params:   {}
