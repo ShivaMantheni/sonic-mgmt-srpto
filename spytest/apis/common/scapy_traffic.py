@@ -67,19 +67,25 @@ def get_interface_mac(dut: str, interface: str, cli_type: str = "klish") -> Opti
     st.log(f"Retrieving MAC address for {interface} on {dut}")
 
     try:
-        output = st.show(dut, f"show interface {interface} | grep address", type=cli_type, skip_tmpl=True)
+        # NOTE: SONiC CLI does NOT support grep in show commands
+        # Changed from: show interface {interface} | grep address
+        # To: show interface {interface}
+        # We now parse the full output without grep
+        output = st.show(dut, f"show interface {interface}", type=cli_type, skip_tmpl=True)
         st.log(f"Interface output:\n{output}")
 
         # MAC address pattern: XX:XX:XX:XX:XX:XX
+        # Matches both uppercase and lowercase MAC addresses
         mac_pattern = r'([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})'
         match = re.search(mac_pattern, str(output))
 
         if match:
             mac = match.group(1).lower()
-            st.log(f"Found MAC address: {mac}")
+            st.log(f"✅ Found MAC address for {interface}: {mac}")
             return mac
         else:
-            st.log(f"Could not extract MAC address for {interface} on {dut}")
+            st.log(f"⚠️  Could not extract MAC address for {interface} on {dut}")
+            st.log(f"Raw output was: {output}")
             return None
 
     except Exception as e:

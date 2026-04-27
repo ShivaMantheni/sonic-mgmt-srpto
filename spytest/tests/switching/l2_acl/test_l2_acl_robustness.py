@@ -325,25 +325,24 @@ class TestL2AclRobust:
             return False, {"success": False, "error": str(e)}
 
     def _create_l2_acl_table(self, table_name: str, port: str) -> bool:
-        """Create L2 ACL table on DUT1."""
+        """Create L2 ACL table on DUT1 using raw CLI commands."""
         st.log(f"Creating L2 ACL table: {table_name}")
 
         try:
-            result = acl_api.create_acl_table(
-                self.data.dut1,
-                acl_type="L2",
-                table_name=table_name,
-                stage="INGRESS",
-                ports=[port],
-                cli_type=self.data.cli_type
-            )
+            # Use raw CLI command to create MAC ACL table
+            cmd = f"mac access-list {table_name}"
+            st.log(f"Executing: {cmd}")
+            output = st.config(self.data.dut1, cmd, type=self.data.cli_type, skip_error_check=False)
 
-            if result:
-                st.log(f"✅ ACL table '{table_name}' created")
-                return True
-            else:
-                st.error(f"❌ ACL table '{table_name}' creation failed")
+            if "Error" in str(output) or "error" in str(output).lower():
+                st.error(f"Failed to create ACL table '{table_name}'")
+                st.error(f"Output: {output}")
                 return False
+
+            # Exit from ACL mode immediately
+            st.config(self.data.dut1, "exit", type=self.data.cli_type, skip_error_check=True)
+            st.log(f"✅ ACL table '{table_name}' created using raw CLI")
+            return True
 
         except Exception as e:
             st.error(f"ACL table creation error: {e}")
@@ -359,10 +358,7 @@ class TestL2AclRobust:
         priority: int = 10
     ) -> bool:
         """
-        Create L2 ACL rule using proper klish CLI via SpyTest ACL API.
-
-        This method uses acl_api.create_acl_rule() with cli_type="klish" to configure
-        L2 ACL rules through the standard IS-CLI interface.
+        Create L2 ACL rule using raw CLI commands (SONiC klish syntax).
 
         Args:
             table_name: Name of the ACL table
@@ -375,31 +371,56 @@ class TestL2AclRobust:
         Returns:
             bool: True if rule created successfully, False otherwise
 
-        Note: Due to bug SONIC-L2-ACL-001, rules may not propagate to APPL_DB/ASIC.
+        Note: SONiC klish CLI requires 'host' keyword before MAC address in L2 ACL rules
         """
-        st.log(f"Creating ACL rule via klish CLI: {rule_name} ({action}, priority={priority})")
+        st.log(f"Creating ACL rule via raw CLI: {rule_name} ({action}, priority={priority})")
 
         try:
             dut = self.data.dut1
 
-            # Use proper ACL API with klish CLI
-            result = acl_api.create_acl_rule(
-                dut,
-                acl_type="L2",
-                table_name=table_name,
-                rule_name=rule_name,
-                packet_action=action,
-                src_mac=src_mac,
-                dst_mac=dst_mac,
-                cli_type=self.data.cli_type
-            )
+            # Enter MAC ACL table configuration mode
+            enter_cmd = f"mac access-list {table_name}"
+            st.log(f"Executing: {enter_cmd}")
+            output = st.config(dut, enter_cmd, type=self.data.cli_type, skip_error_check=False)
 
-            if result:
-                st.log(f"✅ ACL rule '{rule_name}' created successfully")
-                return True
-            else:
-                st.error(f"❌ ACL rule '{rule_name}' creation failed")
+            if "Error" in str(output) or "error" in str(output).lower():
+                st.error(f"Failed to enter MAC ACL table '{table_name}'")
+                st.error(f"Output: {output}")
                 return False
+
+            # Build the ACL rule command with proper SONiC syntax
+            # SONiC klish requires 'host' keyword before MAC address in L2 ACL rules
+            rule_cmd = f"seq {priority} {action}"
+
+            # Handle source MAC
+            if src_mac and src_mac != "any":
+                src_mac_normalized = src_mac.upper()  # MAC case sensitivity
+                rule_cmd += f" host {src_mac_normalized}"
+            else:
+                rule_cmd += " host any" if src_mac == "any" else " any"
+
+            # Handle destination MAC
+            if dst_mac and dst_mac != "any":
+                dst_mac_normalized = dst_mac.upper()
+                rule_cmd += f" {dst_mac_normalized}"
+            else:
+                rule_cmd += " any"
+
+            st.log(f"Executing: {rule_cmd}")
+            output = st.config(dut, rule_cmd, type=self.data.cli_type, skip_error_check=False)
+
+            if "Error" in str(output) or "error" in str(output).lower():
+                st.error(f"Failed to create ACL rule '{rule_name}'")
+                st.error(f"Command: {rule_cmd}")
+                st.error(f"Output: {output}")
+                # Exit ACL mode before returning
+                st.config(dut, "exit", type=self.data.cli_type, skip_error_check=True)
+                return False
+
+            # Exit from ACL mode
+            st.config(dut, "exit", type=self.data.cli_type, skip_error_check=True)
+            st.log(f"✅ ACL rule '{rule_name}' created successfully using raw CLI")
+            return True
 
         except Exception as e:
             st.error(f"ACL rule creation error: {e}")

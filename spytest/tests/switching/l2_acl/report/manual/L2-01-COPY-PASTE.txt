@@ -1,0 +1,82 @@
+================================================================================
+                    L2-01 CONFIGURATION - COPY & PASTE
+                            SUPER SIMPLE VERSION
+================================================================================
+
+TERMINAL SESSION BELOW - FOLLOW EXACTLY
+================================================================================
+
+
+Step 1: Copy this entire command and paste in your terminal
+────────────────────────────────────────────────────────────────────────────
+
+ssh admin@192.168.100.137
+
+
+Step 2: When asked for password, type:
+
+sonic@123
+
+
+Step 3: You should see the sonic prompt. Now copy & paste this:
+
+sonic-cli
+
+
+Step 4: You should see "sonic#". Now copy & paste ALL of this (entire block):
+
+────────────────────────────────────────────────────────────────────────────
+configure terminal
+int Ethernet272
+switchport mode access
+exit
+int Ethernet513
+switchport mode access
+exit
+mac access-list test-l2-01
+10 permit source-mac 00:AA:AA:AA:AA:01
+exit
+int Ethernet272
+mac access-group test-l2-01 in
+exit
+exit
+────────────────────────────────────────────────────────────────────────────
+
+
+Step 5: Now verify the configuration. Copy & paste these one at a time:
+
+────────────────────────────────────────────────────────────────────────────
+show mac access-list
+────────────────────────────────────────────────────────────────────────────
+
+SHOULD SEE:
+  MAC Access Lists
+    Name: test-l2-01
+      10 permit source-mac 00:AA:AA:AA:AA:01
+
+────────────────────────────────────────────────────────────────────────────
+show running-config interface Ethernet 272 | include access-group
+────────────────────────────────────────────────────────────────────────────
+
+SHOULD SEE:
+  mac access-group test-l2-01 in
+
+────────────────────────────────────────────────────────────────────────────
+show running-config interface Ethernet 513 | include switchport
+────────────────────────────────────────────────────────────────────────────
+
+SHOULD SEE:
+  switchport mode access
+
+────────────────────────────────────────────────────────────────────────────
+show interfaces status | grep -E "Ethernet272|Ethernet513"
+────────────────────────────────────────────────────────────────────────────
+
+SHOULD SEE:
+  Ethernet272 ...  100G ... up ... up
+  Ethernet513 ...   25G ... up ... up
+
+
+================================================================================
+IF ALL 4 VERIFICATIONS SHOW ABOVE OUTPUTS - CONFIGURATION IS COMPLETE! ✓
+================================================================================

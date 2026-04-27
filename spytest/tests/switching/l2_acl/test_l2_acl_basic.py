@@ -435,7 +435,7 @@ class TestL2AclBasic:
 
     @classmethod
     def _configure_acl(cls, acl_config: Dict[str, Any]) -> bool:
-        """Configure ACL tables and rules on DUT1."""
+        """Configure ACL tables and rules on DUT1 using raw CLI commands."""
         st.banner("Configuring L2 ACL rules on DUT1")
         cli_type = cls.data.cli_type
         dut1 = cls.data.dut1
@@ -451,24 +451,13 @@ class TestL2AclBasic:
                 stage = table_cfg.get("stage", "INGRESS")
                 ports = table_cfg.get("ports", [cls.data.dut1_port_to_dut2])
 
-                # Create ACL table
-                result = acl_api.create_acl_table(
-                    dut1,
-                    acl_type=acl_type,
-                    table_name=table_name,
-                    stage=stage,
-                    ports=ports,
-                    cli_type=cli_type
-                )
-
-                if not result:
-                    st.error(f"Failed to create ACL table: {table_name}")
-                    return False
-
-                st.log(f"✅ L2 ACL table '{table_name}' created successfully")
+                # Start building raw CLI commands for MAC ACL
+                commands = [f"mac access-list {table_name}"]
 
                 # Create ACL rules for this table
                 rules = table_cfg.get("rules", [])
+                rule_seq = 1
+
                 for rule_cfg in rules:
                     rule_name = rule_cfg.get("rule_name")
                     packet_action = rule_cfg.get("action", "deny")
@@ -477,27 +466,71 @@ class TestL2AclBasic:
                     ethertype = rule_cfg.get("ethertype", None)
                     vlan_id = rule_cfg.get("vlan_id", None)
 
-                    st.log(f"Creating L2 ACL rule: {rule_name} ({packet_action})")
+                    st.log(f"Creating L2 ACL rule: {rule_name} ({packet_action})  - seq {rule_seq}")
 
-                    # Create L2 ACL rule
-                    result = acl_api.create_acl_rule(
-                        dut1,
-                        acl_type=acl_type,
-                        table_name=table_name,
-                        rule_name=rule_name,
-                        packet_action=packet_action,
-                        src_mac=src_mac,
-                        dst_mac=dst_mac,
-                        cli_type=cli_type
-                    )
+                    # Build the ACL rule command with proper SONiC syntax
+                    # SONiC klish requires 'host' keyword before MAC address in L2 ACL rules
+                    rule_cmd = f"seq {rule_seq} {packet_action}"
 
-                    if not result:
-                        st.error(f"Failed to create ACL rule: {rule_name}")
+                    # Handle source MAC
+                    if src_mac and src_mac != "any":
+                        src_mac_normalized = src_mac.upper()  # MAC case sensitivity
+                        rule_cmd += f" host {src_mac_normalized}"
+                    else:
+                        rule_cmd += " host any" if src_mac == "any" else " any"
+
+                    # Handle destination MAC
+                    if dst_mac and dst_mac != "any":
+                        dst_mac_normalized = dst_mac.upper()
+                        rule_cmd += f" {dst_mac_normalized}"
+                    else:
+                        rule_cmd += " any"
+
+                    # Handle VLAN
+                    if vlan_id:
+                        rule_cmd += f" vlan {vlan_id}"
+
+                    # Handle EtherType
+                    if ethertype:
+                        rule_cmd += f" ether-type {ethertype}"
+
+                    commands.append(rule_cmd)
+                    rule_seq += 1
+
+                # Exit from ACL mode
+                commands.append("exit")
+
+                # Execute all commands in sequence to maintain CLI context
+                for cmd in commands:
+                    st.log(f"Executing: {cmd}")
+                    output = st.config(dut1, cmd, type=cli_type, skip_error_check=False)
+                    if "Error" in str(output) or "error" in str(output).lower():
+                        st.error(f"Command failed: {cmd}")
+                        st.error(f"Output: {output}")
+                        st.error(f"Failed to configure ACL table: {table_name}")
                         return False
 
-                    st.log(f"✅ L2 ACL rule '{rule_name}' created successfully")
+                st.log(f"✅ L2 ACL table '{table_name}' created successfully using raw CLI")
 
-            st.log("✅ All L2 ACL tables and rules configured successfully")
+                # Apply ACL to interface
+                interface_cmd = cls.data.dut1_port_to_dut2.replace("Ethernet", "Ethernet ")
+                apply_commands = [
+                    f"interface {interface_cmd}",
+                    f"mac access-group {table_name} in",
+                    "exit"
+                ]
+
+                for cmd in apply_commands:
+                    st.log(f"Executing: {cmd}")
+                    output = st.config(dut1, cmd, type=cli_type, skip_error_check=False)
+                    if "Error" in str(output) or "error" in str(output).lower():
+                        st.error(f"Command failed: {cmd}")
+                        st.error(f"Failed to apply ACL to interface: {cls.data.dut1_port_to_dut2}")
+                        return False
+
+                st.log(f"✅ Applied L2 ACL '{table_name}' to interface {cls.data.dut1_port_to_dut2}")
+
+            st.log("✅ All L2 ACL tables and rules configured successfully using raw CLI")
             return True
 
         except Exception as e:

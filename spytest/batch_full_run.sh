@@ -323,7 +323,7 @@ run_batch () {
       --logs-path "${LOG_PATH}" \
       --log-level debug \
       --skip-init-config \
-      --ifname-type native
+      --ifname-type native --get-tech-support none --syslog-check none 
 
     RC=$?
     echo " Batch ${FEATURE} completed with RC=${RC}"

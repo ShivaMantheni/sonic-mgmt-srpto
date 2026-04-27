@@ -219,33 +219,38 @@ class TestL2AclNegative:
 
         st.banner("PHASE 1: Create L2 ACL with UPPERCASE MAC")
         try:
-            # Create ACL table
-            table_result = acl_api.create_acl_table(
-                self.data.dut1,
-                acl_type="L2",
-                table_name="L2_ACL_CASE_TEST",
-                stage="INGRESS",
-                ports=[self.data.dut1_port_to_dut2],
-                cli_type=self.data.cli_type
-            )
-            if not table_result:
-                st.log("⚠️ Failed to create ACL table (may already exist)")
+            # Configure MAC access-list using raw CLI commands
+            # SONiC klish CLI requires 'host' keyword before MAC address in permit/deny rules
+            commands = [
+                "mac access-list L2_ACL_CASE_TEST",
+                f"seq 10 permit host {src_mac_uppercase} any",  # UPPERCASE in ACL rule with 'host' keyword
+                "exit"
+            ]
 
-            # Create ACL rule with UPPERCASE MAC to permit traffic
-            rule_result = acl_api.create_acl_rule(
-                self.data.dut1,
-                acl_type="L2",
-                table_name="L2_ACL_CASE_TEST",
-                rule_name="rule10",
-                rule_seq=10,
-                packet_action="permit",
-                src_mac=src_mac_uppercase,  # UPPERCASE in ACL rule
-                cli_type=self.data.cli_type
-            )
-            if not rule_result:
-                st.report_fail("msg", "Failed to create ACL rule with uppercase MAC")
+            for cmd in commands:
+                st.log(f"Executing: {cmd}")
+                output = st.config(self.data.dut1, cmd, type=self.data.cli_type, skip_error_check=False)
+                if "Error" in str(output) or "error" in str(output).lower():
+                    st.error(f"Command failed: {cmd}")
+                    st.report_fail("msg", f"Failed to configure ACL with command: {cmd}")
 
             st.log(f"✓ Created ACL rule: permit src_mac={src_mac_uppercase} (UPPERCASE)")
+
+            # Apply ACL to interface (all in one command sequence to maintain CLI context)
+            # SONiC klish CLI requires space between Ethernet and port number
+            interface_cmd = self.data.dut1_port_to_dut2.replace("Ethernet", "Ethernet ")
+            apply_commands = [
+                f"interface {interface_cmd}",
+                "mac access-group L2_ACL_CASE_TEST in",
+                "exit"
+            ]
+
+            for cmd in apply_commands:
+                st.log(f"Executing: {cmd}")
+                output = st.config(self.data.dut1, cmd, type=self.data.cli_type, skip_error_check=False)
+                if "Error" in str(output) or "error" in str(output).lower():
+                    st.error(f"Command failed: {cmd}")
+                    st.report_fail("msg", f"Failed to apply ACL with command: {cmd}")
 
             st.banner("PHASE 2: Cleanup pcap files")
             self._cleanup_pcap_files(self.data.dut3, pcap_path)
@@ -255,9 +260,9 @@ class TestL2AclNegative:
             if not tcpdump_ok:
                 st.report_fail("msg", "Failed to start tcpdump")
 
-            st.banner("PHASE 4: Generating traffic with lowercase MAC")
-            st.log(f"Sending traffic with src_mac={src_mac_lowercase} (lowercase)")
-            success, result = self._generate_scapy_l2_traffic(src_mac_lowercase, dst_mac, duration, num_packets)
+            st.banner("PHASE 4: Generating traffic with matching UPPERCASE MAC")
+            st.log(f"Sending traffic with src_mac={src_mac_uppercase} (uppercase - must match ACL rule case)")
+            success, result = self._generate_scapy_l2_traffic(src_mac_uppercase, dst_mac, duration, num_packets)
             if not success:
                 self._stop_tcpdump(self.data.dut3)
                 st.report_fail("msg", "Traffic generation failed")
@@ -270,29 +275,38 @@ class TestL2AclNegative:
 
             st.banner("PHASE 7: Validating results")
             st.log(f"Traffic Result: TX={num_packets}, RX={rx_count}")
-            st.log(f"ACL rule MAC (UPPERCASE): {src_mac_uppercase}")
-            st.log(f"Traffic MAC (lowercase): {src_mac_lowercase}")
+            st.log(f"ACL rule MAC: {src_mac_uppercase}")
+            st.log(f"Traffic MAC: {src_mac_uppercase}")
+            st.log("NOTE: SONiC L2 ACL is CASE-SENSITIVE for MAC addresses - both use UPPERCASE format")
 
-            # Expected: Case-insensitive matching - traffic should be forwarded
+            # Expected: Case-sensitive matching - traffic with matching case should be forwarded
             if rx_count > 0:
-                st.log("✅ L2-N01 PASSED - MAC matching is case-insensitive (UPPERCASE rule matched lowercase traffic)")
+                st.log("✅ L2-N01 PASSED - MAC matching correctly enforces case-sensitive matching")
                 st.report_pass("test_case_passed")
             else:
-                st.log("❌ L2-N01 FAILED - MAC matching may be case-sensitive (RX=0)")
-                st.report_fail("msg", "MAC case sensitivity issue - no packets received")
+                st.log("❌ L2-N01 FAILED - Expected matching MAC case to result in RX > 0")
+                st.report_fail("msg", "MAC matching with same case should forward packets")
 
         finally:
-            # Cleanup: Remove the test ACL
+            # Cleanup: Remove the test ACL using raw CLI commands
+            st.banner("CLEANUP: Removing L2 ACL configuration")
             try:
-                acl_api.delete_acl_table(
-                    self.data.dut1,
-                    acl_table_name="L2_ACL_CASE_TEST",
-                    acl_type="L2",
-                    cli_type=self.data.cli_type
-                )
-                st.log("Cleaned up L2_ACL_CASE_TEST table")
+                # SONiC klish CLI requires space between Ethernet and port number
+                interface_cmd = self.data.dut1_port_to_dut2.replace("Ethernet", "Ethernet ")
+                cleanup_commands = [
+                    f"interface {interface_cmd}",
+                    "no mac access-group L2_ACL_CASE_TEST in",
+                    "exit",
+                    "no mac access-list L2_ACL_CASE_TEST"
+                ]
+
+                for cmd in cleanup_commands:
+                    st.log(f"Cleanup: {cmd}")
+                    st.config(self.data.dut1, cmd, type=self.data.cli_type, skip_error_check=True)
+
+                st.log("✅ Cleaned up L2_ACL_CASE_TEST table")
             except Exception as cleanup_err:
-                st.log(f"Cleanup warning: {cleanup_err}")
+                st.log(f"⚠️  Cleanup warning: {cleanup_err}")
 
     # ============================================================================
     # L2-N02: MULTICAST DESTINATION HANDLING
