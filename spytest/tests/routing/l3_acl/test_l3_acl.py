@@ -35,6 +35,12 @@ Features:
   ✅ Deep packet inspection (optional: packet field validation)
   ✅ Automatic cleanup (try/finally blocks)
   ✅ Centralized test reporting
+  ✅ PHASE 2.5 ACL verification: Comprehensive pre-traffic validation
+     - Uses 'show ip access-lists' to verify rules exist with IPs intact
+     - Uses 'show ip access-group' to verify ACL is applied to interface
+     - Detects critical backend field dropping bugs before traffic testing
+  ✅ PHASE 1.5 ACL verification: Validates IP addresses are NOT dropped by backend
+  ✅ Early detection of critical ACL backend bugs (IP/MAC field loss)
 """
 
 from __future__ import annotations
@@ -93,7 +99,6 @@ pytestmark = [
 VAR_FILE_ENV = "L3_ACL_VAR_FILE"
 DEFAULT_VAR_FILE = (
     Path(__file__).resolve().parents[3]
-    / "spytest"
     / "vars"
     / "routing"
     / "l3_acl"
@@ -348,10 +353,12 @@ class TestL3AclBasic:
                 st.log(f"Bringing up interface {interface} on {dut} (no shutdown)")
                 try:
                     # Use the raw command to ensure interface is enabled
+                    # SONiC klish requires space between "interface" and port number (e.g., "interface Ethernet 16")
+                    interface_cmd = interface.replace("Ethernet", "Ethernet ")
                     if cli_type == "klish":
-                        cmd = f"interface {interface}\nno shutdown\nexit"
+                        cmd = f"interface {interface_cmd}\nno shutdown\nexit"
                     else:
-                        cmd = f"interface {interface}\nno shutdown\nexit"
+                        cmd = f"interface {interface_cmd}\nno shutdown\nexit"
 
                     st.config(dut, cmd, type=cli_type)
                     st.log(f"✅ Interface {interface} brought UP (no shutdown)")
@@ -436,6 +443,176 @@ class TestL3AclBasic:
         st.log("✅ Static routes configured for cross-subnet L3 routing")
 
     @classmethod
+    def _verify_acl_config(cls, table_name: str, rule_cfg: Dict[str, Any]) -> bool:
+        """
+        Verify ACL configuration was applied correctly (PHASE 1.5).
+
+        Checks that IP addresses are present in the rule (not dropped by backend).
+        Similar to L2 ACL validation but for IP addresses instead of MAC addresses.
+        """
+        st.banner("PHASE 1.5: Verifying ACL Configuration (subcase)")
+
+        try:
+            st.log(f"Executing: show ip access-lists")
+            acl_output = st.show(cls.data.dut1, "show ip access-lists", type=cls.data.cli_type, skip_tmpl=True)
+            st.log(f"IP Access Lists Output:\n{acl_output}")
+
+            acl_output_str = str(acl_output)
+
+            # Check 1: Table exists
+            if table_name not in acl_output_str:
+                st.error(f"❌ ACL table '{table_name}' NOT found in show ip access-lists")
+                return False
+
+            st.log(f"✅ ACL table '{table_name}' found")
+
+            # Check 2: IP addresses are present in rule (CRITICAL - IPs should NOT be dropped)
+            src_ip = rule_cfg.get("src_ip", "any")
+            dst_ip = rule_cfg.get("dst_ip", "any")
+
+            # Helper function to extract IP address without CIDR prefix
+            def extract_ip_without_prefix(ip_str):
+                """Extract IP address without CIDR prefix (e.g., '10.0.0.99/32' → '10.0.0.99')"""
+                if "/" in ip_str:
+                    return ip_str.split("/")[0]
+                return ip_str
+
+            # Check if configured IPs appear in output (excluding "any")
+            # Note: Show command displays IPs without CIDR prefix, so we need to check both with and without
+            if src_ip != "any":
+                src_ip_bare = extract_ip_without_prefix(src_ip)
+                if src_ip_bare not in acl_output_str and src_ip not in acl_output_str:
+                    st.error(f"❌ CRITICAL BUG: Source IP '{src_ip}' (or {src_ip_bare}) NOT found in ACL rule")
+                    st.error(f"   Configured: {src_ip}")
+                    st.error(f"   This means the ACL rule may have lost IP field (backend bug)")
+                    return False
+                st.log(f"✅ Source IP '{src_ip}' (displayed as '{src_ip_bare}') found in ACL rule")
+
+            if dst_ip != "any":
+                dst_ip_bare = extract_ip_without_prefix(dst_ip)
+                if dst_ip_bare not in acl_output_str and dst_ip not in acl_output_str:
+                    st.error(f"❌ CRITICAL BUG: Destination IP '{dst_ip}' (or {dst_ip_bare}) NOT found in ACL rule")
+                    st.error(f"   Configured: {dst_ip}")
+                    st.error(f"   This means the ACL rule may have lost IP field (backend bug)")
+                    return False
+                st.log(f"✅ Destination IP '{dst_ip}' (displayed as '{dst_ip_bare}') found in ACL rule")
+
+            st.log("✅ ACL configuration verified successfully")
+            return True
+
+        except Exception as e:
+            st.warn(f"Error verifying ACL config: {e}")
+            return False
+
+    @classmethod
+    def _verify_phase_2_5_acl_applied(cls, acl_config: Dict[str, Any]) -> bool:
+        """
+        PHASE 2.5 Comprehensive Verification: Verify ACL is properly configured and applied.
+
+        This is the critical validation layer before traffic testing:
+        - Uses `show ip access-lists` to verify rules exist
+        - Uses `show ip access-group` to verify ACL is applied to interfaces
+        - Detects backend field dropping bugs (IPs should NOT be stripped)
+
+        Returns:
+            bool: True if verification passes, False otherwise
+        """
+        st.banner("PHASE 2.5: Comprehensive ACL Verification (show ip access-lists, show ip access-group)")
+
+        try:
+            # Get ACL table and first rule for verification
+            acl_table_config = acl_config.get("acl_tables", [])
+            if not acl_table_config:
+                st.warn("No ACL tables to verify")
+                return True
+
+            first_table = acl_table_config[0]
+            table_name = first_table.get("name", "")
+            table_iface = first_table.get("acl_iface", "")
+
+            st.log(f"Verifying ACL table: {table_name} on interface: {table_iface}")
+
+            # STEP 1: Verify using show ip access-lists
+            st.log("=" * 60)
+            st.log("Step 1: Verifying show ip access-lists")
+            st.log("=" * 60)
+            st.log(f"Executing: show ip access-lists")
+            acl_lists_output = st.show(cls.data.dut1, "show ip access-lists", type=cls.data.cli_type, skip_tmpl=True)
+            st.log(f"IP Access Lists Output:\n{acl_lists_output}")
+
+            acl_lists_str = str(acl_lists_output)
+
+            # Verify table exists in show ip access-lists
+            if table_name not in acl_lists_str:
+                st.error(f"❌ ACL table '{table_name}' NOT found in show ip access-lists")
+                return False
+
+            st.log(f"✅ ACL table '{table_name}' found in show ip access-lists")
+
+            # Verify IP addresses are not dropped (check first rule)
+            rules = first_table.get("acl_rules", [])
+            if rules:
+                first_rule = rules[0]
+                src_ip = first_rule.get("src_ip", "any")
+                dst_ip = first_rule.get("dst_ip", "any")
+
+                # Helper function to extract IP address without CIDR prefix
+                def extract_ip_without_prefix(ip_str):
+                    """Extract IP address without CIDR prefix (e.g., '10.0.0.99/32' → '10.0.0.99')"""
+                    if "/" in ip_str:
+                        return ip_str.split("/")[0]
+                    return ip_str
+
+                # Check source IP
+                # Note: Show command displays IPs without CIDR prefix, so we need to check both with and without
+                if src_ip != "any":
+                    src_ip_bare = extract_ip_without_prefix(src_ip)
+                    if src_ip_bare not in acl_lists_str and src_ip not in acl_lists_str:
+                        st.error(f"❌ CRITICAL BUG: Source IP '{src_ip}' (or {src_ip_bare}) NOT found in show ip access-lists")
+                        st.error(f"   Configured: {src_ip}")
+                        st.error(f"   This indicates backend field dropping bug")
+                        return False
+                    st.log(f"✅ Source IP '{src_ip}' (displayed as '{src_ip_bare}') verified in show ip access-lists")
+
+                # Check destination IP
+                if dst_ip != "any":
+                    dst_ip_bare = extract_ip_without_prefix(dst_ip)
+                    if dst_ip_bare not in acl_lists_str and dst_ip not in acl_lists_str:
+                        st.error(f"❌ CRITICAL BUG: Destination IP '{dst_ip}' (or {dst_ip_bare}) NOT found in show ip access-lists")
+                        st.error(f"   Configured: {dst_ip}")
+                        st.error(f"   This indicates backend field dropping bug")
+                        return False
+                    st.log(f"✅ Destination IP '{dst_ip}' (displayed as '{dst_ip_bare}') verified in show ip access-lists")
+
+            # STEP 2: Verify using show ip access-group
+            st.log("=" * 60)
+            st.log("Step 2: Verifying show ip access-group")
+            st.log("=" * 60)
+            st.log(f"Executing: show ip access-group (SONiC klish does NOT support interface filtering)")
+            acl_group_output = st.show(cls.data.dut1, "show ip access-group", type=cls.data.cli_type, skip_tmpl=True)
+            st.log(f"IP Access Group Output:\n{acl_group_output}")
+
+            acl_group_str = str(acl_group_output)
+
+            # Verify ACL is applied to interface
+            if table_name in acl_group_str:
+                st.log(f"✅ ACL table '{table_name}' verified as applied in show ip access-group")
+            else:
+                st.error(f"❌ ACL table '{table_name}' NOT found in show ip access-group")
+                st.error(f"   This means ACL is not bound to interface {table_iface}")
+                return False
+
+            st.log("=" * 60)
+            st.log("✅ PHASE 2.5 VERIFICATION PASSED: ACL is properly configured and applied")
+            st.log("=" * 60)
+            return True
+
+        except Exception as e:
+            st.error(f"❌ Error during PHASE 2.5 verification: {e}")
+            st.warn(f"Exception details: {str(e)}")
+            return False
+
+    @classmethod
     def _configure_acl(cls, acl_config: Dict[str, Any]) -> bool:
         """Configure ACL tables and rules on DUT1."""
         st.banner("Configuring ACL rules on DUT1")
@@ -498,6 +675,14 @@ class TestL3AclBasic:
                         return False
 
                     st.log(f"✅ ACL rule '{rule_name}' created successfully")
+
+                # ===== PHASE 1.5: Verify ACL Configuration =====
+                # Verify that first rule has correct IP fields (catch backend bugs early)
+                if rules:
+                    first_rule = rules[0]
+                    if not cls._verify_acl_config(table_name, first_rule):
+                        st.error(f"ACL configuration verification failed")
+                        return False
 
             st.log("✅ All ACL tables and rules configured successfully")
             return True
@@ -852,6 +1037,14 @@ class TestL3AclBasic:
         else:
             st.log("No ACL configuration found in test variables")
 
+        # ===== PHASE 2.5: Verify ACL Configuration and Application =====
+        st.banner("PHASE 2.5: Verifying ACL configuration")
+        if acl_config:
+            if not self._verify_phase_2_5_acl_applied(acl_config):
+                st.report_fail("msg", "PHASE 2.5 ACL verification failed - ACL not properly configured/applied")
+        else:
+            st.log("Skipping PHASE 2.5 verification - no ACL config")
+
         # ===== PHASE 3: Start tcpdump listener =====
         st.banner("PHASE 3: Starting tcpdump listener on DUT3")
         dut3_rx_interface = self.data.dut3_eth0_interface or "Ethernet0"
@@ -1009,6 +1202,14 @@ class TestL3AclBasic:
                 st.report_fail("msg", "Failed to configure ACL")
         else:
             st.log("No ACL configuration found in test variables")
+
+        # ===== PHASE 2.5: Verify ACL Configuration and Application =====
+        st.banner("PHASE 2.5: Verifying ACL configuration")
+        if acl_config:
+            if not self._verify_phase_2_5_acl_applied(acl_config):
+                st.report_fail("msg", "PHASE 2.5 ACL verification failed - ACL not properly configured/applied")
+        else:
+            st.log("Skipping PHASE 2.5 verification - no ACL config")
 
         # ===== PHASE 3: Start tcpdump listener =====
         st.banner("PHASE 3: Starting tcpdump listener on DUT3")

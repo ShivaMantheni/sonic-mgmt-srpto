@@ -44,7 +44,6 @@ pytestmark = [
 VAR_FILE_ENV = "L3_ACL_VAR_FILE"
 DEFAULT_VAR_FILE = (
     Path(__file__).resolve().parents[3]
-    / "spytest"
     / "vars"
     / "routing"
     / "l3_acl"

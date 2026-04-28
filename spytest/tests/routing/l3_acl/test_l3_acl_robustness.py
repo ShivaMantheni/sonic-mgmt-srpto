@@ -26,6 +26,14 @@ Description:
   Traffic Flow: DUT2 → DUT1 (ACL ingress) → DUT3 (tcpdump capture)
   Verification: Pcap file analysis using Scapy rdpcap()
 
+  IMPORTANT IMPLEMENTATION NOTES:
+  ✅ All ACL rules include PHASE 1.5 verification after creation to validate:
+     - ACL table/rule name exists in output
+     - IP addresses are NOT dropped by backend (critical bug detection)
+  ✅ For raw CLI rule creation: Always use "no seq {number}" cleanup before
+     creating rules to avoid conflicts in rapid create/delete cycles
+  ✅ Show commands use skip_tmpl=True to get raw output for validation
+
 Pre-requisites:
   - Topology: 3-node (D1D2D3) SONiC DUTs
   - DUTs: Virtual (SONiC-VS) or Hardware with direct connections
@@ -72,7 +80,6 @@ pytestmark = [
 VAR_FILE_ENV = "L3_ACL_VAR_FILE"
 DEFAULT_VAR_FILE = (
     Path(__file__).resolve().parents[3]
-    / "spytest"
     / "vars"
     / "routing"
     / "l3_acl"
