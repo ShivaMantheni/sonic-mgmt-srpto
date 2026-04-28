@@ -69,16 +69,49 @@ class TestL2AclNegative:
         """Initialize test data and DUT topology."""
         st.banner("L2 ACL Negative Test Suite - Setup Phase")
 
-        # Load testbed topology
-        testbed_topology = None
+        # Get testbed topology from SPyTest framework variables
+        # The testbed YAML is passed via --testbed flag and loaded by framework
+        testbed_topology = {}
+
         try:
-            testbed_file_path = Path(__file__).resolve().parents[3] / "testbeds" / "testbed_acl.yaml"
-            if testbed_file_path.is_file():
-                with testbed_file_path.open(encoding="utf-8") as handle:
-                    testbed_data = yaml.safe_load(handle) or {}
-                    testbed_topology = testbed_data.get("topology", {})
+            testbed_vars = st.get_testbed_vars()
+            if testbed_vars and hasattr(testbed_vars, 'topology'):
+                testbed_topology = testbed_vars.topology or {}
+                if testbed_topology:
+                    st.log(f"✅ Retrieved testbed topology from framework")
+                    st.log(f"   Devices found: {list(testbed_topology.keys())}")
         except Exception as e:
-            st.warn(f"Error loading testbed topology: {e}")
+            st.debug(f"Could not retrieve testbed topology from framework: {e}")
+
+        # Final fallback: Load from testbed file if framework methods fail
+        # The testbed file is already passed via --testbed CLI flag and loaded by framework
+        # We load it here only as fallback if framework APIs don't provide topology
+        if not testbed_topology:
+            try:
+                testbed_candidates = [
+                    "testbed_acl.yaml",
+                    "testbed_acl_hw.yaml",
+                    "testbed_acl_vs.yaml",
+                    "testbed_acl_new.yaml",
+                ]
+                testbed_base_path = Path(__file__).resolve().parents[3] / "testbeds"
+
+                for testbed_name in testbed_candidates:
+                    testbed_file = testbed_base_path / testbed_name
+                    if testbed_file.is_file():
+                        try:
+                            with testbed_file.open(encoding="utf-8") as f:
+                                testbed_data = yaml.safe_load(f) or {}
+                                test_topology = testbed_data.get("topology", {})
+                                if test_topology:
+                                    testbed_topology = test_topology
+                                    st.log(f"✅ Loaded testbed topology from file: {testbed_file.name}")
+                                    break
+                        except Exception as e:
+                            st.debug(f"Could not load {testbed_file}: {e}")
+                            continue
+            except Exception as e:
+                st.warn(f"Error during testbed discovery fallback: {e}")
 
         # Initialize topology
         topology = st.ensure_min_topology("D1D2:1", "D1D3:1")
@@ -90,11 +123,26 @@ class TestL2AclNegative:
         cls.data.dut2 = getattr(topology, "D2")  # TX host
         cls.data.dut3 = getattr(topology, "D3")  # RX host
 
-        # Discover connected ports
-        cls.data.dut1_port_to_dut2 = _get_connected_port(testbed_topology, "DUT1", "DUT2") or "Ethernet40"
-        cls.data.dut2_port_to_dut1 = _get_connected_port(testbed_topology, "DUT2", "DUT1") or "Ethernet24"
-        cls.data.dut1_port_to_dut3 = _get_connected_port(testbed_topology, "DUT1", "DUT3") or "Ethernet24"
-        cls.data.dut3_port_to_dut1 = _get_connected_port(testbed_topology, "DUT3", "DUT1") or "Ethernet24"
+        # Discover connected ports from testbed topology (fail if not found)
+        cls.data.dut1_port_to_dut2 = _get_connected_port(testbed_topology, "D1", "D2") or \
+                                     _get_connected_port(testbed_topology, "DUT1", "DUT2")
+        cls.data.dut2_port_to_dut1 = _get_connected_port(testbed_topology, "D2", "D1") or \
+                                     _get_connected_port(testbed_topology, "DUT2", "DUT1")
+        cls.data.dut1_port_to_dut3 = _get_connected_port(testbed_topology, "D1", "D3") or \
+                                     _get_connected_port(testbed_topology, "DUT1", "DUT3")
+        cls.data.dut3_port_to_dut1 = _get_connected_port(testbed_topology, "D3", "D1") or \
+                                     _get_connected_port(testbed_topology, "DUT3", "DUT1")
+
+        # Verify all required ports were discovered
+        if not all([cls.data.dut1_port_to_dut2, cls.data.dut2_port_to_dut1,
+                    cls.data.dut1_port_to_dut3, cls.data.dut3_port_to_dut1]):
+            st.error("❌ Failed to discover all required ports from testbed topology")
+            st.error(f"   D1->D2: {cls.data.dut1_port_to_dut2}")
+            st.error(f"   D2->D1: {cls.data.dut2_port_to_dut1}")
+            st.error(f"   D1->D3: {cls.data.dut1_port_to_dut3}")
+            st.error(f"   D3->D1: {cls.data.dut3_port_to_dut1}")
+            st.error("Ensure testbed YAML has correct device names (D1/D2/D3 or DUT1/DUT2/DUT3)")
+            raise ValueError("Port discovery from testbed failed - cannot proceed with tests")
 
         st.log(f"Discovered ports: D1->D2={cls.data.dut1_port_to_dut2}, "
                f"D2->D1={cls.data.dut2_port_to_dut1}, "

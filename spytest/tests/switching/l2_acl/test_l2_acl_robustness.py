@@ -84,6 +84,58 @@ def _get_connected_port(topology_config: Dict[str, Any], from_dut: str, to_dut: 
     return None
 
 
+def _remove_ip_addresses(dut: str, interface: str, cli_type: str = "klish") -> None:
+    """
+    Remove all IP addresses from a specific interface.
+
+    Uses 'show ip interfaces' to discover configured IP addresses,
+    then removes them with proper 'no ip address <ip>' commands.
+    Skips management interfaces (eth0).
+
+    Args:
+        dut: Device under test
+        interface: Interface name (e.g., "Ethernet0", "Ethernet16")
+        cli_type: CLI type (default: klish)
+    """
+    try:
+        st.log(f"Discovering IP addresses on {interface}...")
+
+        # Get all IP interfaces to find addresses on this interface
+        output = st.show(dut, "show ip interfaces", type=cli_type, skip_tmpl=True)
+
+        # Parse output to find IP addresses on this specific interface
+        # Format: "Ethernet16           10.0.0.1/24"
+        ip_addresses = []
+        for line in str(output).split('\n'):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+
+            parts = line.split()
+            if len(parts) >= 2 and interface in parts[0]:
+                # Found an IP address on this interface
+                ip_addr = parts[1].split('/')[0]  # Remove CIDR notation
+                if ip_addr and ip_addr != 'Interface':
+                    ip_addresses.append(ip_addr)
+                    st.log(f"  Found IP: {ip_addr} on {interface}")
+
+        # Remove each discovered IP address
+        if ip_addresses:
+            st.log(f"Removing {len(ip_addresses)} IP address(es) from {interface}...")
+            for ip_addr in ip_addresses:
+                try:
+                    cmd = f"no ip address {ip_addr}"
+                    st.log(f"  Executing: {cmd}")
+                    st.config(dut, cmd, type=cli_type, skip_error_check=True)
+                except Exception as e:
+                    st.warn(f"Could not remove {ip_addr}: {e}")
+        else:
+            st.log(f"  No IP addresses found on {interface}")
+
+    except Exception as e:
+        st.warn(f"Error removing IP addresses from {interface}: {e}")
+
+
 pytestmark = [
     pytest.mark.skip_module_config_save,
 ]
@@ -114,17 +166,49 @@ class TestL2AclRobust:
 
         st.log(f"DUT Mapping: D1={cls.data.dut1}, D2={cls.data.dut2}, D3={cls.data.dut3}")
 
-        # Discover ports from testbed
-        testbed_topology = None
+        # Get testbed topology from SPyTest framework variables
+        # The testbed YAML is passed via --testbed flag and loaded by framework
+        testbed_topology = {}
+
         try:
-            testbed_file = Path(__file__).resolve().parents[3] / "testbeds" / "testbed_acl_hw.yaml"
-            if testbed_file.is_file():
-                with testbed_file.open(encoding="utf-8") as f:
-                    testbed_data = yaml.safe_load(f) or {}
-                    testbed_topology = testbed_data.get("topology", {})
-                    st.log(f"Loaded testbed from: {testbed_file}")
+            testbed_vars = st.get_testbed_vars()
+            if testbed_vars and hasattr(testbed_vars, 'topology'):
+                testbed_topology = testbed_vars.topology or {}
+                if testbed_topology:
+                    st.log(f"✅ Retrieved testbed topology from framework")
+                    st.log(f"   Devices found: {list(testbed_topology.keys())}")
         except Exception as e:
-            st.warn(f"Could not load testbed topology: {e}")
+            st.debug(f"Could not retrieve testbed topology from framework: {e}")
+
+        # Final fallback: Load from testbed file if framework methods fail
+        # The testbed file is already passed via --testbed CLI flag and loaded by framework
+        # We load it here only as fallback if framework APIs don't provide topology
+        if not testbed_topology:
+            try:
+                testbed_candidates = [
+                    "testbed_acl.yaml",
+                    "testbed_acl_hw.yaml",
+                    "testbed_acl_vs.yaml",
+                    "testbed_acl_new.yaml",
+                ]
+                testbed_base_path = Path(__file__).resolve().parents[3] / "testbeds"
+
+                for testbed_name in testbed_candidates:
+                    testbed_file = testbed_base_path / testbed_name
+                    if testbed_file.is_file():
+                        try:
+                            with testbed_file.open(encoding="utf-8") as f:
+                                testbed_data = yaml.safe_load(f) or {}
+                                test_topology = testbed_data.get("topology", {})
+                                if test_topology:
+                                    testbed_topology = test_topology
+                                    st.log(f"✅ Loaded testbed topology from file: {testbed_file.name}")
+                                    break
+                        except Exception as e:
+                            st.debug(f"Could not load {testbed_file}: {e}")
+                            continue
+            except Exception as e:
+                st.warn(f"Error during testbed discovery fallback: {e}")
 
         # Discover ports
         cls.data.dut1_to_dut2 = _get_connected_port(testbed_topology, "D1", "D2")
@@ -180,6 +264,12 @@ class TestL2AclRobust:
                 continue
             try:
                 st.log(f"Configuring {port} on {desc}")
+
+                # Remove any IP addresses from the interface first (needed if testbed has L3 IPs)
+                st.log(f"Removing IP addresses from {port} (if any)...")
+                _remove_ip_addresses(dut, port, cls.data.cli_type)
+                st.wait(1)
+
                 intf_api.interface_operation(dut, port, "shutdown", cli_type=cls.data.cli_type)
                 st.wait(1)
 
@@ -388,6 +478,12 @@ class TestL2AclRobust:
                 st.error(f"Output: {output}")
                 return False
 
+            # Clean up any existing rule with this priority to avoid conflicts
+            # This is critical for rapid create/delete cycles (stress tests)
+            cleanup_cmd = f"no seq {priority}"
+            st.log(f"Cleanup: {cleanup_cmd}")
+            st.config(dut, cleanup_cmd, type=self.data.cli_type, skip_error_check=True)
+
             # Build the ACL rule command with proper SONiC syntax
             # SONiC klish requires 'host' keyword before MAC address in L2 ACL rules
             rule_cmd = f"seq {priority} {action}"
@@ -449,6 +545,161 @@ class TestL2AclRobust:
             st.error(f"ACL rule deletion error: {e}")
             return False
 
+    def _apply_l2_acl_to_interface(self, table_name: str, interface: str, direction: str = "in") -> bool:
+        """
+        Apply L2 ACL table to an interface using raw CLI commands.
+
+        Args:
+            table_name: Name of the MAC ACL table to apply
+            interface: Interface name (e.g., "Ethernet272")
+            direction: Direction ("in" for ingress, "out" for egress, default: "in")
+
+        Returns:
+            bool: True if ACL applied successfully, False otherwise
+
+        Note: SONiC klish CLI requires space between "interface" and port number
+        """
+        try:
+            dut = self.data.dut1
+
+            # SONiC klish requires space between "interface" and port number
+            interface_normalized = interface.replace("Ethernet", "Ethernet ")
+
+            st.log(f"Applying MAC ACL '{table_name}' to {interface} (direction: {direction})")
+
+            # Enter interface configuration mode
+            interface_cmd = f"interface {interface_normalized}"
+            st.log(f"Executing: {interface_cmd}")
+            output = st.config(dut, interface_cmd, type=self.data.cli_type, skip_error_check=False)
+
+            if "Error" in str(output) or "error" in str(output).lower():
+                st.error(f"Failed to enter interface {interface} configuration")
+                st.error(f"Output: {output}")
+                return False
+
+            # Apply ACL to interface
+            acl_cmd = f"mac access-group {table_name} {direction}"
+            st.log(f"Executing: {acl_cmd}")
+            output = st.config(dut, acl_cmd, type=self.data.cli_type, skip_error_check=False)
+
+            if "Error" in str(output) or "error" in str(output).lower():
+                st.error(f"Failed to apply ACL '{table_name}' to {interface}")
+                st.error(f"Command: {acl_cmd}")
+                st.error(f"Output: {output}")
+                # Exit interface mode before returning
+                st.config(dut, "exit", type=self.data.cli_type, skip_error_check=True)
+                return False
+
+            # Exit interface mode
+            st.config(dut, "exit", type=self.data.cli_type, skip_error_check=True)
+            st.log(f"✅ MAC ACL '{table_name}' applied to {interface}")
+            return True
+
+        except Exception as e:
+            st.error(f"ACL application error: {e}")
+            return False
+
+    def _remove_l2_acl_from_interface(self, table_name: str, interface: str, direction: str = "in") -> bool:
+        """
+        Remove L2 ACL from an interface using raw CLI commands.
+
+        Args:
+            table_name: Name of the MAC ACL table to remove
+            interface: Interface name (e.g., "Ethernet272")
+            direction: Direction ("in" for ingress, "out" for egress, default: "in")
+
+        Returns:
+            bool: True if ACL removed successfully, False otherwise
+        """
+        try:
+            dut = self.data.dut1
+
+            # SONiC klish requires space between "interface" and port number
+            interface_normalized = interface.replace("Ethernet", "Ethernet ")
+
+            st.log(f"Removing MAC ACL '{table_name}' from {interface}")
+
+            # Enter interface configuration mode
+            interface_cmd = f"interface {interface_normalized}"
+            st.log(f"Executing: {interface_cmd}")
+            output = st.config(dut, interface_cmd, type=self.data.cli_type, skip_error_check=False)
+
+            if "Error" in str(output) or "error" in str(output).lower():
+                st.error(f"Failed to enter interface {interface} configuration")
+                return False
+
+            # Remove ACL from interface
+            acl_cmd = f"no mac access-group {table_name} {direction}"
+            st.log(f"Executing: {acl_cmd}")
+            output = st.config(dut, acl_cmd, type=self.data.cli_type, skip_error_check=False)
+
+            if "Error" in str(output) or "error" in str(output).lower():
+                st.error(f"Failed to remove ACL '{table_name}' from {interface}")
+                st.config(dut, "exit", type=self.data.cli_type, skip_error_check=True)
+                return False
+
+            # Exit interface mode
+            st.config(dut, "exit", type=self.data.cli_type, skip_error_check=True)
+            st.log(f"✅ MAC ACL '{table_name}' removed from {interface}")
+            return True
+
+        except Exception as e:
+            st.error(f"ACL removal error: {e}")
+            return False
+
+    def _verify_l2_acl_on_interface(self, table_name: str, interface: str) -> bool:
+        """
+        Verify that L2 ACL is applied to an interface.
+
+        Uses 'show mac access-group' to verify ACL is bound to interface.
+        Also verifies MAC addresses are NOT dropped (backend bug detection).
+
+        Args:
+            table_name: Name of the MAC ACL table to verify
+            interface: Interface name (e.g., "Ethernet272")
+
+        Returns:
+            bool: True if ACL is applied and valid, False otherwise
+        """
+        try:
+            dut = self.data.dut1
+
+            st.log(f"Verifying MAC ACL '{table_name}' on interface {interface}")
+
+            # Check that ACL is applied to interface
+            acl_group_output = st.show(dut, "show mac access-group", type=self.data.cli_type, skip_tmpl=True)
+            acl_output_str = str(acl_group_output)
+
+            if table_name not in acl_output_str:
+                st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-group output")
+                st.error(f"Output:\n{acl_output_str}")
+                return False
+
+            st.log(f"✅ ACL '{table_name}' is applied to interface {interface}")
+
+            # Also check the actual rules to detect backend MAC field dropping bug
+            st.log(f"Verifying ACL rules (checking for MAC field dropping bug)...")
+            acl_lists_output = st.show(dut, "show mac access-lists", type=self.data.cli_type, skip_tmpl=True)
+            acl_lists_str = str(acl_lists_output)
+
+            if table_name not in acl_lists_str:
+                st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-lists output")
+                return False
+
+            # Check for "deny any any" or "permit any any" patterns that indicate MAC field dropping
+            if "any any" in acl_lists_str and table_name in acl_lists_str:
+                st.warn(f"⚠️  WARNING: Possible MAC field dropping bug detected")
+                st.warn(f"   Show output contains 'any any' - MAC addresses may have been stripped")
+                st.warn(f"   Configured rules may have specific MAC but display as 'any any'")
+                return False
+
+            st.log(f"✅ ACL '{table_name}' rules appear valid (MAC fields present)")
+            return True
+
+        except Exception as e:
+            st.error(f"ACL verification error: {e}")
+            return False
+
     # ============================================================================
     # L2-R01: ACL RULE PERSISTENCE ACROSS CONFIG SAVE/RELOAD
     # ============================================================================
@@ -491,6 +742,35 @@ class TestL2AclRobust:
 
         if not self._create_l2_acl_rule(table_name, "RULE_PERMIT_MAC", "permit", src_mac=src_mac):
             st.report_fail("msg", "ACL rule creation failed")
+
+        # Apply ACL to interface (required before verification)
+        st.log(f"Applying ACL '{table_name}' to interface {acl_port}")
+        if not self._apply_l2_acl_to_interface(table_name, acl_port, "in"):
+            st.report_fail("msg", f"Failed to apply ACL to interface {acl_port}")
+
+        # ===== PHASE 1.5: Verify ACL Configuration (subcase) =====
+        st.banner("PHASE 1.5: Verifying ACL Configuration (subcase)")
+
+        st.log("Executing: show mac access-lists")
+        acl_list_output = st.show(self.data.dut1, "show mac access-lists", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Lists Output:\n{acl_list_output}")
+
+        if table_name in str(acl_list_output):
+            st.log(f"✅ ACL table '{table_name}' found in show mac access-lists")
+        else:
+            st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-lists")
+            st.report_fail("msg", f"ACL table {table_name} not created")
+
+        # Verify ACL is applied 
+        st.log(f"Executing: show mac access-group")
+        acl_group_output = st.show(self.data.dut1, "show mac access-group", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Group Output:\n{acl_group_output}")
+
+        if table_name in str(acl_group_output):
+            st.log(f"✅ ACL group '{table_name}' applied")
+        else:
+            st.error(f"❌ ACL group '{table_name}' NOT applied")
+            st.report_fail("msg", f"ACL not applied")
 
         # ===== PHASE 2: Baseline traffic test (before reload) =====
         st.banner("PHASE 2: Baseline traffic test (before config reload)")
@@ -610,6 +890,35 @@ class TestL2AclRobust:
         if not self._create_l2_acl_rule(table_name, "RULE1", "permit", src_mac=src_mac):
             st.report_fail("msg", "Initial ACL rule creation failed")
 
+        # Apply ACL to interface (required before verification)
+        st.log(f"Applying ACL '{table_name}' to interface {acl_port}")
+        if not self._apply_l2_acl_to_interface(table_name, acl_port, "in"):
+            st.report_fail("msg", f"Failed to apply ACL to interface {acl_port}")
+
+        # ===== PHASE 1.5: Verify ACL Configuration (subcase) =====
+        st.banner("PHASE 1.5: Verifying ACL Configuration (subcase)")
+
+        st.log("Executing: show mac access-lists")
+        acl_list_output = st.show(self.data.dut1, "show mac access-lists", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Lists Output:\n{acl_list_output}")
+
+        if table_name in str(acl_list_output):
+            st.log(f"✅ ACL table '{table_name}' found in show mac access-lists")
+        else:
+            st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-lists")
+            st.report_fail("msg", f"ACL table {table_name} not created")
+
+        # Verify ACL is applied to interface
+        st.log(f"Executing: show mac access-group on {acl_port}")
+        acl_group_output = st.show(self.data.dut1, "show mac access-group", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Group Output:\n{acl_group_output}")
+
+        if table_name in str(acl_group_output):
+            st.log(f"✅ ACL group '{table_name}' applied")
+        else:
+            st.error(f"❌ ACL group '{table_name}' NOT applied")
+            st.report_fail("msg", f"ACL not applied")
+
         # ===== PHASE 2: Baseline traffic test =====
         st.banner("PHASE 2: Baseline traffic test")
 
@@ -702,6 +1011,19 @@ class TestL2AclRobust:
 
         if not self._create_l2_acl_table(table_name, acl_port):
             st.report_fail("msg", "ACL table creation failed")
+
+        # ===== PHASE 1.5: Verify ACL Configuration (subcase) =====
+        st.banner("PHASE 1.5: Verifying ACL Configuration (subcase)")
+
+        st.log("Executing: show mac access-lists")
+        acl_list_output = st.show(self.data.dut1, "show mac access-lists", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Lists Output:\n{acl_list_output}")
+
+        if table_name in str(acl_list_output):
+            st.log(f"✅ ACL table '{table_name}' found in show mac access-lists")
+        else:
+            st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-lists")
+            st.report_fail("msg", f"ACL table {table_name} not created")
 
         # ===== PHASE 2: Rapid create/delete cycles =====
         st.banner(f"PHASE 2: Performing {num_cycles} rapid create/delete cycles")
@@ -804,6 +1126,30 @@ class TestL2AclRobust:
         ):
             st.report_fail("msg", "Deny rule creation failed")
 
+        # ===== PHASE 1.5: Verify ACL Configuration (subcase) =====
+        st.banner("PHASE 1.5: Verifying ACL Configuration (subcase)")
+
+        st.log("Executing: show mac access-lists")
+        acl_list_output = st.show(self.data.dut1, "show mac access-lists", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Lists Output:\n{acl_list_output}")
+
+        if table_name in str(acl_list_output):
+            st.log(f"✅ ACL table '{table_name}' found in show mac access-lists")
+        else:
+            st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-lists")
+            st.report_fail("msg", f"ACL table {table_name} not created")
+
+        # Verify ACL is applied to interface
+        st.log(f"Executing: show mac access-group on {acl_port}")
+        acl_group_output = st.show(self.data.dut1, "show mac access-group", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Group Output:\n{acl_group_output}")
+
+        if table_name in str(acl_group_output):
+            st.log(f"✅ ACL group '{table_name}' applied")
+        else:
+            st.error(f"❌ ACL group '{table_name}' NOT applied")
+            st.report_fail("msg", f"ACL not applied")
+
         # ===== PHASE 2: Test permitted traffic =====
         st.banner("PHASE 2: Testing permitted traffic (MAC-A)")
 
@@ -890,6 +1236,30 @@ class TestL2AclRobust:
         if not self._create_l2_acl_rule(table_name, "RULE_COUNT", "permit", src_mac=src_mac):
             st.report_fail("msg", "ACL rule creation failed")
 
+        # ===== PHASE 1.5: Verify ACL Configuration (subcase) =====
+        st.banner("PHASE 1.5: Verifying ACL Configuration (subcase)")
+
+        st.log("Executing: show mac access-lists")
+        acl_list_output = st.show(self.data.dut1, "show mac access-lists", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Lists Output:\n{acl_list_output}")
+
+        if table_name in str(acl_list_output):
+            st.log(f"✅ ACL table '{table_name}' found in show mac access-lists")
+        else:
+            st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-lists")
+            st.report_fail("msg", f"ACL table {table_name} not created")
+
+        # Verify ACL is applied to interface
+        st.log(f"Executing: show mac access-group on {acl_port}")
+        acl_group_output = st.show(self.data.dut1, "show mac access-group", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Group Output:\n{acl_group_output}")
+
+        if table_name in str(acl_group_output):
+            st.log(f"✅ ACL group '{table_name}' applied")
+        else:
+            st.error(f"❌ ACL group '{table_name}' NOT applied")
+            st.report_fail("msg", f"ACL not applied")
+
         # ===== PHASE 2: Send high-volume traffic =====
         st.banner(f"PHASE 2: Sending {num_packets} packets for counter test")
 
@@ -971,6 +1341,30 @@ class TestL2AclRobust:
 
         if not self._create_l2_acl_rule(table_name, "RULE_VLAN", "permit", src_mac=src_mac):
             st.report_fail("msg", "ACL rule creation failed")
+
+        # ===== PHASE 1.5: Verify ACL Configuration (subcase) =====
+        st.banner("PHASE 1.5: Verifying ACL Configuration (subcase)")
+
+        st.log("Executing: show mac access-lists")
+        acl_list_output = st.show(self.data.dut1, "show mac access-lists", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Lists Output:\n{acl_list_output}")
+
+        if table_name in str(acl_list_output):
+            st.log(f"✅ ACL table '{table_name}' found in show mac access-lists")
+        else:
+            st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-lists")
+            st.report_fail("msg", f"ACL table {table_name} not created")
+
+        # Verify ACL is applied to interface
+        st.log(f"Executing: show mac access-group on {acl_port}")
+        acl_group_output = st.show(self.data.dut1, "show mac access-group", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Group Output:\n{acl_group_output}")
+
+        if table_name in str(acl_group_output):
+            st.log(f"✅ ACL group '{table_name}' applied")
+        else:
+            st.error(f"❌ ACL group '{table_name}' NOT applied")
+            st.report_fail("msg", f"ACL not applied")
 
         # ===== PHASE 2: Baseline traffic test =====
         st.banner("PHASE 2: Baseline traffic test")
@@ -1067,6 +1461,30 @@ class TestL2AclRobust:
 
         if not self._create_l2_acl_rule(table_name, "RULE_AGING", "permit", src_mac=src_mac):
             st.report_fail("msg", "ACL rule creation failed")
+
+        # ===== PHASE 1.5: Verify ACL Configuration (subcase) =====
+        st.banner("PHASE 1.5: Verifying ACL Configuration (subcase)")
+
+        st.log("Executing: show mac access-lists")
+        acl_list_output = st.show(self.data.dut1, "show mac access-lists", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Lists Output:\n{acl_list_output}")
+
+        if table_name in str(acl_list_output):
+            st.log(f"✅ ACL table '{table_name}' found in show mac access-lists")
+        else:
+            st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-lists")
+            st.report_fail("msg", f"ACL table {table_name} not created")
+
+        # Verify ACL is applied to interface
+        st.log(f"Executing: show mac access-group on {acl_port}")
+        acl_group_output = st.show(self.data.dut1, "show mac access-group", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Group Output:\n{acl_group_output}")
+
+        if table_name in str(acl_group_output):
+            st.log(f"✅ ACL group '{table_name}' applied")
+        else:
+            st.error(f"❌ ACL group '{table_name}' NOT applied")
+            st.report_fail("msg", f"ACL not applied")
 
         # ===== PHASE 2: Initial traffic to populate MAC table =====
         st.banner("PHASE 2: Initial traffic (populating MAC table)")
@@ -1167,6 +1585,30 @@ class TestL2AclRobust:
             table_name, "RULE_DENY_ALL", "deny", src_mac="any", priority=10
         ):
             st.report_fail("msg", "Deny-all rule creation failed")
+
+        # ===== PHASE 1.5: Verify ACL Configuration (subcase) =====
+        st.banner("PHASE 1.5: Verifying ACL Configuration (subcase)")
+
+        st.log("Executing: show mac access-lists")
+        acl_list_output = st.show(self.data.dut1, "show mac access-lists", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Lists Output:\n{acl_list_output}")
+
+        if table_name in str(acl_list_output):
+            st.log(f"✅ ACL table '{table_name}' found in show mac access-lists")
+        else:
+            st.error(f"❌ ACL table '{table_name}' NOT found in show mac access-lists")
+            st.report_fail("msg", f"ACL table {table_name} not created")
+
+        # Verify ACL is applied to interface
+        st.log(f"Executing: show mac access-group on {acl_port}")
+        acl_group_output = st.show(self.data.dut1, "show mac access-group", type=self.data.cli_type, skip_tmpl=True)
+        st.log(f"MAC Access Group Output:\n{acl_group_output}")
+
+        if table_name in str(acl_group_output):
+            st.log(f"✅ ACL group '{table_name}' applied")
+        else:
+            st.error(f"❌ ACL group '{table_name}' NOT applied")
+            st.report_fail("msg", f"ACL not applied")
 
         # ===== PHASE 2: Test traffic from permitted MAC =====
         st.banner("PHASE 2: Testing traffic from permitted MAC (priority 5)")
