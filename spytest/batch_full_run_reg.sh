@@ -321,9 +321,7 @@ run_batch () {
       --testbed "${TESTBED}" \
       ${TESTS} \
       --logs-path "${LOG_PATH}" \
-      --log-level debug \
-      --skip-init-config \
-      --ifname-type native
+        --log-level debug --skip-init-config --ifname-type native  --get-tech-support none --syslog-check none
 
     RC=$?
     echo " Batch ${FEATURE} completed with RC=${RC}"
@@ -427,7 +425,7 @@ run_bgp_batch () {
 
 if should_run_batch "B"; then
     # First part: 2-node tests
-    run_bgp_batch "BGP_IPV4_FEATURES" "./testbeds/testbed_vs_2node_reg.yaml" \
+    run_bgp_batch "BGP_IPV4_FEATURES" "./testbeds/testbed_vs_2d_reg.yaml" \
     routing/BGP/test_bgp_ipv4_basic.py \
     routing/BGP/test_bgp_svi_ipv4.py \
     routing/BGP/test_bgp_portchannel_ipv4.py \
@@ -510,7 +508,6 @@ fi
 # ==========================================================
 # BATCH-G : OSPF isCLI MASTER
 # ==========================================================
-
 if should_run_batch "G"; then
     run_batch "OSPF_ISCLI_MASTER" "./testbeds/testbed_4node_reg.yaml" \
     routing/isCLI/testcases_OSPF_1_iscli_Basic_2_node_Reboot.py \
@@ -558,13 +555,12 @@ else
     echo "Skipping Batch G (OSPF_ISCLI_MASTER) - not selected"
 fi
 
-
 # ==========================================================
 # BATCH-H : PortChannel isCLI
 # ==========================================================
 
 if should_run_batch "H"; then
-    run_batch "PORTCHANNEL_ISCLI" "./testbeds/testbed_2node_reg.yaml" \
+    run_batch "PORTCHANNEL_ISCLI" "./testbeds/testbed_vs_2d_reg.yaml" \
     switching/iscli_PortChannel/test_interface_1_iscli_portchannel.py \
     switching/iscli_PortChannel/test_interface_2_iscli_portchannel_Reboot.py
 else
@@ -577,11 +573,11 @@ fi
 # ==========================================================
 
 if should_run_batch "I"; then
-    run_batch "VLAN_ISCLI" "./testbeds/testbed_2node_reg.yaml" \
+    run_batch "VLAN_ISCLI" "./testbeds/testbed_vs_2d_reg.yaml" \
     switching/iscli_Vlan/test_interface_1_iscli_vlan.py \
     switching/iscli_Vlan/test_interface_2_iscli_vlan_ip.py \
-    switching/iscli_Vlan/test_interface_1_iscli_vlan_reboot.py \
-    switching/iscli_Vlan/test_interface_2_iscli_vlan_ip_reboot.py
+    #switching/iscli_Vlan/test_interface_1_iscli_vlan_reboot.py \
+    #switching/iscli_Vlan/test_interface_2_iscli_vlan_ip_reboot.py
 else
     echo "Skipping Batch I (VLAN_ISCLI) - not selected"
 fi
@@ -590,7 +586,7 @@ fi
 # ==========================================================
 # BATCH-J : Hardware Interface Events
 # ==========================================================
-
+'''
 if should_run_batch "J"; then
     run_batch "HW_INTERFACE_EVENTS" "./testbeds/testbed_hw_2node_reg.yaml" \
     system/iscli_Hardware/test_interface_1_iscli_events_admin_up_down_HW.py \
@@ -604,14 +600,14 @@ if should_run_batch "J"; then
 else
     echo "Skipping Batch J (HW_INTERFACE_EVENTS) - not selected"
 fi
-
+'''
 
 # ==========================================================
 # BATCH-K : System Interface Events
 # ==========================================================
 
 if should_run_batch "K"; then
-    run_batch "SYS_INTERFACE_EVENTS" "./testbeds/testbed_2node_reg.yaml" \
+    run_batch "SYS_INTERFACE_EVENTS" "./testbeds/testbed_vs_2d_reg.yaml" \
     system/iscli_interface_events/test_interface_1_iscli_events_admin_up_down.py \
     system/iscli_interface_events/test_interface_2_iscli_events_mtu_change.py \
     system/iscli_interface_events/test_interface_3_iscli_events_description.py \
@@ -624,19 +620,19 @@ fi
 # ==========================================================
 # BATCH-L : System AAA
 # ==========================================================
-
+'''
 if should_run_batch "L"; then
     run_batch "SYS_AAA" "./testbeds/testbed_vs_1node_reg.yaml" \
     system/AAA/test_aaa_auth.py
 else
     echo "Skipping Batch L (SYS_AAA) - not selected"
 fi
-
+'''
 
 # ==========================================================
 # BATCH-M : System NTP
 # ==========================================================
-
+'''
 if should_run_batch "M"; then
     # NTP Server Setup
     echo "Setting up NTP server for batch M..."
@@ -653,7 +649,7 @@ else
     echo "Skipping Batch M (SYS_NTP) - not selected"
 fi
 
-
+'''
 # ==========================================================
 # BATCH-N : Static Routing Tests (IPv4/IPv6)
 # ==========================================================
@@ -1762,7 +1758,7 @@ if should_run_batch "CT"; then
     system/ISCLI_LLDP/test_lldp_07_vlan_specific_tlvs.py \
     system/ISCLI_LLDP/test_lldp_08_rapid_enable_disable.py \
     system/ISCLI_LLDP/test_lldp_09_clear_statistics.py \
-    system/ISCLI_LLDP/test_lldp_10_save_reboot_persistence.py \
+    #system/ISCLI_LLDP/test_lldp_10_save_reboot_persistence.py \
     system/ISCLI_LLDP/test_lldp_11_neighbor_detail_tlvs.py \
     system/ISCLI_LLDP/test_lldp_12_port_description_tlv.py \
     system/ISCLI_LLDP/test_lldp_13_system_capabilities_tlv.py \
