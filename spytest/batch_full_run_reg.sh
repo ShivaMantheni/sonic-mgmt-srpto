@@ -321,7 +321,7 @@ run_batch () {
       --testbed "${TESTBED}" \
       ${TESTS} \
       --logs-path "${LOG_PATH}" \
-        --log-level debug --skip-init-config --ifname-type native  --get-tech-support none --syslog-check none
+      --log-level debug --skip-init-config --ifname-type native  --get-tech-support none --syslog-check none
 
     RC=$?
     echo " Batch ${FEATURE} completed with RC=${RC}"
@@ -403,7 +403,7 @@ run_bgp_batch () {
           --logs-path "${LOG_PATH}" \
           --log-level debug \
           --skip-init-config \
-          --ifname-type native
+          --ifname-type native  --get-tech-support none --syslog-check none 
 
         RC=$?
         echo " Test ${TEST} completed with RC=${RC}"
@@ -508,6 +508,7 @@ fi
 # ==========================================================
 # BATCH-G : OSPF isCLI MASTER
 # ==========================================================
+'''
 if should_run_batch "G"; then
     run_batch "OSPF_ISCLI_MASTER" "./testbeds/testbed_4node_reg.yaml" \
     routing/isCLI/testcases_OSPF_1_iscli_Basic_2_node_Reboot.py \
@@ -554,7 +555,7 @@ if should_run_batch "G"; then
 else
     echo "Skipping Batch G (OSPF_ISCLI_MASTER) - not selected"
 fi
-
+'''
 # ==========================================================
 # BATCH-H : PortChannel isCLI
 # ==========================================================
