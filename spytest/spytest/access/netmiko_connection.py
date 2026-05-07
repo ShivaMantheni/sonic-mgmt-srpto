@@ -8,6 +8,18 @@ import telnetlib
 
 import netmiko
 
+# Handle netmiko version compatibility - import exceptions from correct module
+try:
+    from netmiko.exceptions import NetMikoTimeoutException, NetMikoAuthenticationException
+except (ImportError, AttributeError):
+    try:
+        # Fallback for older netmiko versions
+        from netmiko.ssh_exception import NetMikoTimeoutException, NetMikoAuthenticationException
+    except (ImportError, AttributeError):
+        # Last resort - define base exception classes
+        NetMikoTimeoutException = Exception
+        NetMikoAuthenticationException = Exception
+
 from utilities import ctrl_chars
 from utilities.common import stack_trace
 from utilities.exceptions import DeviceConnectionError
@@ -91,7 +103,7 @@ class NetmikoConnection(netmiko.cisco_base_connection.CiscoBaseConnection):
             try:
                 super(NetmikoConnection, self).__init__(**kwargs)
                 break
-            except netmiko.ssh_exception.NetMikoTimeoutException:
+            except NetMikoTimeoutException:
                 msg = "Connection Timeout Error.."
                 self.log_warn(msg)
                 if try_index >= 4:
@@ -99,7 +111,7 @@ class NetmikoConnection(netmiko.cisco_base_connection.CiscoBaseConnection):
                     continue
                 self.disconnect()
                 raise DeviceConnectionTimeout(msg)
-            except netmiko.ssh_exception.NetMikoAuthenticationException:
+            except NetMikoAuthenticationException:
                 msg = "Connection Authentication Error.."
                 self.log_warn(msg)
                 self.disconnect()
@@ -286,10 +298,21 @@ class NetmikoConnection(netmiko.cisco_base_connection.CiscoBaseConnection):
         return sanitized
 
     def _set_base_prompt(self, pri_prompt_terminator, alt_prompt_terminator, delay_factor):
-        return super(NetmikoConnection, self).set_base_prompt(
-            pri_prompt_terminator=pri_prompt_terminator,
-            alt_prompt_terminator=alt_prompt_terminator or self.alt_prompt_terminator,
-            delay_factor=delay_factor)
+        # Handle netmiko version compatibility for set_base_prompt
+        try:
+            # Try newer netmiko API (without pattern argument)
+            return super(NetmikoConnection, self).set_base_prompt(
+                pri_prompt_terminator=pri_prompt_terminator,
+                alt_prompt_terminator=alt_prompt_terminator or self.alt_prompt_terminator,
+                delay_factor=delay_factor)
+        except TypeError as e:
+            if "pattern" in str(e):
+                # Fall back for older netmiko versions that use pattern argument
+                try:
+                    return super(NetmikoConnection, self).find_prompt()
+                except Exception:
+                    return self.base_prompt or "sonic"
+            raise
 
     def set_base_prompt(self, pri_prompt_terminator=None,
                         alt_prompt_terminator=None, delay_factor=1):
@@ -430,11 +453,11 @@ class NetmikoConnection(netmiko.cisco_base_connection.CiscoBaseConnection):
             if self.auth_failmsg and self.auth_failmsg in output:
                 raise DeviceAuthenticationFailure("")
             _, output = self.extended_login(output)
-        except netmiko.ssh_exception.NetMikoTimeoutException as e:
+        except NetMikoTimeoutException as e:
             self.in_login = False
             self.log_warn("Telnet Timeout Error", dump=True)
             raise e
-        except netmiko.ssh_exception.NetMikoAuthenticationException as e:
+        except NetMikoAuthenticationException as e:
             self.in_login = False
             msg = "Telnet Authentication Error.."
             self.log_warn(msg, dump=True)

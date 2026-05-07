@@ -1,0 +1,274 @@
+# VLAN Inter-VLAN Isolation Test Variables (TC_VLAN_FORWARD_004)
+# Author: Test Automation Team
+# Date: 2026-05-06
+#
+# This YAML file contains configuration for TC_VLAN_FORWARD_004: Inter-VLAN Isolation
+#
+# Test Scenario:
+#   Verify that traffic sent from a port in one VLAN is NOT forwarded to ports
+#   in a different VLAN, confirming VLAN isolation. The test creates VLANs 10 and 20,
+#   configures Port1 in VLAN 10 and Port2 in VLAN 20, sends a unicast packet from
+#   Port1 destined to Port2's MAC address (even though the MAC is known), and verifies
+#   that Port2 does NOT receive the packet due to VLAN isolation.
+#
+# Test Logic:
+#   Source: Port1 on DUT1 (configured as access port in VLAN 10)
+#   Destination: Port2 on DUT2 (configured as access port in VLAN 20)
+#   Operation: Send unicast packet from Port1 to Port2's MAC address
+#   Verification: Port2 should NOT receive packet (isolation confirmed)
+#   Expected: Packet capture on Port2 should be EMPTY (no packets received)
+#
+
+defaults:
+  # CLI Type: Use klish for all commands
+  cli_type: klish
+
+  # Topology requirement: Two DUTs with 2+ connections
+  # Format: "D1D2:2" means DUT1-DUT2 with 2+ connections
+  min_topology:
+    - "D1D2:2"
+
+  # Verification timeout in seconds
+  verify_timeout: 30
+
+  # Enable cleanup after test (remove VLANs and port configs)
+  cleanup: true
+
+  # VLAN IDs for isolation test
+  vlan_10_id: "10"
+  vlan_20_id: "20"
+
+testcases:
+  # TC_VLAN_FORWARD_004: Inter-VLAN Isolation
+  "TC_VLAN_FORWARD_004":
+    title: "Inter-VLAN Isolation"
+
+    description: |
+      Verify that traffic is isolated between different VLANs.
+      The test creates VLAN 10 and VLAN 20, configures Port1 as untagged
+      member of VLAN 10 and Port2 as untagged member of VLAN 20, sends a
+      unicast Ethernet frame from Port1 destined to Port2's MAC address,
+      and verifies that Port2 does NOT receive the packet, confirming
+      proper VLAN isolation.
+
+    test_type: "vlan_inter_vlan_isolation"
+
+    # VLAN Configuration
+    vlans:
+      # VLAN 10 - source VLAN
+      vlan_10: 10
+
+      # VLAN 20 - destination (isolated) VLAN
+      vlan_20: 20
+
+    # Port Configuration
+    ports:
+      # Port1 (access port on D1 - sender in VLAN 10)
+      port1:
+        vlans: [10]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+      # Port2 (access port on D2 - isolated receiver in VLAN 20)
+      port2:
+        vlans: [20]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+    # Traffic Generation Parameters
+    traffic:
+      # Packet generation method
+      method: "scapy"
+
+      # Number of unicast packets to send
+      packet_count: 10
+
+      # Packet size in bytes
+      packet_size: 64
+
+      # Packet type (unicast L2 Ethernet frame)
+      packet_type: "ethernet"
+
+      # Packet rate (pps = packets per second)
+      packet_rate: 1000
+
+      # Traffic duration in seconds
+      duration: 5
+
+      # Frame format
+      frame_format:
+        type: "ethernet"           # L2 Ethernet frame
+        src_mac: "auto"            # Auto-discover from Port1
+        dst_mac: "auto"            # Auto-discover from Port2 (unicast destination)
+        vlan_tag: null             # No VLAN tag (untagged)
+        vlan_priority: 0           # N/A for untagged
+        ethertype: "0x0800"        # IPv4
+
+    # Capture Configuration
+    capture:
+      # Packet capture method
+      method: "tcpdump"
+
+      # Interface to capture on (Port2)
+      interface: "Port2"
+
+      # Capture filters (capture frames to Port2's MAC)
+      bpf_filter: "ether dst Port2_MAC"
+
+      # Capture timeout
+      timeout: 30
+
+      # Output format
+      output_format: "pcap"
+
+      # Keep capture file for analysis
+      keep_pcap: false
+
+    # Verification Parameters
+    verification:
+      # Verify VLAN configuration
+      verify_vlan_config: true
+
+      # Verify port configuration as access ports
+      verify_port_config: true
+
+      # Verify packet was NOT received (isolation confirmed)
+      verify_isolation: true
+
+      # Verify packets NOT received on Port2 (PCAP should be empty)
+      verify_no_packet_receipt: true
+
+      # Expected behavior: NO packets received on isolated VLAN
+      expected_no_cross_vlan_traffic: true
+
+      # Acceptable packet loss percentage (N/A - we expect 100% loss due to isolation)
+      max_packet_loss_percent: 100
+
+      # Verify using running-configuration
+      use_show_running_config: true
+
+    # Logging Configuration
+    logging:
+      # Log level: "debug", "info", "warning", "error"
+      level: "debug"
+
+      # Log captured packets in detail
+      log_packets: true
+
+      # Log interface counters
+      log_counters: true
+
+      # Log configuration changes
+      log_config: true
+
+      # Log MAC address discovery
+      log_mac_discovery: true
+
+      # Log forwarding decisions
+      log_forwarding: true
+
+      # Log isolation verification
+      log_isolation: true
+
+    # Packet Capture Configuration
+    packet_capture:
+      # Enable packet capture
+      enabled: true
+
+      # Capture file location
+      capture_path: "/tmp/vlan_inter_isolation_port2.pcap"
+
+      # Filter for destination MAC (Port2)
+      dst_mac_filter: "auto"
+
+      # Capture interface timeout (seconds)
+      capture_timeout: 30
+
+      # Number of expected packets (SHOULD BE ZERO - isolation test)
+      expected_packets: 0
+
+    # Isolation Verification
+    isolation:
+      # Verify VLANs are isolated
+      verify_vlan_isolation: true
+
+      # Verify Port1 and Port2 are in different VLANs
+      verify_different_vlans: true
+
+      # Verify no cross-VLAN forwarding
+      verify_no_forwarding_between_vlans: true
+
+      # Isolation detection: should have NO packets to Port2
+      isolation_detection_empty_pcap: true
+
+    # Error Handling
+    error_handling:
+      # Continue on minor errors
+      continue_on_error: false
+
+      # Save diagnostic data on failure
+      save_diagnostics: true
+
+      # Diagnostic capture location
+      diagnostics_path: "/tmp/vlan_inter_isolation_diagnostics"
+
+    # Cleanup Configuration
+    cleanup:
+      # Clean up VLANs
+      cleanup_vlans: true
+
+      # Clean up port configurations
+      cleanup_ports: true
+
+      # Clean up pcap files
+      cleanup_pcaps: true
+
+      # Cleanup order (reverse order of creation)
+      cleanup_order:
+        - "ports"
+        - "vlans"
+        - "pcaps"
+
+# Global Test Parameters (overrides per-test defaults if applicable)
+global:
+  # Packet capture retention
+  retain_pcaps: false
+
+  # Diagnostic level on failure
+  diagnostics_level: "full"
+
+  # Test retry on failure
+  max_retries: 0
+
+  # Test timeout in seconds
+  test_timeout: 300
+
+  # Interface link speed detection
+  auto_detect_speed: true
+
+  # MTU verification
+  verify_mtu: false
+
+  # MAC address refresh interval
+  mac_refresh_interval: 10
+
+# Integration Parameters (for CI/CD systems)
+integration:
+  # Enable integration mode
+  enabled: false
+
+  # CI/CD system type: "jenkins", "gitlab", "github", "azure"
+  ci_system: "github"
+
+  # Report format: "junit", "html", "json"
+  report_format: "junit"
+
+  # Report output location
+  report_path: "/tmp/vlan_inter_isolation_report"
+
+  # Metrics collection
+  collect_metrics: false

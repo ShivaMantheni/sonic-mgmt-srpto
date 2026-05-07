@@ -1,0 +1,81 @@
+# Testbed Configuration - 2 Node VLAN Topology
+# DUT1 (192.168.100.170) <-> Peernode1 (192.168.100.231)
+# 5 back-to-back connections for VLAN testing
+
+version: 2.0
+
+devices:
+  D1:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.170
+      port: 22
+    credentials:
+      username: admin
+      password: sonic@123
+      altpassword: sonic@123
+    properties:
+      services: default
+      build: default
+      config: default
+      errors: default
+
+  D2:
+    device_type: sonic
+    access:
+      protocol: ssh
+      ip: 192.168.100.231
+      port: 22
+    credentials:
+      username: admin
+      password: sonic@123
+      altpassword: sonic@123
+    properties:
+      services: default
+      build: default
+      config: default
+      errors: default
+
+topology:
+  D1:
+    interfaces:
+      Ethernet4:
+        EndDevice: D2
+        EndPort: Ethernet4
+      Ethernet8:
+        EndDevice: D2
+        EndPort: Ethernet8
+      Ethernet12:
+        EndDevice: D2
+        EndPort: Ethernet12
+      Ethernet16:
+        EndDevice: D2
+        EndPort: Ethernet16
+      Ethernet20:
+        EndDevice: D2
+        EndPort: Ethernet20
+
+  D2:
+    interfaces:
+      Ethernet4:
+        EndDevice: D1
+        EndPort: Ethernet4
+      Ethernet8:
+        EndDevice: D1
+        EndPort: Ethernet8
+      Ethernet12:
+        EndDevice: D1
+        EndPort: Ethernet12
+      Ethernet16:
+        EndDevice: D1
+        EndPort: Ethernet16
+      Ethernet20:
+        EndDevice: D1
+        EndPort: Ethernet20
+
+services: {default: {}}
+builds:   {default: {}}
+configs:  {default: {}}
+errors:   {default: {}}
+params:   {}

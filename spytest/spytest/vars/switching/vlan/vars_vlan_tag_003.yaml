@@ -1,0 +1,78 @@
+# VLAN Trunk-to-Trunk Tagged Packet Forwarding Test Variables (TC_VLAN_TAG_003)
+defaults:
+  cli_type: klish
+  min_topology: ["D1D2:2"]
+  verify_timeout: 30
+  cleanup: true
+  vlan_id: "10"
+
+testcases:
+  "TC_VLAN_TAG_003":
+    title: "Tagged Packet on Trunk Port"
+    description: |
+      Verify that tagged packets sent on a trunk port are received with the same
+      VLAN tag on another trunk port (no tag stripping on trunk-to-trunk).
+    test_type: "vlan_trunk_tagged_packet"
+    vlans:
+      vlan_10: 10
+    ports:
+      port3:
+        vlans: [10, 20, 30]
+        mode: "trunk"
+        state: "up"
+        shutdown: false
+      port5:
+        vlans: [10, 20, 30]
+        mode: "trunk"
+        state: "up"
+        shutdown: false
+    traffic:
+      method: "scapy"
+      packet_count: 10
+      packet_size: 64
+      packet_type: "ethernet"
+      packet_rate: 1000
+      duration: 5
+      frame_format:
+        type: "ethernet"
+        src_mac: "auto"
+        dst_mac: "auto"
+        vlan_tag: 10
+        vlan_priority: 0
+        ethertype: "0x0800"
+    capture:
+      method: "tcpdump"
+      interface: "port5"
+      bpf_filter: null
+      timeout: 30
+      output_format: "pcap"
+    verification:
+      verify_vlan_config: true
+      verify_port_config: true
+      verify_tag_preservation: true
+      expected_vlan_tag: 10
+      max_packet_loss_percent: 20
+      use_show_running_config: true
+    packet_capture:
+      enabled: true
+      capture_path: "/tmp/vlan_trunk_port5.pcap"
+      expected_packets: 10
+    error_handling:
+      save_diagnostics: true
+      diagnostics_path: "/tmp/vlan_trunk_diagnostics"
+    cleanup:
+      cleanup_vlans: true
+      cleanup_ports: true
+      cleanup_pcaps: true
+
+global:
+  retain_pcaps: false
+  diagnostics_level: "full"
+  max_retries: 0
+  test_timeout: 300
+  auto_detect_speed: true
+
+integration:
+  enabled: false
+  ci_system: "github"
+  report_format: "junit"

@@ -107,7 +107,7 @@ class SonicHooks(object):
         if st.getenv("SPYTEST_GENERATE_CERTIFICATE", "0") != "0":
             basic.ensure_certificate(dut)
         if st.getenv("SPYTEST_DATE_SYNC", "1") != "0":
-            datestr = datetime.datetime.utcnow().strftime("%c")
+            datestr = datetime.datetime.now(datetime.timezone.utc).strftime("%c")
             cmd_date = "date --set='{}'".format(datestr)
             st.config(dut, cmd_date, on_cr_recover="retry5", audit=False)
 

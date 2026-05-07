@@ -1,0 +1,115 @@
+# VLAN Ingress Untagged Packet Tagging Test Variables (TC_VLAN_TAG_001)
+# Author: Test Automation Team
+# Date: 2026-05-07
+#
+# This YAML file contains configuration for TC_VLAN_TAG_001: Untagged Packet Tagging
+
+defaults:
+  cli_type: klish
+  min_topology:
+    - "D1D2:2"
+  verify_timeout: 30
+  cleanup: true
+  vlan_id: "10"
+
+testcases:
+  "TC_VLAN_TAG_001":
+    title: "Untagged Packet Tagging on Access Port"
+    description: |
+      Verify that untagged packets received on an access port are properly tagged
+      with the port's VLAN ID when forwarded to trunk ports.
+    test_type: "vlan_untagged_packet_tagging"
+
+    vlans:
+      vlan_10: 10
+
+    ports:
+      port1:
+        vlans: [10]
+        mode: "access"
+        state: "up"
+        shutdown: false
+        native_vlan: 1
+
+      port3:
+        vlans: [10]
+        mode: "trunk"
+        state: "up"
+        shutdown: false
+        native_vlan: 1
+
+    traffic:
+      method: "scapy"
+      packet_count: 10
+      packet_size: 64
+      packet_type: "ethernet"
+      packet_rate: 1000
+      duration: 5
+      frame_format:
+        type: "ethernet"
+        src_mac: "auto"
+        dst_mac: "auto"
+        vlan_tag: null
+        vlan_priority: 0
+        ethertype: "0x0800"
+
+    capture:
+      method: "tcpdump"
+      interface: "port3"
+      bpf_filter: null
+      timeout: 30
+      output_format: "pcap"
+      keep_pcap: false
+
+    verification:
+      verify_vlan_config: true
+      verify_port_config: true
+      verify_packet_capture: true
+      verify_tagging: true
+      expected_vlan_tag: 10
+      max_packet_loss_percent: 20
+      use_show_running_config: true
+
+    logging:
+      level: "debug"
+      log_packets: true
+      log_counters: true
+      log_config: true
+      log_mac_discovery: true
+      log_tagging: true
+
+    packet_capture:
+      enabled: true
+      capture_path: "/tmp/vlan_tagging_port3.pcap"
+      capture_timeout: 30
+      expected_packets: 10
+
+    error_handling:
+      continue_on_error: false
+      save_diagnostics: true
+      diagnostics_path: "/tmp/vlan_tagging_diagnostics"
+
+    cleanup:
+      cleanup_vlans: true
+      cleanup_ports: true
+      cleanup_pcaps: true
+      cleanup_order:
+        - "ports"
+        - "vlans"
+        - "pcaps"
+
+global:
+  retain_pcaps: false
+  diagnostics_level: "full"
+  max_retries: 0
+  test_timeout: 300
+  auto_detect_speed: true
+  verify_mtu: false
+  mac_refresh_interval: 10
+
+integration:
+  enabled: false
+  ci_system: "github"
+  report_format: "junit"
+  report_path: "/tmp/vlan_tagging_report"
+  collect_metrics: false

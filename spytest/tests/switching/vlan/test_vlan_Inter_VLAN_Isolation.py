@@ -175,19 +175,20 @@ class TestVlanInterIsolation:
         ]:
             st.log(f"Clearing config on {dut_name} port {port}")
             try:
-                # Check if port has any IP addresses
-                output = st.show(dut, f"show ip interface {port}",
-                               type=cls.data.cli_type, skip_error_check=True, skip_tmpl=True)
-                if output and "IP Address" in str(output):
-                    st.log(f"  - Removing IP configuration from {port}")
-                    st.config(dut, f"interface {port}\nno ip address", type=cls.data.cli_type)
+                # Simple and safe cleanup without querying (to avoid command errors)
+                # Remove any VLAN membership configuration
+                try:
+                    st.config(dut, f"interface {port}\nno switchport access vlan",
+                             type=cls.data.cli_type, skip_error_check=True)
+                except Exception as e:
+                    st.log(f"  ⚠️  Could not remove switchport config: {e}")
 
-                # Check if port is in a VLAN
-                output = st.show(dut, f"show vlan members {port}",
-                               type=cls.data.cli_type, skip_error_check=True, skip_tmpl=True)
-                if output:
-                    st.log(f"  - Removing VLAN membership from {port}")
-                    st.config(dut, f"interface {port}\nno switchport access vlan", type=cls.data.cli_type)
+                # Remove any IP address configuration
+                try:
+                    st.config(dut, f"interface {port}\nno ip address",
+                             type=cls.data.cli_type, skip_error_check=True)
+                except Exception as e:
+                    st.log(f"  ⚠️  Could not remove IP config: {e}")
 
                 st.log(f"✅ {dut_name} interface {port} cleared")
             except Exception as e:
@@ -698,9 +699,9 @@ except Exception as e:
             st.log(f"{'='*80}")
 
             if all_steps_passed and isolation_verified:
-                st.report_pass(tcid)
+                st.report_pass("test_case_passed")
             else:
-                st.report_fail(tcid)
+                st.report_fail("test_case_failed")
 
         except Exception as e:
             st.error(f"Exception in {tcid}: {e}")
@@ -708,4 +709,4 @@ except Exception as e:
             st.log(f"❌ {tcid} FAILED with exception: {str(e)}")
             st.log(f"Overall Result: ❌ FAILED")
             st.log(f"{'='*80}")
-            st.report_fail(tcid, str(e))
+            st.report_fail("msg", f"{tcid} failed with exception: {str(e)}")

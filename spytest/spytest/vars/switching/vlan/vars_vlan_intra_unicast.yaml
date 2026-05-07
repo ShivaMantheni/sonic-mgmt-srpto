@@ -1,0 +1,86 @@
+# VLAN Intra-VLAN Unicast Forwarding Test Variables (TC_VLAN_FORWARD_001)
+defaults:
+  cli_type: klish
+  min_topology: ["D1D2:2"]
+  verify_timeout: 30
+  cleanup: true
+  vlan_id: "10"
+
+testcases:
+  "TC_VLAN_FORWARD_001":
+    title: "Intra-VLAN Unicast Forwarding"
+    description: |
+      Verify unicast packet forwarding within VLAN between access ports.
+    test_type: "vlan_intra_unicast"
+
+    vlans:
+      vlan_10: 10
+
+    ports:
+      port1:
+        vlans: [10]
+        mode: "access"
+        state: "up"
+        shutdown: false
+
+      port2:
+        vlans: [10]
+        mode: "access"
+        state: "up"
+        shutdown: false
+
+    traffic:
+      method: "scapy"
+      packet_count: 10
+      packet_size: 64
+      packet_type: "ethernet"
+      packet_rate: 1000
+      duration: 5
+      frame_format:
+        type: "ethernet"
+        src_mac: "auto"
+        dst_mac: "auto"
+        vlan_tag: null
+        vlan_priority: 0
+        ethertype: "0x0800"
+
+    capture:
+      method: "tcpdump"
+      interface: "port2"
+      bpf_filter: null
+      timeout: 30
+      output_format: "pcap"
+
+    verification:
+      verify_vlan_config: true
+      verify_port_config: true
+      verify_unicast_forwarding: true
+      expected_packets_on_dest: 10
+      expected_no_flooding: true
+      max_packet_loss_percent: 20
+      use_show_running_config: true
+
+    packet_capture:
+      enabled: true
+      capture_path: "/tmp/vlan_unicast_port2.pcap"
+      expected_packets: 10
+
+    error_handling:
+      save_diagnostics: true
+      diagnostics_path: "/tmp/vlan_unicast_diagnostics"
+
+    cleanup:
+      cleanup_vlans: true
+      cleanup_ports: true
+      cleanup_pcaps: true
+
+global:
+  retain_pcaps: false
+  diagnostics_level: "full"
+  max_retries: 0
+  test_timeout: 300
+
+integration:
+  enabled: false
+  ci_system: "github"
+  report_format: "junit"

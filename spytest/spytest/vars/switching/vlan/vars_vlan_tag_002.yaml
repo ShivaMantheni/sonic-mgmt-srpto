@@ -1,0 +1,78 @@
+# VLAN Egress Tagged Packet on Access Port Test Variables (TC_VLAN_TAG_002)
+defaults:
+  cli_type: klish
+  min_topology: ["D1D2:2"]
+  verify_timeout: 30
+  cleanup: true
+  vlan_id: "10"
+
+testcases:
+  "TC_VLAN_TAG_002":
+    title: "Egress Tagged Packet on Access Port"
+    description: |
+      Verify that tagged packets forwarded from a trunk port are properly untagged
+      when egressing from an access port.
+    test_type: "vlan_egress_tagged_packet"
+    vlans:
+      vlan_10: 10
+    ports:
+      port1:
+        vlans: [10]
+        mode: "access"
+        state: "up"
+        shutdown: false
+      port3:
+        vlans: [10, 20, 30]
+        mode: "trunk"
+        state: "up"
+        shutdown: false
+    traffic:
+      method: "scapy"
+      packet_count: 10
+      packet_size: 64
+      packet_type: "ethernet"
+      packet_rate: 1000
+      duration: 5
+      frame_format:
+        type: "ethernet"
+        src_mac: "auto"
+        dst_mac: "auto"
+        vlan_tag: 10
+        vlan_priority: 0
+        ethertype: "0x0800"
+    capture:
+      method: "tcpdump"
+      interface: "port1"
+      bpf_filter: null
+      timeout: 30
+      output_format: "pcap"
+    verification:
+      verify_vlan_config: true
+      verify_port_config: true
+      verify_untagging: true
+      expected_no_vlan_tag: true
+      max_packet_loss_percent: 20
+      use_show_running_config: true
+    packet_capture:
+      enabled: true
+      capture_path: "/tmp/vlan_egress_port1.pcap"
+      expected_packets: 10
+    error_handling:
+      save_diagnostics: true
+      diagnostics_path: "/tmp/vlan_egress_diagnostics"
+    cleanup:
+      cleanup_vlans: true
+      cleanup_ports: true
+      cleanup_pcaps: true
+
+global:
+  retain_pcaps: false
+  diagnostics_level: "full"
+  max_retries: 0
+  test_timeout: 300
+  auto_detect_speed: true
+
+integration:
+  enabled: false
+  ci_system: "github"
+  report_format: "junit"

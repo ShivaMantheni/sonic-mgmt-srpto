@@ -1,0 +1,95 @@
+# VLAN Intra-VLAN Multicast Forwarding Test Variables (TC_VLAN_FORWARD_003)
+defaults:
+  cli_type: klish
+  min_topology: ["D1D2:3"]
+  verify_timeout: 30
+  cleanup: true
+  vlan_id: "10"
+
+testcases:
+  "TC_VLAN_FORWARD_003":
+    title: "Intra-VLAN Multicast Forwarding"
+    description: |
+      Verify multicast packet forwarding to all ports within the same VLAN.
+    test_type: "vlan_intra_multicast"
+
+    vlans:
+      vlan_10: 10
+
+    ports:
+      port1:
+        vlans: [10]
+        mode: "access"
+        state: "up"
+        shutdown: false
+
+      port2:
+        vlans: [10]
+        mode: "access"
+        state: "up"
+        shutdown: false
+
+      port3:
+        vlans: [10]
+        mode: "access"
+        state: "up"
+        shutdown: false
+
+    traffic:
+      method: "scapy"
+      packet_count: 10
+      packet_size: 64
+      packet_type: "ethernet"
+      packet_rate: 1000
+      duration: 5
+      frame_format:
+        type: "ethernet"
+        src_mac: "auto"
+        dst_mac: "01:00:5e:01:02:03"
+        vlan_tag: null
+        vlan_priority: 0
+        ethertype: "0x0800"
+
+    capture:
+      method: "tcpdump"
+      interfaces: ["port2", "port3"]
+      bpf_filter: null
+      timeout: 30
+      output_format: "pcap"
+
+    verification:
+      verify_vlan_config: true
+      verify_port_config: true
+      verify_multicast_forwarding: true
+      expected_multicast_mac: "01:00:5e:01:02:03"
+      expected_packets_all_ports: 10
+      max_packet_loss_percent: 20
+      use_show_running_config: true
+
+    packet_capture:
+      enabled: true
+      capture_paths:
+        - "/tmp/vlan_multicast_port2.pcap"
+        - "/tmp/vlan_multicast_port3.pcap"
+      multicast_dst_filter: "01:00:5e:01:02:03"
+      expected_packets_per_port: 10
+
+    error_handling:
+      save_diagnostics: true
+      diagnostics_path: "/tmp/vlan_multicast_diagnostics"
+
+    cleanup:
+      cleanup_vlans: true
+      cleanup_ports: true
+      cleanup_pcaps: true
+
+global:
+  retain_pcaps: false
+  diagnostics_level: "full"
+  max_retries: 0
+  test_timeout: 300
+
+integration:
+  enabled: false
+  ci_system: "github"
+  report_format: "junit"
