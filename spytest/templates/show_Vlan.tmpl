@@ -1,5 +1,6 @@
 Value Filldown VID (\d+)
 Value Filldown Status (Up|Down|Active|Inactive)
+Value Filldown Status (Active|Inactive|Up|Down)
 Value Member ([\w./]+)
 Value Mode (T|A)
 Value Filldown Autostate (Enable|Disable)
@@ -11,6 +12,10 @@ Start
   ^\s*Vlan${VID}\s+${Status}\s+${Mode}\s+${Member}\s+${Autostate}\s+${Dynamic}(\s+${Reserved_vlan})*\s*$$ -> Record
   ^\s*${VID}\s+${Status}\s+${Mode}\s+${Member}\s+${Autostate}\s+${Dynamic}(\s+${Reserved_vlan})*\s*$$ -> Record
   ^\s*Vlan${VID}\s+${Status}\s+${Autostate}(\s+${Reserved_vlan})*\s*$$ -> Record
+  ^\s*Vlan${VID}\s+${Status}\s+${Autostate}\s+${Dynamic}(\s+${Reserved_vlan})*\s*$$ -> Record
+  ^\s*Vlan${VID}\s+${Status}\s+${Autostate}(\s+${Reserved_vlan})*\s*$$ -> Record
+  ^\s*${VID}\s+${Status}\s+${Mode}\s+${Member}\s+${Autostate}\s+${Dynamic}(\s+${Reserved_vlan})*\s*$$ -> Record
+  ^\s*${VID}\s+${Status}\s+${Autostate}\s+${Dynamic}(\s+${Reserved_vlan})*\s*$$ -> Record
   ^\s*${VID}\s+${Status}\s+${Autostate}(\s+${Reserved_vlan})*\s*$$ -> Record
   ^\s*Vlan${VID}\s+${Status}\s+${Mode}\s+${Member}\s+${Autostate}\s*$$ -> Record
   ^\s*${VID}\s+${Status}\s+${Mode}\s+${Member}\s+${Autostate}\s*$$ -> Record

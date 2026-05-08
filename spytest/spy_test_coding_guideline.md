@@ -43,7 +43,8 @@ How to run:
   --testbed ./testbeds/testbed_vs_2d.yaml  \
   interface/test_intf_sample.py \
   --logs-path ./logs/test_intf_sample_$(date +%F_%H%M%S) \
-  --log-level debug  --skip-init-config  --ifname-type native
+  --log-level debug --skip-init-config --ifname-type native --get-tech-support none --syslog-check none
+
 
 Description:
   <One‑paragraph summary of what this test does and key validations>
@@ -76,22 +77,21 @@ Pre‑requisites:
 7. **Topology‑agnostic**: avoid hardcoding; read from YAML/inventory. Gate behavior with capability checks.
 8. **YAML variables**: create and load via SpyTest utilities; do **not** embed test data in code.
 9. **APIs**: CRUD/verify functions in `spytest/apis/<feature>/...`. Reuse existing APIs first; avoid breaking changes.
-10. **Interface Names**: avoid hardcoding; read from testbed.yaml. Do not hardcode in script or var file.
 
-**Example skeleton**
+**Example skeleton** **How to run** : tests/ prefix is not needed in script path for test execution.
 
 ```python
 """
 STATIC IPV4 ROUTING
 Author: Athira
-2025
+2026
 
 How to run:
   ./bin/spytest  --tryssh 1  \
   --testbed ./testbeds/testbed_vs_2d.yaml  \
   routing/static/test_static_ipv4_routes.py \
   --logs-path ./logs/test_static_ipv4_routes_$(date +%F_%H%M%S) \
-  --log-level debug  --skip-init-config  --ifname-type native
+  --log-level debug  --skip-init-config  --ifname-type native  --get-tech-support none --syslog-check none 
 
 Description:
   End-to-end validation of IPv4 static routing CRUD operations using SpyTest APIs
