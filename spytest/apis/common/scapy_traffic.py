@@ -583,11 +583,13 @@ def verify_tcpdump_capture(
 
         output_str = str(output)
 
-        # Parse packet count
+        # Parse packet count - extract LAST number (wc -l output) not first
+        # tcpdump output includes "snapshot length XXXXX" so we need the last number
         packet_count = 0
-        count_match = re.search(r'(\d+)', output_str)
-        if count_match:
-            packet_count = int(count_match.group(1))
+        all_numbers = re.findall(r'\d+', output_str)
+        if all_numbers:
+            # Get the last number which is the wc -l count
+            packet_count = int(all_numbers[-1])
 
         success = packet_count >= min_packets
         st.log(f"Captured {packet_count} packets (minimum: {min_packets}) - {'PASS' if success else 'FAIL'}")

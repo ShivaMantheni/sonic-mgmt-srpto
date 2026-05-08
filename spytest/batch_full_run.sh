@@ -12,9 +12,9 @@
 #   ./batch_full_run.sh --features BGP_NEG_FLAP_RR,SYS_NTP
 #
 # Statistics:
-#   Total Batches: 104 (A-CZ and variants)
-#   Total Test Scripts: 349
-#   Last Updated: 2026-04-16
+#   Total Batches: 105 (A-CZ and DA)
+#   Total Test Scripts: 351
+#   Last Updated: 2026-05-08
 # ==========================================================
 
 DATE_DIR=$(date +%Y%m%d)
@@ -139,6 +139,9 @@ declare -A BATCH_NAMES=(
     ["CX"]="OSPFV2_COMPREHENSIVE"
     ["CY"]="VLAN_DELETE_TESTS"
     ["CZ"]="STATIC_ROUTE_OC_COMPREHENSIVE"
+
+    # LACP CLI Batches (DA)
+    ["DA"]="LACP_CLI_L2L3_TRAFFIC"
 )
 
 # ==========================================================
@@ -1914,6 +1917,19 @@ if should_run_batch "CZ"; then
     system/Static_Route/test_oc_static_route_21_vlan_interface.py
 else
     echo "Skipping Batch CZ (STATIC_ROUTE_OC_COMPREHENSIVE) - not selected"
+fi
+
+
+# ==========================================================
+# BATCH-DA : LACP CLI - Active/Passive Mode with L2/L3 Traffic
+# ==========================================================
+
+if should_run_batch "DA"; then
+    run_batch "LACP_CLI_L2L3_TRAFFIC" "./testbeds/testbed_lacp_vs.yaml" \
+    switching/lacp/test_lacp_cli_001_active_portchannel.py \
+    switching/lacp/test_lacp_cli_002_passive_portchannel.py
+else
+    echo "Skipping Batch DA (LACP_CLI_L2L3_TRAFFIC) - not selected"
 fi
 
 

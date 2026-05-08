@@ -1,0 +1,1255 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE CLISH_MODULE [
+<!ENTITY START_PORT_ID "1">
+<!ENTITY MAX_PORT_ID "32">
+<!ENTITY START_SUB_PORT_ID "1">
+<!ENTITY MAX_SUB_PORT_ID "4">
+<!ENTITY MAX_MTU "9216">
+]>
+<CLISH_MODULE xmlns="http://www.dellemc.com/sonic/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xi="http://www.w3.org/2001/XInclude" xsi:schemaLocation="http://www.dellemc.com/sonic/XMLSchema http://www.dellemc.com/sonic/XMLSchema/clish.xsd">
+  <VAR name="phyifname" dynamic="true">
+    <ACTION> echo -n "${phy-if-name}" | sed 's#/#%2f#g' </ACTION>
+  </VAR>
+  <VAR name="physubifname" dynamic="true">
+    <ACTION> echo -n "${phy-sub-if-name}" | sed 's#/#%2f#g' </ACTION>
+  </VAR>
+  <VAR name="subifparent" dynamic="true">
+    <ACTION> echo -n "${phy-sub-if-name}" | sed 's#\..*##g;s#/#%2f#g' </ACTION>
+  </VAR>
+  <VAR name="subifindex" dynamic="true">
+    <ACTION> echo -n "${phy-sub-if-name}" | sed 's#.*\.##g' </ACTION>
+  </VAR>
+  <VAR name="subiflagparent" dynamic="true">
+    <ACTION> echo -n "${po-sub-if-name}" | sed 's/\..*//g' </ACTION>
+  </VAR>
+  <VAR name="subiflagindex" dynamic="true">
+    <ACTION> echo -n "${po-sub-if-name}" | sed 's/.*\.//g' </ACTION>
+  </VAR>
+  <VAR name="vlan-num" dynamic="true">
+    <ACTION> echo -n "${vlan-val}" | sed 's/[^0-9]*//g' </ACTION>
+  </VAR>
+  <VAR name="vlan-id-list" dynamic="true">
+    <ACTION> echo -n ${vlan-name-list} | sed 's/[^(0-9)\,\-]*//g' </ACTION>
+  </VAR>
+  <VAR name="phy-if-eth-name" dynamic="true">
+    <ACTION> if test "${iface_num}" != ""; then echo -n "Eth${iface_num}"; fi </ACTION>
+  </VAR>
+  <VAR name="phy-if-ethernet-name" dynamic="true">
+    <ACTION> if test "${iface_num}" != ""; then echo -n "Ethernet${iface_num}"; fi </ACTION>
+  </VAR>
+  <VAR name="vlan-name" dynamic="true">
+    <ACTION> if test "${vlan-id}" != ""; then echo -n "Vlan${vlan-id}"; fi </ACTION>
+  </VAR>
+  <VAR name="po-name" dynamic="true">
+    <ACTION> if test "${po-id}" != ""; then echo -n "PortChannel${po-id}"; fi </ACTION>
+  </VAR>
+  <VAR name="po-id" dynamic="true">
+    <ACTION> echo -n "${po-if-name}" | tr -dc '0-9' </ACTION>
+  </VAR>
+  <VAR name="lo-id" dynamic="true">
+    <ACTION> echo -n "${lo-if-name}" | tr -dc '0-9' </ACTION>
+  </VAR>
+  <VAR name="mgmt-if-id" dynamic="true">
+    <ACTION> echo -n "${mgmt-if-name}" | tr -dc '0-9' </ACTION>
+  </VAR>
+  <VAR name="mgmt-name" dynamic="true">
+    <ACTION> if test "${mgmt-if-id}" != ""; then echo -n "Management${mgmt-if-id}"; fi </ACTION>
+  </VAR>
+  <VAR name="lo-name" dynamic="true">
+    <ACTION> if test "${lo-id}" != ""; then echo -n "Loopback${lo-id}"; fi </ACTION>
+  </VAR>
+  <VAR name="ethiflist" dynamic="true">
+    <ACTION> python3 $SONIC_CLI_ROOT/show_interface_unified.py get_available_iflist_in_range ${iface_range_num} </ACTION>
+  </VAR>
+  <VAR name="ethiflist_nativeNum" dynamic="true">
+    <ACTION> python3 $SONIC_CLI_ROOT/show_interface_unified.py get_available_iflist_in_range ${phy-if-ethernet-name} </ACTION>
+  </VAR>
+  <VAR name="ethiflist_aliasNum" dynamic="true">
+    <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py get_available_iflist_in_range ${phy-if-eth-name} </ACTION>
+  </VAR>
+  <VAR name="vlaniflist" dynamic="true">
+    <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py get_available_iflist_in_range ${vlan_range_num} </ACTION>
+  </VAR>
+  <VAR name="poiflist" dynamic="true">
+    <!-- po_range_num is of format PortChannel<range> -->
+    <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py get_available_iflist_in_range ${po_range_num} </ACTION>
+  </VAR>
+  <VAR name="po-id-list" dynamic="true">
+    <!-- po-name is po-id prefixed with PortChannel -->
+    <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py get_available_iflist_in_range ${po-name} </ACTION>
+  </VAR>
+  <VAR name="iflist_from_range" dynamic="true">
+    <!-- Expanding given vlan/portchannel range into list of individual interfaces -->
+    <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py expand_if_range_to_list ${vlan_range_num}${po_range_num} </ACTION>
+  </VAR>
+  <VAR name="is_vlan_mapping_enable" dynamic="true">
+    <!-- Checks if vlan mapping is allowed on current platform -->
+    <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py is_vlan_mapping_enable </ACTION>
+  </VAR>
+  <VAR name="is_vlan_stack_enable_supported" dynamic="true">
+    <!-- Checks if vlan mapping is configurable on current platform -->
+    <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_switch_resource.py is_vlan_stack_enable_configurable </ACTION>
+  </VAR>
+  <VIEW name="enable-view">
+    <!-- show running-configuration interface -->
+    <COMMAND name="show running-configuration interface" help="Display interface information">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="port" help="Physical interface ID" ptype="PHY_INTERFACE"> </PARAM>
+        <PARAM name="vlan" help="VLAN Interface" ptype="VLAN_INTERFACE" hidden="true"> </PARAM>
+        <PARAM name="lag" help="PortChannel Interface" ptype="PO_INTERFACE" hidden="true"> </PARAM>
+        <PARAM name="loopback" help="Loopback Interface" ptype="LOOPBACK_INTERFACE" hidden="true"> </PARAM>
+        <PARAM name="management" help="Management Interface" ptype="MGMT_INTERFACE" hidden="true"> </PARAM>
+        <!-- show interface Ethernet [<id>] -->
+        <PARAM name="Eth" help="Physical Interface" test="${SONIC_CLI_IFACE_MODE} = standard -o ${SONIC_CLI_IFACE_MODE} = standard-ext" ptype="SUBCOMMAND" mode="subcommand" hidden="true">
+          <PARAM name="iface_num" help="Physical Interface" ptype="ETH_RANGE_PHY_SLOT_PORT_SUBPORT" optional="true" hidden="true"> </PARAM>
+        </PARAM>
+        <PARAM name="Ethernet" help="Physical Interface" test="-z ${SONIC_CLI_IFACE_MODE} -o ${SONIC_CLI_IFACE_MODE} = native" ptype="SUBCOMMAND" mode="subcommand" hidden="true">
+          <PARAM name="iface_num" help="Physical Interface" ptype="ETHER_RANGE" optional="true" hidden="true"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py showrun show runnning-configuration ${if-subcommands} ${management}${loopback}${lag}${vlan}${port}${Ethernet}${Eth}${iface_num} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration interface Vlan" help="Display interface VLAN information">
+      <PARAM name="vlan-id" help="VLAN Interface" ptype="VLAN_ID" optional="true"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-vlan view_keys="name=${vlan-name}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration interface PortChannel" help="Display interface PortChannel information">
+      <PARAM name="po-id" help="PortChannel Interface" ptype="LAG_ID" optional="true"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-lag view_keys="name=${po-name}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration interface Management" help="Display interface management information">
+      <PARAM name="mgmt-if-id" help="Management Interface" ptype="MGMT_INTF_ID" optional="true"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-if-mgmt view_keys="name=${mgmt-name}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="show running-configuration interface Loopback" help="Display interface loopback information">
+      <PARAM name="lo-id" help="Loopback Interface" ptype="LO_ID" optional="true"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-lo view_keys="name=${lo-name}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!--show interface -->
+    <COMMAND name="show interface" help="Display interface information">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+        <!-- show interface advertise -->
+        <!-- <PARAM name="advertise" help="AutoNeg advertisement for physical interfaces" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="phy-if-range" help="Physical interface id/range" ptype="ETHER_INTERFACE_RANGE" optional="true"/> </PARAM> -->
+        <!-- <PARAM name="fec" help="FEC mode for physical interfaces" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="status" help="FEC status of physical interfaces" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="phy-if-range" help="Physical interface id/range" ptype="ETHER_INTERFACE_RANGE" optional="true"/> </PARAM> </PARAM> -->
+        <!-- show interface link-training -->
+        <!-- <PARAM name="link-training" help="Link-Training mode for physical interfaces" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="phy-if-range" help="Physical interface id/range" ptype="ETHER_INTERFACE_RANGE" optional="true"/> </PARAM> -->
+        <!-- show interface unreliable-los -->
+        <!-- <PARAM name="unreliable-los" help="Unreliable-LOS mode for physical interfaces" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="status" help="Unreliable-LOS status of physical interfaces" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="phy-if-range" help="Physical interface id/range" ptype="ETHER_INTERFACE_RANGE" optional="true"/> </PARAM> </PARAM> -->
+        <!-- show interface counters -->
+        <PARAM name="counters" help="Counters for physical interfaces" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="if-cnt-subcommands" help="Interface rate and utilization counters subcommands" mode="switch" ptype="SUBCOMMAND" optional="true"> <PARAM name="rate" help="Rate and Utilization Counters of interfaces" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="phy-if-name" help="Physical Interface" ptype="PHY_INTERFACE" optional="true"/> <PARAM name="Ethernet" help="Physical Interface" test="-z ${SONIC_CLI_IFACE_MODE} -o ${SONIC_CLI_IFACE_MODE} = native" ptype="SUBCOMMAND" mode="subcommand" hidden="true" optional="true"/> <PARAM name="Eth" help="Physical Interface" test="${SONIC_CLI_IFACE_MODE} = standard -o ${SONIC_CLI_IFACE_MODE} = standard-ext" ptype="SUBCOMMAND" mode="subcommand" hidden="true" optional="true"/> <PARAM name="po-name" help="PortChannel Interface" ptype="PO_INTERFACE_RANGE" optional="true"/> <PARAM name="PortChannel" help="PortChannel Interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true" optional="true"/> <PARAM name="rif" help="Routing Interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="rif-subcommands" help="rif counters subcommands" mode="switch" ptype="SUBCOMMAND" optional="true"> <PARAM name="phy-if-name" help="Physical Interface" ptype="PHY_INTERFACE" optional="true"/> <PARAM name="po-name" help="PortChannel Interface" ptype="PO_INTERFACE_RANGE" optional="true"/> <PARAM name="vlan-name" help="Vlan Interface" ptype="VLAN_INTERFACE_RANGE" optional="true"/> <PARAM name="phy-sub-name" help="Physical Sub Interface" ptype="PHY_SUB_INTERFACE" optional="true"/> <PARAM name="po-sub-name" help="PortChannel Sub Interface" ptype="PHY_PO_SUB_INTERFACE" optional="true"/> </PARAM> </PARAM> </PARAM> </PARAM>
+        <!-- show interface Ethernet [<id>] -->
+        <PARAM name="Eth" help="Physical Interface" test="${SONIC_CLI_IFACE_MODE} = standard -o ${SONIC_CLI_IFACE_MODE} = standard-ext" ptype="SUBCOMMAND" mode="subcommand" hidden="true">
+          <PARAM name="iface_num" help="Physical Interface" ptype="ETH_RANGE_PHY_SLOT_PORT_SUBPORT" optional="true" hidden="true">
+            <!-- <PARAM name="vlan-mappings" help="Display vlan mappings" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="dot1q-tunnel" help="Display dot1q-tunnel mappings" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> </PARAM> -->
+          </PARAM>
+        </PARAM>
+        <PARAM name="Ethernet" help="Physical Interface" test="-z ${SONIC_CLI_IFACE_MODE} -o ${SONIC_CLI_IFACE_MODE} = native" ptype="SUBCOMMAND" mode="subcommand" hidden="true">
+          <PARAM name="iface_num" help="Physical Interface" ptype="ETHER_RANGE" optional="true" hidden="true">
+            <!-- <PARAM name="vlan-mappings" help="Display vlan mappings" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="dot1q-tunnel" help="Display dot1q-tunnel mappings" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> </PARAM> -->
+          </PARAM>
+        </PARAM>
+        <PARAM name="iface_range_num" help="Physical interface ID/range" ptype="ETHER_INTERFACE_RANGE">
+          <!-- <PARAM name="vlan-mappings" help="Display vlan mappings" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="dot1q-tunnel" help="Display dot1q-tunnel mappings" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> </PARAM> -->
+        </PARAM>
+        <!-- show interface PortChannel-->
+        <PARAM name="po_range_num" help="PortChannel ID/range" ptype="PO_RANGE" mode="subcommand">
+          <!--<PARAM name="vlan-mappings" help="Display vlan mappings" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="dot1q-tunnel" help="Display dot1q-tunnel mappings" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> </PARAM>-->
+        </PARAM>
+        <PARAM name="PortChannel" help="PortChannel interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"> </PARAM>
+        <!-- show interface Management -->
+       <PARAM name="mgmt-if-name" help="Management interface ID" ptype="MGMT_INTERFACE"> </PARAM> <PARAM name="Management" help="Management interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"> </PARAM>
+        <!-- show interface Vlan-->
+        <PARAM name="vlan_range_num" help="VLAN ID/range" ptype="VLAN_INTERFACE_RANGE"> </PARAM>
+        <!-- show interface Loopback-->
+        <PARAM name="lo-id" help="Loopback ID" ptype="LOOPBACK_INTERFACE"> </PARAM>
+        <PARAM name="Loopback" help="Loopback interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"> </PARAM>
+        <!-- show interface status-->
+        <PARAM name="status" help="Physical interfaces status" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="if-reason" help="Events affecting interfaces status" ptype="IF_REASON" optional="true"> </PARAM>
+        </PARAM>
+        <!-- show interface description-->
+        <PARAM name="description" help="Physical interfaces description" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="iftype-switch" help="Physical interfaces description" mode="switch" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="eth-if-name" help="Ethernet interface type" ptype="PHY_INTERFACE"/>
+            <PARAM name="Eth" help="Ethernet interface type" test="${SONIC_CLI_IFACE_MODE} = standard -o ${SONIC_CLI_IFACE_MODE} = standard-ext" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+            <PARAM name="Ethernet" help="Ethernet interface type" test="-z ${SONIC_CLI_IFACE_MODE} -o ${SONIC_CLI_IFACE_MODE} = native" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+            <PARAM name="lo-if-name" help="Loopback interface type" ptype="LOOPBACK_INTERFACE"/>
+            <PARAM name="Loopback" help="Loopback interface type" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+            <PARAM name="mgmt-if-name" help="Management interface type" ptype="MGMT_INTERFACE"/> <PARAM name="Management" help="Management interface type" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+            <PARAM name="vlan-if-name" help="Vlan interface type" ptype="VLAN_INTERFACE"/>
+            <PARAM name="Vlan" help="Vlan interface type" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+            <PARAM name="po-if-name" help="PortChannel interface type" ptype="PO_INTERFACE"/>
+            <PARAM name="PortChannel" help="PortChannel interface type" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+          </PARAM>
+        </PARAM>
+        <!-- show interface brief-->
+        <PARAM name="brief" help="Brief summary of interfaces" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="iftype-switch" help="Interface type" mode="switch" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="eth-if-name" help="Ethernet interface" ptype="PHY_INTERFACE"/>
+            <PARAM name="Eth" help="Ethernet interface" test="${SONIC_CLI_IFACE_MODE} = standard -o ${SONIC_CLI_IFACE_MODE} = standard-ext" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+            <PARAM name="Ethernet" help="Ethernet interface" test="-z ${SONIC_CLI_IFACE_MODE} -o ${SONIC_CLI_IFACE_MODE} = native" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+            <PARAM name="lo-if-name" help="Loopback interface" ptype="LOOPBACK_INTERFACE"/>
+            <PARAM name="Loopback" help="Loopback interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+           <PARAM name="mgmt-if-name" help="Management interface" ptype="MGMT_INTERFACE"/> <PARAM name="Management" help="Management interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/> 
+            <PARAM name="vlan-if-name" help="Vlan interface" ptype="VLAN_INTERFACE"/>
+            <PARAM name="Vlan" help="Vlan interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+            <PARAM name="po-if-name" help="PortChannel interface" ptype="PO_INTERFACE"/>
+            <PARAM name="PortChannel" help="PortChannel interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"/>
+          </PARAM>
+        </PARAM>
+        <!-- show interface phy -->
+        <!-- <PARAM name="phy" help="Phy diagnostic information" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="if-phy-subcommands" help="Phy monitoring subcommands" mode="switch" ptype="SUBCOMMAND"> <PARAM name="status" help="Phy status monitoring data" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="phy-if-name" help="Interface" ptype="PHY_INTERFACE" optional="true"/> </PARAM> <PARAM name="counters" help="Phy non zero counters" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="phy-if-name" help="Interface" ptype="PHY_INTERFACE" optional="true"/> </PARAM> </PARAM> </PARAM> -->
+        <!-- show interface dropcounters -->
+        <!-- <PARAM name="dropcounters" help="Drop Counters for physical interfaces" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="if-drop-subcommands" help="Interface dropcounters subcommands" mode="switch" ptype="SUBCOMMAND" optional="true"> <PARAM name="phy-if-name" help="Physical Interface" ptype="PHY_INTERFACE" optional="true"/> </PARAM> </PARAM> -->
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/show_interface_unified.py show_interface if-reason="${if-reason}" if-subcommands="${if-subcommands}" if-phy-subcommands="${if-phy-subcommands}" phy-if-name="${phy-if-name}" phy-if-range="${phy-if-range}" if-cnt-subcommands="${if-cnt-subcommands}" rif-subcommands="${rif-subcommands}" po-name="${po-name}" vlan-name="${vlan-name}" phy-sub-name="${phy-sub-name}" po-sub-name="${po-sub-name}" mgmt-if-name="${mgmt-if-name}" lo-id="${lo-id}" eth-if-name="${eth-if-name}" Eth="${Eth}" Ethernet="${Ethernet}" lo-if-name="${lo-if-name}" Loopback="${Loopback}" Management="${Management}" vlan-if-name="${vlan-if-name}" Vlan="${Vlan}" po-if-name="${po-if-name}" PortChannel="${PortChannel}" vlan_range_num="${vlan_range_num}" vlaniflist="${vlaniflist}" po_range_num="${po_range_num}" poiflist="${poiflist}" iface_range_num="${iface_range_num}" iface_num="${iface_num}" ethiflist_aliasNum="${ethiflist_aliasNum}" ethiflist_nativeNum="${ethiflist_nativeNum}" ethiflist="${ethiflist}" vlan-mappings="${vlan-mappings}" dot1q-tunnel="${dot1q-tunnel}" __full_line="${__full_line}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- show interface transceiver -->
+    <COMMAND name="show interface transceiver" help="Transceiver information" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="phy-if-name" help="Interface name" ptype="PHY_INTERFACE" optional="true"/>
+      <PARAM name="transceiver-subcommands" help="Transceiver subcommands" mode="switch" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="presence" help="Presence status" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="info" help="Summary information" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="status" help="Operational status" ptype="SUBCOMMAND" mode="subcommand"/>
+        <PARAM name="eeprom" help="EEPROM information" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="eeprom-options" help="EEPROM options" mode="switch" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="detailed" help="Include DOM information" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="verbose" help="Verbose output with all fields" ptype="SUBCOMMAND" mode="subcommand"/>
+          </PARAM>
+        </PARAM>
+        <PARAM name="error-status" help="Error status" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="error-options" help="Error options" mode="switch" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="verbose" help="Detailed error information" ptype="SUBCOMMAND" mode="subcommand"/>
+            <PARAM name="hardware" help="Fetch directly from hardware" ptype="SUBCOMMAND" mode="subcommand"/>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/show_interface_transceiver.py ${phy-if-name} ${presence} ${info} ${status} ${eeprom} ${error-status} ${detailed} ${hardware} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <!-- <COMMAND name="show neighbor-suppress-status" help="Display ARP and ND suppression status" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="id" help="VLAN identifier" ptype="VLAN_ID" optional="true"> </PARAM> <ACTION> if test "${id}" = ""; then python3 $SONIC_CLI_ROOT/sonic_cli_vlan.py get_sonic_vxlan_sonic_vxlan_suppress_vlan_neigh "" show_neigh_suppress.j2 ${__full_line}; else python3 $SONIC_CLI_ROOT/sonic_cli_vlan.py get_sonic_vxlan_sonic_vxlan_suppress_vlan_neigh Vlan${id} show_neigh_suppress.j2 ${__full_line}; fi; </ACTION> <xi:include href="include/pipe.xml"/> <xi:include href="include/pipe.xml"/> </COMMAND> -->
+    <COMMAND name="show PortChannel" help="LAG status and configuration" ptype="SUBCOMMAND" mode="subcommand"/>
+    <COMMAND name="show PortChannel summary" help="LAG status and configurationn" mode="subcommand">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-portchannel.py get_sonic_portchannel_sonic_portchannel_lag_table show_portchannel.j2 ${__full_line} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-view">
+    <COMMAND name="interface" access="netadmin:secadmin" help="Configure interfaces" db_flag="SEP_CLI" view_keys="name=*|name=*|name=*|name=*|name=*|name=*|" view_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}|sonic-vlan:sonic-vlan/VLAN/VLAN_LIST/name={name}|sonic-loopback:sonic-loopback/LOOPBACK/LOOPBACK_LIST/name={name}|sonic-mgmt-port:sonic-mgmt-port/MGMT_PORT/MGMT_PORT_LIST/ifname={name}|sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/name={name}|sonic-interface:sonic-interface/VLAN_SUB_INTERFACE/VLAN_SUB_INTERFACE_LIST/id={name}|" render_command_cb="||interface_loopback|interface_management|interface_portchannel|interface_subif|">
+      <PARAM name="if-switch" help="Interface commands" mode="switch" ptype="STRING" db_flag="SEP_CLI">
+        <PARAM name="phy-if-name" help="Enter Physical interface configuration" ptype="PHY_INTERFACE" view="configure-if-view" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/ifname" viewid="iface=${phy-if-name};iface_uri=${phyifname}"/>
+        <PARAM name="vlan-if-name" help="Enter VLAN interface configuration" access="netadmin" ptype="VLAN_INTERFACE" view="configure-vlan-view" dbpath="sonic-vlan:sonic-vlan/VLAN/VLAN_LIST/name" viewid="vlan_name=${vlan-if-name}"/>
+        <PARAM name="lo-if-name" help="Enter Loopback interface configuration" access="netadmin" ptype="LOOPBACK_INTERFACE" view="configure-lo-view" dbpath="sonic-loopback:sonic-loopback/LOOPBACK/LOOPBACK_LIST/name=" viewid="lo_id=lo${lo-id};lo_name=${lo-if-name};"/>
+        <PARAM name="mgmt-if-name" help="Management interface commands" view="configure-if-mgmt-view" viewid="iface=Management${mgmt-if-id}" dbpath="sonic-mgmt-port:sonic-mgmt-port/MGMT_PORT/MGMT_PORT_LIST/ifname" ptype="MGMT_INTERFACE"/>
+        <PARAM name="po-if-name" help="Enter PortChannel interface configuration" access="netadmin" ptype="PO_INTERFACE" view="configure-lag-view" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/name" viewid="po_id=po${po-id};po_name=${po-if-name};">
+          <!--<PARAM name="mode" help="PortChannel Mode" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="PoMode" help="" ptype="PO_MODE"> </PARAM> </PARAM>-->
+          <PARAM name="min-links" help="Minimum links" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+            <PARAM name="min-links-value" help="Minimum links value" ptype="MIN_LINK"> </PARAM>
+          </PARAM>
+          <PARAM name="fallback" help="LACP Fallback" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+          <PARAM name="fast_rate" help="LACP Fast Rate Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM>
+        </PARAM>
+        <!--<PARAM name="phy-sub-if-name" help="Enter Physical sub interface configuration" ptype="PHY_SUB_INTERFACE" view="configure-subif-view" dbpath="sonic-interface:sonic-interface/VLAN_SUB_INTERFACE/VLAN_SUB_INTERFACE_LIST/id" viewid="iface=${phy-sub-if-name};iface_uri=${physubifname};parent=${subifparent};index=${subifindex}"/> <PARAM name="po-sub-if-name" help="Enter PortChannel sub interface configuration" access="netadmin" ptype="PO_SUBINTERFACE" view="configure-subif-view" viewid="iface=${po-sub-if-name};iface_uri=${po-sub-if-name};po_name=${subiflagparent};parent=${subiflagparent};index=${subiflagindex}"/>-->
+      </PARAM>
+       <ACTION>if test "${po-if-name}" != ""; then if [ -n "${PoMode}" ]; then key=$(redis-cli -n 4 KEYS "PORTCHANNEL|${po-if-name}"); if [ -n "$key" ]; then echo "%Error: Cannot configure Mode for an existing PortChannel: ${po-if-name}"; exit 1; fi; if [ "${PoMode}" = "on" ]; then redis-cli -n 4 HSET "PORTCHANNEL|${po-if-name}" "static" "true" "admin_status" "up" &gt; /dev/null 2&gt;&amp;1; else redis-cli -n 4 HSET "PORTCHANNEL|${po-if-name}" "admin_status" "up" &gt; /dev/null 2&gt;&amp;1; fi; fi; if [ -n "${min-links-value}" ]; then redis-cli -n 4 HSET "PORTCHANNEL|${po-if-name}" "min_links" "${min-links-value}" &gt; /dev/null 2&gt;&amp;1; fi; if [ -n "${fallback}" ]; then redis-cli -n 4 HSET "PORTCHANNEL|${po-if-name}" "fallback" "true" &gt; /dev/null 2&gt;&amp;1; fi; if [ -n "${fast_rate}" ]; then redis-cli -n 4 HSET "PORTCHANNEL|${po-if-name}" "fast_rate" "true" &gt; /dev/null 2&gt;&amp;1; fi; redis-cli -n 4 HSET "PORTCHANNEL|${po-if-name}" "admin_status" "up" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "PORTCHANNEL_INTERFACE|${po-if-name}" "NULL" "NULL" &gt; /dev/null 2&gt;&amp;1; elif test "${vlan-if-name}" != ""; then vlan_exists=$(redis-cli -n 4 EXISTS "VLAN|${vlan-if-name}"); if [ "$vlan_exists" = "0" ]; then echo "Error: VLAN does not exist. Create VLAN first using 'vlan &lt;id&gt;' command."; exit 1; fi; redis-cli -n 4 HSET "VLAN_INTERFACE|${vlan-if-name}" "NULL" "NULL" &gt; /dev/null 2&gt;&amp;1; elif test "${phy-sub-if-name}" != ""; then redis-cli -n 4 HSET "VLAN_SUB_INTERFACE|${phy-sub-if-name}" "parent" "${subifparent}" "admin_status" "down" &gt; /dev/null 2&gt;&amp;1; elif test "${po-sub-if-name}" != ""; then redis-cli -n 4 HSET "VLAN_SUB_INTERFACE|${po-sub-if-name}" "parent" "PortChannel" "admin_status" "up" &gt; /dev/null 2&gt;&amp;1; elif test "${lo-if-name}" != ""; then redis-cli -n 4 HSET "LOOPBACK|${lo-if-name}" "admin_status" "up" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "LOOPBACK_INTERFACE|${lo-if-name}" "admin_status" "up" &gt; /dev/null 2&gt;&amp;1; elif test "${mgmt-if-name}" != ""; then redis-cli -n 4 HSET "MGMT_PORT|eth0" "admin_status" "up" &gt; /dev/null 2&gt;&amp;1; else python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_redis_db patch \; ${if-switch} ${vlan-if-name} ${lo-if-name} ${mgmt-if-name} \; ${po-if-name} ${po-sub-if-name} ${phy-if-name} ${phy-sub-if-name} \; mode=${PoMode} min-links=${min-links-value} fallback=${fallback} fast_rate=${fast_rate}; fi; </ACTION>
+
+    </COMMAND>
+    <!--<COMMAND name="interface range" access="netadmin:secadmin" help="Config interface range" mode="subcommand" ptype="STRING"> <PARAM name="range_option" help="" mode="switch" ptype="SUBCOMMAND"> <PARAM name="iface_range_num" help="Physical interface range" ptype="ETHER_INTERFACE_RANGE" mode="subcommand" viewid="ifacename=${iface_range_num};iface=${iface_range_num};iflist=${ethiflist}" view="configure-if-range-view"/> <PARAM name="vlan_range_num" help="VLAN interface range" access="netadmin" ptype="VLAN_INTERFACE_RANGE" mode="subcommand" viewid="vlan_name=${vlan_range_num};vlan_id=${vlan_range_num};iflist=${vlaniflist}" view="configure-vlan-range-view"/> <PARAM name="po_range_num" help="PortChannel interface range" access="netadmin" ptype="PO_INTERFACE_RANGE" mode="subcommand" viewid="po_name=${po_range_num};po_id=${po_range_num};iflist=${poiflist}" view="configure-po-range-view"/> <PARAM name="create" help="Interface Create" access="netadmin" mode="subcommand" ptype="STRING"> <PARAM name="if-switch" help="Interface commands" mode="switch" ptype="STRING"> <PARAM name="vlan_range_num" help="VLAN interface range" ptype="VLAN_INTERFACE_RANGE" mode="subcommand" viewid="vlan_name=${vlan_range_num};vlan_id=${vlan_range_num};iflist=${iflist_from_range}" view="configure-vlan-range-view"/> <PARAM name="po_range_num" help="PortChannel interface range" ptype="PO_INTERFACE_RANGE" mode="subcommand" viewid="po_name=${po_range_num};po_id=${po_range_num};iflist=${iflist_from_range}" view="configure-po-range-view"> <PARAM name="mode" help="PortChannel Mode" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="PoMode" help="" ptype="PO_MODE"> </PARAM> </PARAM> <PARAM name="min-links" help="Minimum links" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="min-links-value" help="Minimum links value" ptype="MIN_LINK"> </PARAM> </PARAM> <PARAM name="fallback" help="LACP Fallback" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> <PARAM name="fast_rate" help="LACP Fast Rate Interval" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_redis_db patch cmd=${range_option} iflist=${ethiflist}${vlaniflist}${poiflist} ifrange=${vlan_range_num}${po_range_num} mode=${PoMode} min-links=${min-links-value} fallback=${fallback} fast_rate=${fast_rate} </ACTION> </COMMAND>-->
+    <!-- no interface commands -->
+    <COMMAND name="no interface" access="netadmin" help="Delete interface">
+      <PARAM name="if-subcommands" help="Interface subcommands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="vlan_range_num" help="VLAN ID/range" ptype="VLAN_INTERFACE_RANGE"> </PARAM>
+        <PARAM name="po_range_num" help="PortChannel ID/range" ptype="PO_INTERFACE_RANGE"> </PARAM>
+        <PARAM name="phy-sub-if-name" help="Sub interface" ptype="PHY_SUB_INTERFACE"/>
+        <PARAM name="lo-if-name" help="Loopback Interface" ptype="LOOPBACK_INTERFACE"/>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/no_interface.py ${vlan_range_num} ${po_range_num} ${phy-sub-if-name} ${lo-if-name} </ACTION>
+      <!-- <ACTION> if test "${vlan_range_num}" != ""; then redis-cli -n 4 DEL "VLAN_INTERFACE|${vlan_range_num}" "VLAN|${vlan_range_num}" "MCLAG_UNIQUE_IP|${vlan_range_num}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 KEYS "*|${vlan_range_num}|*" | xargs -r redis-cli -n 4 DEL &gt; /dev/null 2&gt;&amp;1; elif test "${po_range_num}" != ""; then redis-cli -n 4 DEL "PORTCHANNEL_INTERFACE|${po_range_num}" "PORTCHANNEL|${po_range_num}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 KEYS "*|${po_range_num}|*" | xargs -r redis-cli -n 4 DEL &gt; /dev/null 2&gt;&amp;1; fi; </ACTION> -->
+      <!-- <ACTION> if test "${vlan_range_num}" != ""; then redis-cli -n 4 DEL "VLAN_INTERFACE|${vlan_range_num}" "VLAN|${vlan_range_num}" "MCLAG_UNIQUE_IP|${vlan_range_num}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 KEYS "*|${vlan_range_num}|*" | xargs -r redis-cli -n 4 DEL &gt; /dev/null 2&gt;&amp;1; elif test "${po_range_num}" != ""; then redis-cli -n 4 DEL "PORTCHANNEL_INTERFACE|${po_range_num}" "PORTCHANNEL|${po_range_num}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 KEYS "*|${po_range_num}|*" | xargs -r redis-cli -n 4 DEL &gt; /dev/null 2&gt;&amp;1; fi; </ACTION> -->
+    </COMMAND>
+    <!--<COMMAND name="interface CPU" access="netadmin" help="CPU Interface commands" view="config-if-CPU-view" viewid="cpu_ifname=CPU" mode="subcommand" ptype="SUBCOMMAND" view_keys="name=CPU" view_tables="sonic-threshold:sonic-threshold/THRESHOLD_TABLE/THRESHOLD_TABLE_LIST/buffer={buffer},threshold_buffer_type={threshold},interface_name={name},buffer_index_per_port={port}" dbpath="sonic-threshold:sonic-threshold/THRESHOLD_TABLE/THRESHOLD_TABLE_LIST/interface_name=CPU"> <ACTION builtin="clish_nop"/> </COMMAND>-->
+  </VIEW>
+  <VIEW name="configure-if-view" prompt="${SYSTEM_NAME}(config-if-${iface})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-if view_keys="name=${iface}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="description" access="netadmin" escape_chars="" help="Textual description">
+      <PARAM name="desc" help="Textual description of the interface" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/description" ptype="STRING_WITH_PIPE"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-port:sonic-port/PORT/sonic-port:PORT_LIST name:string ${iface} description:string ${#desc} </ACTION>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Remove description">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-port:sonic-port/PORT/sonic-port:PORT_LIST name:string ${iface} description:string "" </ACTION>
+    </COMMAND>
+    <COMMAND name="mtu" access="netadmin" help="Configure MTU test">
+      <PARAM name="mtu" help="MTU of the interface test" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/mtu" ptype="RANGE_MTU"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_port.py set_mtu ${iface} ${mtu} </ACTION>
+    </COMMAND>
+    <COMMAND name="no mtu" access="netadmin" help="Remove MTU">
+      <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "mtu" "9100" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+      <!-- <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_port.py delete_mtu ${iface} </ACTION> -->
+    </COMMAND>
+    <COMMAND name="speed" access="netadmin" help="Configure speed" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}" render_command_cb="if_speed">
+      <PARAM name="speed" help="Speed config of the interface" ptype="INTF_SPEED"/>
+      <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "speed" "${speed}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "PORT|${iface}" "autoneg" "off" &gt; /dev/null 2&gt;&amp;1; </ACTION>
+    </COMMAND>
+    <COMMAND name="speed auto" access="netadmin" help="Enable auto-negotiation" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}" render_command_cb="if_autoneg">
+      <PARAM name="admin_advertise" help="Admin advertised speeds of the interface (comma-separated, e.g. 10000,25000,100000)" optional="true" default="" ptype="STRING"/>
+      <ACTION> if test -n "${admin_advertise}"; then supported_speeds=$(redis-cli -n 6 HGET "PORT_TABLE|${iface}" "supported_speeds" 2&gt;/dev/null); if test -n "$supported_speeds"; then adv_list=$(echo "${admin_advertise}" | tr ',' ' '); sup_list=$(echo "$supported_speeds" | tr ',' ' '); for adv_spd in $adv_list; do valid=0; for sup_spd in $sup_list; do if test "$adv_spd" = "$sup_spd"; then valid=1; break; fi; done; if test "$valid" = "0"; then echo "%Error: Speed $adv_spd is not supported on ${iface}"; echo "Valid speeds: $supported_speeds"; exit 1; fi; done; fi; fi; redis-cli -n 4 HSET "PORT|${iface}" "autoneg" "on" &gt; /dev/null 2&gt;&amp;1; if test -n "${admin_advertise}"; then redis-cli -n 4 HSET "PORT|${iface}" "adv_speeds" "${admin_advertise}" &gt; /dev/null 2&gt;&amp;1; fi </ACTION>
+    </COMMAND>
+    <COMMAND name="no speed" access="netadmin" help="Set default speed config">
+	    <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_port.py delete_speed ${iface} </ACTION>	    
+    </COMMAND>
+    <COMMAND name="duplex" access="netadmin" help="Configure duplex mode" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}" render_command_cb="if_duplex">
+      <PARAM name="duplex" help="Duplex mode config of the interface" ptype="INTF_DUPLEX"/>
+      <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "duplex" "${duplex}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no duplex" access="netadmin" help="Reset duplex to default mode" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}">
+      <ACTION> redis-cli -n 4 HDEL "PORT|${iface}" "duplex" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <!--<COMMAND name="link-error-disable" access="netadmin" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/error-disable=on" help="Configure link error disable"> <PARAM name="flap-threshold" help="Set link flap threshold for error disable" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="flaps" help="Link flap threshold for error disable criteria" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/flap-threshold" ptype="RANGE_1_50"> <PARAM name="sampling-interval" help="Set sampling interval for counting link flaps" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="window" help="Sampling interval in seconds." dbpath="sonic-port:sonic-port/PORT/PORT_LIST/sampling-interval" ptype="RANGE_1_65535"> <PARAM name="recovery-interval" help="Set link flap error disable recovery interval in seconds. 0 for disabling auto recovery." ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="interval" help="Recovery interval in seconds" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/recovery-interval" ptype="RANGE_0_65534"/> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <ACTION> if test "${flaps}" != ""; then redis-cli -n 4 HSET "PORT|${iface}" "flap-threshold" "${flaps}" &gt; /dev/null 2&gt;&amp;1; if test "${window}" != ""; then redis-cli -n 4 HSET "PORT|${iface}" "recovery-interval" "${window}" &gt; /dev/null 2&gt;&amp;1; if test "${interval}" != ""; then redis-cli -n 4 HSET "PORT|${iface}" "sampling-interval" "${interval}" &gt; /dev/null 2&gt;&amp;1; fi; fi; fi; </ACTION> </COMMAND> <COMMAND name="no link-error-disable" access="netadmin" help="Turn-off link-error-disable on this interface"> <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "error-disable" "off" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND>-->
+    <COMMAND name="fec" access="netadmin" help="Configure FEC (forward error correction)" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}" render_command_cb="if_fec">
+      <PARAM name="fec" help="FEC configuration of the interface" ptype="INTF_FEC"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_port.py set_fec ${iface} ${fec} </ACTION>
+    </COMMAND>
+    <COMMAND name="no fec" access="netadmin" help="Set default FEC (forward error correction) configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_port.py delete_fec ${iface} </ACTION>
+    </COMMAND>
+    <!--<COMMAND name="diag-mode" access="netadmin" help="Configure port diagnostic mode"> <PARAM name="diag-mode" help="Put port into diagnostic mode" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/diag_mode=on" ptype="INTF_DIAG_MODE"/> <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "diag_mode" "${diag-mode}" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no diag-mode" access="netadmin" help="Take port out of diagnostic mode"> <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "diag_mode" "off" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND>-->
+    <!--<COMMAND name="standalone-link-training" access="netadmin" help="Enable standalone-link-training" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/link_training=on"> <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "link_training" "on" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no standalone-link-training" access="netadmin" help="Disable standalone-link-training"> <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "link_training" "off" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="unreliable-los" access="netadmin" help="Configure Unreliable-LOS mode" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}" render_command_cb="if_unlos"> <PARAM name="unlos" help="Unreliable-LOS configuration of the interface" ptype="INTF_UNLOS"/> <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "unreliable_los" "${unlos}" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no unreliable-los" access="netadmin" help="Reset Unreliable-LOS config"> <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "unreliable_los" "auto" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="transceiver" access="netadmin" help="Transceiver Configuration" command_tables="sonic-xcvr-cmis:sonic-xcvr-cmis/TRANSCEIVER_CMIS/TRANSCEIVER_CMIS_LIST/ifname={name}" render_command_cb="if_xcvr_cmis"> <PARAM name="if-xcvr-subcommands" help="" mode="switch" ptype="SUBCOMMAND"> <PARAM name="laser-frequency" help="Configure desirable grid type" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="if-xcvr-laser-freq-subcommands" help="" mode="switch" ptype="SUBCOMMAND"> <PARAM name="grid" help="Configure desirable grid type" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="if-xcvr-laser-grid" help="Grid type" ptype="INTF_LASER_GRID"/> <PARAM name="channel" help="Configure desirable channel number" mode="subcommand" ptype="SUBCOMMAND" optional="true"> <PARAM name="if-xcvr-laser-chan" help="Channel number" ptype="RANGE_INT16"/> </PARAM> <PARAM name="lane" help="Configure target media lane id" mode="subcommand" ptype="SUBCOMMAND" optional="true"> <PARAM name="if-xcvr-laser-lane" help="Media lane id" ptype="RANGE_0_15"/> </PARAM> </PARAM> <PARAM name="fine-tuning" help="Configure desirable fine-tuning offset" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="if-xcvr-laser-tune" help="Fine-Tuning offset" ptype="RANGE_INT16"/> <PARAM name="lane" help="Configure target media lane id" mode="subcommand" ptype="SUBCOMMAND" optional="true"> <PARAM name="if-xcvr-laser-lane" help="Media lane id" ptype="RANGE_0_15"/> </PARAM> </PARAM> </PARAM> </PARAM> <PARAM name="laser-power" help="Configure transceiver laser power" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="output-power" help="Configure target output power" mode="subcommand" ptype="SUBCOMMAND"> <PARAM name="if-xcvr-laser-txpower" help="Output power(in units of 0.01 dBm)" ptype="RANGE_INT16"/> </PARAM> <PARAM name="lane" help="Configure target media lane id" mode="subcommand" ptype="SUBCOMMAND" optional="true"> <PARAM name="if-xcvr-laser-lane" help="Media lane id" ptype="RANGE_0_15"/> </PARAM> </PARAM> </PARAM> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_xcvr_cmis.py ${__full_line} iflist=${iface} </ACTION> <DOCGEN> <DESCRIPTION> Configure transceiver parameters on an interface. </DESCRIPTION> <USAGE> Use this command to set transceiver parameters on an interface. </USAGE> <EXAMPLE summary="Configure transceiver laser to channel 3 of 50G grid spacing"> sonic(config-if-Ethernet192)# transceiver laser-frequency grid 50G channel 3 </EXAMPLE> <EXAMPLE summary="Configure transceiver laser grid-less frequency offset to 100MHz"> sonic(config-if-Ethernet192)# transceiver laser-frequency fine-tuning 100 </EXAMPLE> <EXAMPLE summary="Configure transceiver laser target output power to -11.9dBm"> sonic(config-if-Ethernet192)# transceiver laser-power output-power -1190 </EXAMPLE> </DOCGEN> </COMMAND> <COMMAND name="no transceiver" access="netadmin" help="Reset transceiver config"> <PARAM name="lane" help="Target media lane id" mode="subcommand" ptype="SUBCOMMAND" optional="true"> <PARAM name="if-xcvr-laser-lane" help="Media lane id" ptype="RANGE_0_15"/> </PARAM> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_xcvr_cmis.py ${__full_line} iflist=${iface} </ACTION> <DOCGEN> <DESCRIPTION> Reset transceiver parameters on an interface. </DESCRIPTION> <USAGE> Use this command to reset transceiver parameters on an interface. </USAGE> <EXAMPLE summary="Reset transceiver parameters"> sonic(config-if-Ethernet192)# no transceiver </EXAMPLE> </DOCGEN> </COMMAND>-->
+    <COMMAND name="channel-group" access="netadmin" render_command_cb="if_channel_group" help="Configure PortChannel parameters" command_tables="sonic-portchannel:sonic-portchannel/PORTCHANNEL_MEMBER/PORTCHANNEL_MEMBER_LIST/name={vname},port={name}">
+      <!-- channel-group <number> -->
+      <PARAM name="lag-id" help="Specify a PortChannel number" ptype="LAG_ID"> </PARAM>
+      <ACTION>python3 $SONIC_CLI_ROOT/portchannel_channel_group.py add ${iface} ${lag-id}</ACTION>
+      <!-- <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-portchannel:sonic-portchannel/PORTCHANNEL_MEMBER/sonic-portchannel:PORTCHANNEL_MEMBER_LIST name:string PortChannel${lag-id} port:string ${iface} </ACTION> -->
+    </COMMAND>
+    <COMMAND name="no channel-group" access="netadmin" help="Remove from PortChannel group">
+      <ACTION>python3 $SONIC_CLI_ROOT/portchannel_channel_group.py remove ${iface}</ACTION>
+      <!-- <ACTION> redis-cli -n 4 DEL "PORTCHANNEL_MEMBER|*|${iface}" &gt; /dev/null 2&gt;&amp;1</ACTION> -->
+      <!--<ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_int ${iface} </ACTION>-->
+    </COMMAND>
+    <COMMAND name="shutdown" access="netadmin" help="Disable the interface" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/admin_status=down">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_port.py shutdown ${iface} </ACTION>
+    </COMMAND>
+    <COMMAND name="no shutdown" access="netadmin" help="Enable the interface" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/admin_status=up">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_port.py no_shutdown ${iface} </ACTION>
+    </COMMAND>
+    <COMMAND name="switchport" access="netadmin" help="Configure switchport parameters"/>
+    <COMMAND name="switchport access" access="netadmin" help="Set access mode characteristics of the interface" ptype="SUBCOMMAND" mode="subcommand" render_command_cb="if_switchport_access" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}">
+      <PARAM name="vlan-val" help="VLAN ID of the VLAN when this port is in access mode" ptype="VLAN_INTERFACE"> </PARAM>
+      <ACTION> l3_check=$(redis-cli -n 4 KEYS "INTERFACE|${iface}|*"); if [ -n "$l3_check" ]; then echo "Error: Cannot add VLAN member to interface ${iface}. Interface is in L3 mode with IP address configured."; exit 1; fi; python3 $SONIC_CLI_ROOT/validate_vlan_exists.py ${vlan-num} || exit 1; redis-cli -n 4 DEL "VLAN_MEMBER|Vlan${vlan-num}|${iface}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "VLAN_MEMBER|Vlan${vlan-num}|${iface}" "tagging_mode" "untagged" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+      <!-- <ACTION> redis-cli -n 4 DEL "VLAN_MEMBER|Vlan${vlan-num}|${iface}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "VLAN_MEMBER|Vlan${vlan-num}|${iface}" "tagging_mode" "untagged" &gt; /dev/null 2&gt;&amp;1 </ACTION> -->
+    </COMMAND>
+    <COMMAND name="switchport trunk" access="netadmin" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" render_command_cb="if_switchport_trunk" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}">
+      <PARAM name="allowed" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vlan-options" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, Vlan20,70-100,142" ptype="VLAN_INTERFACE_RANGE" mode="subcommand"/>
+          <!--<PARAM name="Vlan" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"> <PARAM name="vlan-subcommands" help="Add/Remove Vlan" ptype="SUBCOMMAND" mode="switch"> <PARAM name="add" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="remove" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="except" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="all" help="Configure an interface on all VLANs" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="none" help="Remove all trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"/> </PARAM> </PARAM>-->
+        </PARAM>
+      </PARAM>
+      <ACTION> l3_check=$(redis-cli -n 4 KEYS "INTERFACE|${iface}|*"); if [ -n "$l3_check" ]; then echo "Error: Cannot add VLAN member to interface ${iface}. Interface is in L3 mode with IP address configured."; exit 1; fi; python3 $SONIC_CLI_ROOT/validate_vlan_exists.py ${vlan_id_list} || exit 1; python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_trunk_add_remove_ethernet ${iface} TRUNK ${vlan_id_list} ${vlan-subcommands} </ACTION>
+      <!-- <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_trunk_add_remove_ethernet ${iface} TRUNK ${vlan_id_list} ${vlan-subcommands} </ACTION> -->
+      <DOCGEN>
+        <DESCRIPTION> Configure trunking parameters on an interface. </DESCRIPTION>
+        <USAGE> Use this command to add or remove trunking parameters on an interface. </USAGE>
+        <EXAMPLE summary="Add trunking parameter on an interface"> sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan add 10 sonic(conf-if-Ethernet4)# </EXAMPLE>
+        <EXAMPLE summary="Remove trunking parameter on an interface"> sonic(conf-if-Ethernet4)# switchport trunk allowed Vlan remove 10 sonic(conf-if-Ethernet4)# </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- <COMMAND name="switchport vlan-mapping" access="netadmin" help="Configure VLAN translation parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" test="${is_vlan_mapping_enable}" command_tables="sonic-vlan-translation:sonic-vlan-translation/VLAN_TRANSLATION/VLAN_TRANSLATION_LIST/ifname={name};sonic-vlan-stacking:sonic-vlan-stacking/VLAN_STACKING/VLAN_STACKING_LIST/ifname={name}" render_command_cb="if_vlan_mappings"> <PARAM name="cvlan-subcommands" help="c-vlanid subcommands" ptype="SUBCOMMAND" mode="switch"> <PARAM name="cvlan-svlan-id" help="Configure VLAN mapping customer VLAN ID" ptype="VLAN_ID"> <PARAM name="svlan-subcommands" help="s-vlanid subcommands" ptype="SUBCOMMAND" mode="switch"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority-multi-tag-subcommands" help="priority and mutli-tag subcommands" ptype="SUBCOMMAND" mode="switch" optional="true"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"> <PARAM name="multi-tag" help="Set support for an unknown customer VLAN ID as payload" ptype="SUBCOMMAND" mode="subcommand" test="! &quot;${is_vlan_stack_enable_supported}&quot;" optional="true"> </PARAM> </PARAM> </PARAM> <PARAM name="multi-tag" help="Set support for an unknown customer VLAN ID as payload" ptype="SUBCOMMAND" mode="subcommand" test="! &quot;${is_vlan_stack_enable_supported}&quot;" optional="true"> </PARAM> </PARAM> </PARAM> <PARAM name="inner" help="Inner customer VLAN" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="inner-cvlan-id" help="Configure inner customer VLAN ID" ptype="VLAN_ID"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority-multi-tag-subcommands" help="priority and mutli-tag subcommands" ptype="SUBCOMMAND" mode="switch" optional="true"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"> <PARAM name="multi-tag" help="Set support for an unknown customer VLAN ID as payload" ptype="SUBCOMMAND" mode="subcommand" test="! &quot;${is_vlan_stack_enable_supported}&quot;" optional="true"> </PARAM> </PARAM> </PARAM> <PARAM name="multi-tag" help="Set support for an unknown customer VLAN ID as payload" ptype="SUBCOMMAND" mode="subcommand" test="! &quot;${is_vlan_stack_enable_supported}&quot;" optional="true"> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="false"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> <PARAM name="add" help="Add VLAN mapping customer VLANs to match list" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="cvlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="CVLAN_LIST"> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <PARAM name="remove" help="Remove VLAN mapping customer VLANs from match list" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="cvlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="CVLAN_LIST"> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;false&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <PARAM name="cvlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="CVLAN_LIST"> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <ACTION builtin="clish_pyobj"> sonic_cli_if vlan_mapping_stacking ${iface} ${svlan-id} ${cvlan-svlan-id} ${cvlan_id_list} ${inner-cvlan-id} ${cvlan-subcommands} ${dot1q-tunnel} ${priority} ${priority_bits} svlan-subcommands ${svlan-subcommands} ${multi-tag} </ACTION> </COMMAND> <COMMAND name="no switchport vlan-mapping" access="netadmin" help="Remove VLAN translation or stacking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" test="${is_vlan_mapping_enable}"> <PARAM name="cvlan-svlan-id" help="Remove a VLAN stacking or all matching VLAN translations by providing a SVLAN ID or provide an CVLAN ID as part of a single translation delete" ptype="VLAN_ID"> <PARAM name="svlan-subcommands" help="s-vlanid subcommands" ptype="SUBCOMMAND" mode="switch" optional="true"> <PARAM name="svlan-id" help="Provide service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Unconfigure priority" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> </PARAM> <PARAM name="dot1q-tunnel" help="Unconfigure a 801.1Q tunneling priority (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="priority" help="Unconfigure priority" ptype="SUBCOMMAND" mode="subcommand" optional="false"> </PARAM> </PARAM> <PARAM name="inner" help="Inner customer VLAN" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="inner-cvlan-id" help="Provide the inner customer VLAN ID" ptype="VLAN_ID"> <PARAM name="svlan-id" help="Provide service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Unconfigure priority" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_mapping_stacking_delete ${iface} ${svlan-id} ${cvlan-svlan-id} ${inner-cvlan-id} ${inner} ${priority} </ACTION> </COMMAND> -->
+    <COMMAND name="no switchport" access="netadmin" help="Remove switchport paramaters"/>
+    <COMMAND name="no switchport access" access="netadmin" help="Remove access mode characteristics of the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="Vlan" help="Remove VLAN when interface is in access mode" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION> for key in $(redis-cli -n 4 KEYS "VLAN_MEMBER|*|${iface}"); do redis-cli -n 4 DEL "$key" &gt; /dev/null 2&gt;&amp;1; done </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport allowed" access="netadmin" help="Remove all VLANs configured on the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="Vlan" help="Remove all VLANs configured on the interface" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_trunk_remove_all ${iface} </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport trunk" access="netadmin" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="allowed" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vlan-name-list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_INTERFACE_RANGE"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_trunk_remove_range ${iface} ${vlan-name-list} </ACTION>
+    </COMMAND>
+    <!--<COMMAND name="allow" access="netadmin" help="Settings for limited-support options"/> <COMMAND name="allow high-wattage-optics" access="netadmin" help="Enable high power optics" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/high-wattage-optics-enable=true" render_command_cb="if_high_wattage_optics_enable"> <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "high-wattage-optics-enable" "true" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no allow" access="netadmin" help="Disallow commands"/> <COMMAND name="no allow high-wattage-optics" access="netadmin" help="Disable high power optics" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/high-wattage-optics-enable=false"> <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "high-wattage-optics-enable" "false" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND>-->
+    <!--sflow configs <COMMAND name="sflow" access="netadmin" help="Interface SFlow settings"/> <COMMAND name="sflow sampling-rate" access="netadmin" help="Set sampling-rate" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="rate" help="Sampling rate" ptype="SFLOW_SAMPLING_RATE"/> <ACTION> redis-cli -n 4 HSET SFLOW_SESSION|${iface} sample_rate "${rate}" > /dev/null 2>&1 </ACTION> </COMMAND> <COMMAND name="sflow enable" access="netadmin" help="Enable sflow" ptype="SUBCOMMAND" mode="subcommand"> <ACTION > redis-cli -n 4 HSET SFLOW_SESSION|${iface} admin_state "up" > /dev/null 2>&1 </ACTION> </COMMAND> <COMMAND name="no sflow" access="netadmin" help="Interface sFlow settings"/> <COMMAND name="no sflow enable" access="netadmin" help="Disable sflow"> <ACTION > redis-cli -n 4 HSET SFLOW_SESSION|${iface} admin_state "down" > /dev/null 2>&1 </ACTION> </COMMAND> <COMMAND name="no sflow sampling-rate" access="netadmin" help="Set sampling rate to default" ptype="SUBCOMMAND" mode="subcommand"> <ACTION> redis-cli -n 4 HDEL SFLOW_SESSION|${iface} sample_rate "${rate}" > /dev/null 2>&1 </ACTION> </COMMAND> -->
+  </VIEW>
+  <VIEW name="configure-lo-view" prompt="${SYSTEM_NAME}(config-if-${lo_id})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-lo view_keys="name=${lo_name}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="shutdown" access="netadmin" help="Disable the interface">
+      <ACTION> redis-cli -n 4 HSET "LOOPBACK_INTERFACE|${lo_name}" "admin_status" "down" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no shutdown" access="netadmin" help="Enable the interface">
+      <ACTION> redis-cli -n 4 HSET "LOOPBACK_INTERFACE|${lo_name}" "admin_status" "up" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="description" access="netadmin" escape_chars="" help="Textual description">
+      <PARAM name="desc" help="Textual description of the interface" dbpath="sonic-loopback:sonic-loopback/LOOPBACK/LOOPBACK_LIST/description" ptype="STRING_WITH_PIPE"/>
+      <ACTION> if [ -n "${desc}" ]; then redis-cli -n 4 HSET "LOOPBACK|${lo_name}" "description" "${desc}" &gt; /dev/null 2&gt;&amp;1; fi; </ACTION>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Remove description">
+      <ACTION> redis-cli -n 4 HSET "LOOPBACK|${lo_name}" "description" "" &gt; /dev/null 2&gt;&amp;1; fi; </ACTION>
+      <!-- <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-loopback:sonic-loopback/LOOPBACK_INTERFACE/sonic-loopback:LOOPBACK_INTERFACE_LIST name:string ${lo_name} description:string "" </ACTION> -->
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-vlan-view" prompt="${SYSTEM_NAME}(config-if-${vlan_name})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-vlan view_keys="name=${vlan_name}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="description" access="netadmin" escape_chars="" help="Textual description">
+      <PARAM name="desc" help="Textual description of the interface" dbpath="sonic-vlan:sonic-vlan/VLAN/VLAN_LIST/description" ptype="STRING_WITH_PIPE"/>
+      <ACTION> if [ -n "${desc}" ]; then redis-cli -n 4 HSET "VLAN|${vlan_name}" "description" "${desc}" &gt; /dev/null 2&gt;&amp;1; fi; </ACTION>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Remove description">
+      <ACTION> redis-cli -n 4 HDEL "VLAN|${vlan_name}" "description" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="shutdown" access="netadmin" help="Disable the Vlan interface" dbpath="sonic-vlan:sonic-vlan/VLAN/VLAN_LIST/admin_status=down">
+      <ACTION> redis-cli -n 4 HSET "VLAN|${vlan_name}" "admin_status" "down" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no shutdown" access="netadmin" help="Enable the Vlan interface">
+      <ACTION> redis-cli -n 4 HSET "VLAN|${vlan_name}" "admin_status" "up" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="mtu" access="netadmin" help="Configure MTU">
+      <PARAM name="mtu" help="MTU of the VLAN interface" ptype="RANGE_MTU" dbpath="sonic-vlan:sonic-vlan/VLAN/VLAN_LIST/mtu"/>
+      <ACTION> redis-cli -n 4 HSET "VLAN|${vlan_name}" "mtu" "${mtu}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no mtu" access="netadmin" help="Remove MTU of VLAN interface">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-vlan:sonic-vlan/VLAN/sonic-vlan:VLAN_LIST name:string ${vlan_name} mtu:uint16 9100 </ACTION>
+    </COMMAND>
+    <!-- <COMMAND name="neigh-suppress" access="netadmin" help="Enable ARP and ND Suppression" command_tables="sonic-vxlan:sonic-vxlan/SUPPRESS_VLAN_NEIGH/SUPPRESS_VLAN_NEIGH_LIST/name={name}" dbpath="sonic-vxlan:sonic-vxlan/SUPPRESS_VLAN_NEIGH/SUPPRESS_VLAN_NEIGH_LIST/suppress=on"> <ACTION> redis-cli -n 4 HSET "SUPPRESS_VLAN_NEIGH|${vlan_name}" "neigh-suppress" "on" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no neigh-suppress" access="netadmin" help="Disable ARP and ND Suppression"> <ACTION> redis-cli -n 4 HDEL "SUPPRESS_VLAN_NEIGH|${vlan_name}" "neigh-suppress" "off" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="mclag-separate-ip" access="netadmin" help="Configure separate IP on VLAN interface for L3 protocol support over MCLAG" command_tables="sonic-mclag:sonic-mclag/MCLAG_UNIQUE_IP/MCLAG_UNIQUE_IP_LIST/if_name={name}" dbpath="sonic-mclag:sonic-mclag/MCLAG_UNIQUE_IP/MCLAG_UNIQUE_IP_LIST/unique_ip=enable"> <ACTION> redis-cli -n 4 HSET "MCLAG_UNIQUE_IP|${vlan_name}" "mclag-separate-ip" "enable" &gt; /dev/null 2&gt;&amp;1 </ACTION> <DOCGEN> <DESCRIPTION> Configure separate IP on Vlan interface for L3 protocol support over MCLAG </DESCRIPTION> <USAGE> sonic-cli(conf-if-Vlan10)# mclag-separate-ip </USAGE> <EXAMPLE summary="mclag-separate-ip"> sonic-cli(config)# interface Vlan 10 sonic-cli(conf-if-Vlan10)# mclag-separate-ip </EXAMPLE> </DOCGEN> </COMMAND> <COMMAND name="no mclag-separate-ip" access="netadmin" help="Unconfigure separate IP on VLAN interface for L3 protocol support over MCLAG"> <ACTION> redis-cli -n 4 HDEL "MCLAG_UNIQUE_IP|${vlan_name}" &gt; /dev/null 2&gt;&amp;1 </ACTION> <DOCGEN> <DESCRIPTION> Unconfigure separate IP on Vlan interface for L3 protocol support over MCLAG </DESCRIPTION> <USAGE> sonic-cli(conf-if-Vlan10)# no mclag-separate-ip </USAGE> <EXAMPLE summary="no mclag-separate-ip"> sonic-cli(config)# interface Vlan 10 sonic-cli(conf-if-Vlan10)# no mclag-separate-ip </EXAMPLE> </DOCGEN> </COMMAND> <COMMAND name="mclag-peer-gateway" access="netadmin" help="Configure MCLAG Peer Gateway on Vlan interface" command_tables="sonic-mclag:sonic-mclag/MCLAG_PEER_GATEWAY/MCLAG_PEER_GATEWAY_LIST/if_name={name}" dbpath="sonic-mclag:sonic-mclag/MCLAG_PEER_GATEWAY/MCLAG_PEER_GATEWAY_LIST/peer_gateway=enable"> <ACTION> redis-cli -n 4 HSET "MCLAG_PEER_GATEWAY|${vlan_name}" "mclag-peer-gateway" "enable" &gt; /dev/null 2&gt;&amp;1 </ACTION> <DOCGEN> <DESCRIPTION> Configure MCLAG Peer Gateway on Vlan interface </DESCRIPTION> <USAGE> sonic-cli(conf-if-Vlan10)# mclag-peer-gateway </USAGE> <EXAMPLE summary="mclag-peer-gateway"> sonic-cli(config)# interface Vlan 10 sonic-cli(conf-if-Vlan10)# mclag-peer-gateway </EXAMPLE> </DOCGEN> </COMMAND> <COMMAND name="autostate" access="netadmin" help="Configure autostate setting"> <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/sonic-vlan:sonic-vlan/VLAN/VLAN_LIST=${vlan_name}/autostate body={"sonic-vlan:autostate": "enable"}</ACTION> <DOCGEN> <DESCRIPTION> Configure Autostate on Vlan interface. Enable - VLAN Operstatus is dependent on VLAN Member operstatus and VRF-VNI mappings. Disable - VLAN Operstatus is set as Up once created. </DESCRIPTION> <USAGE> sonic-cli(conf-if-Vlan10)# autostate </USAGE> <EXAMPLE summary="autostate"> sonic-cli(config)# interface Vlan 10 sonic-cli(conf-if-Vlan10)# autostate </EXAMPLE> </DOCGEN> </COMMAND> -->
+    <COMMAND name="no mclag-peer-gateway" access="netadmin" help="Unconfigure MCLAG Peer Gateway on Vlan interface">
+      <ACTION> redis-cli -n 4 HDEL "MCLAG_PEER_GATEWAY|${vlan_name}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> Unconfigure MCLAG Peer Gateway on Vlan interface </DESCRIPTION>
+        <USAGE> sonic-cli(conf-if-Vlan10)# no mclag-peer-gateway </USAGE>
+        <EXAMPLE summary="no mclag-peer-gateway"> sonic-cli(config)# interface Vlan 10 sonic-cli(conf-if-Vlan10)# no mclag-peer-gateway </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- <COMMAND name="no autostate" access="netadmin" help="Unconfigure autostate setting" dbpath="sonic-vlan:sonic-vlan/VLAN/VLAN_LIST/autostate=disable"> <ACTION builtin="clish_restcl">oper=PATCH url=/restconf/data/sonic-vlan:sonic-vlan/VLAN/VLAN_LIST=${vlan_name}/autostate body={"sonic-vlan:autostate": "disable"}</ACTION> <DOCGEN> <DESCRIPTION> Unconfigure Autostate on Vlan interface. </DESCRIPTION> <USAGE> sonic-cli(conf-if-Vlan10)# no autostate </USAGE> <EXAMPLE summary="no autostate"> sonic-cli(config)# interface Vlan 10 sonic-cli(conf-if-Vlan10)# no autostate </EXAMPLE> </DOCGEN> </COMMAND> -->
+  </VIEW>
+  <!-- End of Configure View for Vlan-->
+  <VIEW name="configure-lag-view" prompt="${SYSTEM_NAME}(config-if-${po_id})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <!-- Inheritance -->
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-lag view_keys="name=${po_name}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="description" access="netadmin" escape_chars="" help="Textual description">
+      <PARAM name="desc" help="Textual description of the interface" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/description" ptype="STRING_WITH_PIPE"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-portchannel:sonic-portchannel/PORTCHANNEL/sonic-portchannel:PORTCHANNEL_LIST name ${po_name} description:string ${#desc} </ACTION>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Remove description">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-portchannel:sonic-portchannel/PORTCHANNEL/sonic-portchannel:PORTCHANNEL_LIST name ${po_name} description:string "" </ACTION>
+    </COMMAND>
+    <COMMAND name="switchport" access="netadmin" help="Configure switchport parameters"/>
+    <COMMAND name="switchport access" access="netadmin" help="Set access mode characteristics of the interface" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/name={name}" render_command_cb="if_switchport_access">
+      <PARAM name="vlan-val" help="VLAN ID of the VLAN when this port is in access mode" ptype="VLAN_INTERFACE"> </PARAM>
+      <ACTION> l3_check=$(redis-cli -n 4 KEYS "PORTCHANNEL_INTERFACE|${po_name}|*"); if [ -n "$l3_check" ]; then echo "Error: Cannot add VLAN member to interface ${po_name}. Interface is in L3 mode with IP address configured."; exit 1; fi; python3 $SONIC_CLI_ROOT/validate_vlan_exists.py ${vlan-num} || exit 1; redis-cli -n 4 DEL "VLAN_MEMBER|Vlan${vlan-num}|${po_name}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "VLAN_MEMBER|Vlan${vlan-num}|${po_name}" "tagging_mode" "untagged" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+      <!-- <ACTION> redis-cli -n 4 DEL "VLAN_MEMBER|Vlan${vlan-num}|${po_name}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "VLAN_MEMBER|Vlan${vlan-num}|${po_name}" "tagging_mode" "untagged" &gt; /dev/null 2&gt;&amp;1 </ACTION> -->
+    </COMMAND>
+    <COMMAND name="switchport trunk" access="netadmin" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" command_tables="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/name={name}" render_command_cb="if_switchport_trunk">
+      <PARAM name="allowed" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vlan-options" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, Vlan20,70-100,142" ptype="VLAN_INTERFACE_RANGE" mode="subcommand"/>
+          <!--<PARAM name="Vlan" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"> <PARAM name="vlan-subcommands" help="Add/Remove Vlan" ptype="SUBCOMMAND" mode="switch"> <PARAM name="add" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="remove" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="except" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="all" help="configures an interface on all VLANs" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="none" help="Remove all trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"/> </PARAM> </PARAM>-->
+        </PARAM>
+      </PARAM>
+      <ACTION>l3_check=$(redis-cli -n 4 KEYS "PORTCHANNEL_INTERFACE|${po_name}|*"); if [ -n "$l3_check" ]; then echo "Error: Cannot add VLAN member to interface ${po_name}. Interface is in L3 mode with IP address configured."; exit 1; fi; python3 $SONIC_CLI_ROOT/validate_vlan_exists.py ${vlan_id_list} || exit 1; python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_trunk_add_remove_portchannel ${po_name} TRUNK ${vlan_id_list} ${vlan-subcommands} </ACTION>
+      <!-- <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_trunk_add_remove_portchannel ${po_name} TRUNK ${vlan_id_list} ${vlan-subcommands} </ACTION> -->
+      <DOCGEN>
+        <DESCRIPTION> Configure trunking parameters on an interface. </DESCRIPTION>
+        <USAGE> Use this command to add or remove trunking parameters on an interface. </USAGE>
+        <EXAMPLE summary="Add trunking parameter on an interface"> sonic(conf-if-po1)# switchport trunk allowed Vlan add 10 sonic(conf-if-po1)# </EXAMPLE>
+        <EXAMPLE summary="Remove trunking parameter on an interface"> sonic(conf-if-po1)# switchport trunk allowed Vlan remove 10 sonic(conf-if-po1)# </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!--<COMMAND name="switchport vlan-mapping" access="netadmin" help="Configure VLAN translation parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" test="${is_vlan_mapping_enable}" command_tables="sonic-vlan-translation:sonic-vlan-translation/VLAN_TRANSLATION/VLAN_TRANSLATION_LIST/ifname={name};sonic-vlan-stacking:sonic-vlan-stacking/VLAN_STACKING/VLAN_STACKING_LIST/ifname={name}" render_command_cb="if_vlan_mappings"> <PARAM name="cvlan-subcommands" help="c-vlanid subcommands" ptype="SUBCOMMAND" mode="switch"> <PARAM name="cvlan-svlan-id" help="Configure VLAN mapping customer VLAN ID" ptype="VLAN_ID"> <PARAM name="svlan-subcommands" help="s-vlanid subcommands" ptype="SUBCOMMAND" mode="switch"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority-multi-tag-subcommands" help="priority and mutli-tag subcommands" ptype="SUBCOMMAND" mode="switch" optional="true"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"> <PARAM name="multi-tag" help="Set support for an unknown customer VLAN ID as payload" ptype="SUBCOMMAND" mode="subcommand" test="! &quot;${is_vlan_stack_enable_supported}&quot;" optional="true"> </PARAM> </PARAM> </PARAM> <PARAM name="multi-tag" help="Set support for an unknown customer VLAN ID as payload" ptype="SUBCOMMAND" mode="subcommand" test="! &quot;${is_vlan_stack_enable_supported}&quot;" optional="true"> </PARAM> </PARAM> </PARAM> <PARAM name="inner" help="Inner customer VLAN" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="inner-cvlan-id" help="Configure inner customer VLAN ID" ptype="VLAN_ID"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority-multi-tag-subcommands" help="priority and mutli-tag subcommands" ptype="SUBCOMMAND" mode="switch" optional="true"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"> <PARAM name="multi-tag" help="Set support for an unknown customer VLAN ID as payload" ptype="SUBCOMMAND" mode="subcommand" test="! &quot;${is_vlan_stack_enable_supported}&quot;" optional="true"> </PARAM> </PARAM> </PARAM> <PARAM name="multi-tag" help="Set support for an unknown customer VLAN ID as payload" ptype="SUBCOMMAND" mode="subcommand" test="! &quot;${is_vlan_stack_enable_supported}&quot;" optional="true"> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="false"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> <PARAM name="add" help="Add VLAN mapping customer VLANs to match list" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="cvlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="CVLAN_LIST"> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <PARAM name="remove" help="Remove VLAN mapping customer VLANs from match list" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="cvlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="CVLAN_LIST"> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;false&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <PARAM name="cvlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="CVLAN_LIST"> <PARAM name="dot1q-tunnel" help="Configure 801.1Q tunneling (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="svlan-id" help="Configure service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Set priority bits &lt;0-7&gt; for service provider VLAN" ptype="SUBCOMMAND" mode="subcommand" test="&quot;true&quot;=&quot;true&quot;" optional="true"> <PARAM name="priority_bits" help="Configure priority bits for service provider VLAN" ptype="RANGE_0_7" test="&quot;false&quot;=&quot;false&quot;"/> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <ACTION builtin="clish_pyobj"> sonic_cli_if vlan_mapping_stacking ${po_name} ${svlan-id} ${cvlan-svlan-id} ${cvlan_id_list} ${inner-cvlan-id} ${cvlan-subcommands} ${dot1q-tunnel} ${priority} ${priority_bits} svlan-subcommands ${svlan-subcommands} ${multi-tag}</ACTION> </COMMAND> <COMMAND name="no switchport vlan-mapping" access="netadmin" help="Remove VLAN translation or stacking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" test="${is_vlan_mapping_enable}"> <PARAM name="cvlan-svlan-id" help="Remove a VLAN stacking or all matching VLAN translations by providing a SVLAN ID or provide an CVLAN ID as part of a single translation delete" ptype="VLAN_ID"> <PARAM name="svlan-subcommands" help="s-vlanid subcommands" ptype="SUBCOMMAND" mode="switch" optional="true"> <PARAM name="svlan-id" help="Provide service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Unconfigure priority" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> </PARAM> <PARAM name="dot1q-tunnel" help="Unconfigure a 801.1Q tunneling priority (Q-in-Q)" ptype="SUBCOMMAND" mode="subcommand" optional="true"> <PARAM name="priority" help="Unconfigure priority" ptype="SUBCOMMAND" mode="subcommand" optional="false"> </PARAM> </PARAM> <PARAM name="inner" help="Inner customer VLAN" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="inner-cvlan-id" help="Provide the inner customer VLAN ID" ptype="VLAN_ID"> <PARAM name="svlan-id" help="Provide service provider VLAN ID" ptype="VLAN_ID"> <PARAM name="priority" help="Unconfigure priority" ptype="SUBCOMMAND" mode="subcommand" optional="true"> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> </PARAM> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_mapping_stacking_delete ${po_name} ${svlan-id} ${cvlan-svlan-id} ${inner-cvlan-id} ${inner} ${priority} </ACTION> </COMMAND>-->
+    <COMMAND name="no switchport" access="netadmin" help="Removes switchport parameters"/>
+    <COMMAND name="no switchport access" access="netadmin" help="Remove access mode characteristics of the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="Vlan" help="Remove VLAN when interface is in access mode" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION> for key in $(redis-cli -n 4 KEYS "VLAN_MEMBER|*|${po_name}"); do redis-cli -n 4 DEL "$key" &gt; /dev/null 2&gt;&amp;1; done </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport allowed" access="netadmin" help="Remove all VLANs configured on the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="Vlan" help="Remove all VLANs configured on the interface" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_trunk_remove_all ${po_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport trunk" access="netadmin" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="allowed" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vlan-name-list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_INTERFACE_RANGE"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py vlan_trunk_remove_range ${po_name} ${vlan-name-list} </ACTION>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="mtu" access="netadmin" help="Configure MTU" render_command_cb="if_lag_config">
+      <PARAM name="mtu" help="MTU of the interface" ptype="RANGE_MTU"/>
+      <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "mtu" "${mtu}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no mtu" access="netadmin" help="Configure default MTU">
+      <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "mtu" "9100" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="shutdown" access="netadmin" help="Disable the interface" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/admin_status=down">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-portchannel:sonic-portchannel/PORTCHANNEL/sonic-portchannel:PORTCHANNEL_LIST name ${po_name} admin_status:string down </ACTION>
+    </COMMAND>
+    <COMMAND name="no shutdown" access="netadmin" help="Enable the interface" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/admin_status=up">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-portchannel:sonic-portchannel/PORTCHANNEL/sonic-portchannel:PORTCHANNEL_LIST name ${po_name} admin_status:string up </ACTION>
+    </COMMAND>
+    <!--<COMMAND name="mclag" access="netadmin" help="Configure MCLAG interface" command_tables="sonic-mclag:sonic-mclag/MCLAG_INTERFACE/MCLAG_INTERFACE_LIST/if_name={name},domain_id={id}" render_command_cb="if_lag_mclag"> <PARAM name="domain_id" help="mclag domain id" ptype="RANGE_1_4095"/> <ACTION>is_exists=$(redis-cli -n 4 EXISTS "MCLAG_DOMAIN|${domain_id}"); if [ "$is_exists" = "1" ]; then redis-cli -n 4 DEL "MCLAG_INTERFACE|${domain_id}|${po_name}" &gt; /dev/null 2&gt;&amp;1; else printf "%s\n" "%Error: No instance found for '${domain_id}'"; fi; </ACTION> </COMMAND> <COMMAND name="no mclag" access="netadmin" help="Unconfigure MCLAG interface"> <PARAM name="domain_id" help="mclag domain id" ptype="RANGE_1_4095"/> <ACTION> redis-cli -n 4 DEL "MCLAG_INTERFACE|${domain_id}|${po_name}" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="graceful-shutdown" access="netadmin" help="Enable graceful shutdown for the portchannel" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/graceful_shutdown=enable" command_tables="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/name={name}" render_command_cb="if_lag_config"> <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "graceful_shutdown_mode" "ENABLE" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no graceful-shutdown" access="netadmin" help="Disable graceful shutdown for the portchannel" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/graceful_shutdown=disable"> <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "graceful_shutdown_mode" "DISABLE" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="min-links" access="netadmin" help="Configure min-links for the portchannel"> <PARAM name="min_links" help="Enter portchannel min-links value" ptype="MIN_LINK"/> <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "min_links" "${min_links}" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no min-links" access="netadmin" help="Configure default min-links for the portchannel"> <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "min_links" "1" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="system-mac" access="netadmin" help="Configure system mac for the portchannel"> <PARAM name="sysmac" help="System mac for the portchannel" ptype="MAC_ADDR" dbpath="sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/system_mac"/> <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "system_mac" "${sysmac}" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no system-mac" access="netadmin" help="Remove system mac for the portchannel"> <ACTION> redis-cli -n 4 HDEL "PORTCHANNEL|${po_name}" "system_mac" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND>-->
+    <COMMAND name="lacp" access="netadmin" help="Configure LACP Individual"/>
+    <COMMAND name="no lacp" access="netadmin" help="Unconfigure LACP Individual"/>
+    <COMMAND name="lacp individual" access="netadmin" help="Enable LACP Individual for the portchannel">
+      <ACTION>fall_back_status=$(redis-cli -n 4 HGET "PORTCHANNEL|${po_name}" "fallback"); status_value=false; if test "${fall_back_status}"=${status_value}; then redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "lacp_individual" "enable" &gt; /dev/null 2&gt;&amp;1; else echo -n "% Error: LACP individual cannot be configured when fallback is enabled\n"; fi; </ACTION>
+    </COMMAND>
+    <COMMAND name="no lacp individual" access="netadmin" help="Disable LACP Individual for the portchannel">
+      <ACTION>fall_back_status=$(redis-cli -n 4 HGET "PORTCHANNEL|${po_name}" "fallback"); status_value="false"; if test "${fall_back_status}"==${status_value}; then redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "lacp_individual" "disable" &gt; /dev/null 2&gt;&amp;1; else echo -n "% Error: LACP individual cannot be configured when fallback is enabled\n"; fi; </ACTION>
+    </COMMAND>
+    <COMMAND name="lacp individual timeout" access="netadmin" help="Configure LACP Individual timeout for the portchannel">
+      <PARAM name="timeout" help="Enter LACP individual timeout value (3-90 seconds)" ptype="LACP_TIMEOUT"/>
+      <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "lacp_individual_timeout" "${timeout}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no lacp individual timeout" access="netadmin" help="Default LACP Individual timeout for the portchannel">
+      <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "lacp_individual_timeout" "3" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <!--<COMMAND name="evpn" access="netadmin" help="Configure EVPN Multihoming"/> <COMMAND name="evpn ethernet-segment" access="netadmin" help="Configure ethernet-segment" mode="subcommand" ptype="SUBCOMMAND" view_keys="iface=sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/name" view_tables="sonic-portchannel:sonic-portchannel/EVPN_ETHERNET_SEGMENT/EVPN_ETHERNET_SEGMENT_LIST/ifname={iface}" render_view_cb="evpn_esi_intf"> <PARAM name="es_id" help="Ethernet Segment Id (Type-0)" ptype="ETH_SEG" view="configure-evpn-eth-seg" viewid="eth_seg_id=${es_id};po_name=${po_name}"/> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_bgp_evpn.py configure_evpn_ethernet_segment ${po_name} ${es_id} </ACTION> </COMMAND> <COMMAND name="evpn ethernet-segment auto-lacp" access="netadmin" help="Configure ethernet-segment (Type-1)" mode="subcommand" ptype="SUBCOMMAND" view="configure-evpn-eth-seg" viewid="eth_seg_id=auto-lacp;po_name=${po_name}" view_keys="iface=sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/name" view_tables="sonic-portchannel:sonic-portchannel/EVPN_ETHERNET_SEGMENT/EVPN_ETHERNET_SEGMENT_LIST/ifname={iface}" render_view_cb="evpn_esi_intf"> <ACTION> redis-cli -n 4 HSET "EVPN_ETHERNET_SEGMENT|${po_name}" "esi_type" "TYPE_1_LACP_BASED" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "EVPN_ETHERNET_SEGMENT|${po_name}" "ifname" "${po_name}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "EVPN_ETHERNET_SEGMENT|${po_name}" "esi" "AUTO" &gt; /dev/null 2&gt;&amp;1; </ACTION> </COMMAND> <COMMAND name="evpn ethernet-segment auto-system-mac" access="netadmin" help="Configure ethernet-segment (Type-3)" mode="subcommand" ptype="SUBCOMMAND" view="configure-evpn-eth-seg" viewid="eth_seg_id=auto-system-mac;po_name=${po_name}" view_keys="iface=sonic-portchannel:sonic-portchannel/PORTCHANNEL/PORTCHANNEL_LIST/name" view_tables="sonic-portchannel:sonic-portchannel/EVPN_ETHERNET_SEGMENT/EVPN_ETHERNET_SEGMENT_LIST/ifname={iface}" render_view_cb="evpn_esi_intf"> <ACTION> redis-cli -n 4 HSET "EVPN_ETHERNET_SEGMENT|${po_name}" "esi_type" "TYPE_3_MAC_BASED" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "EVPN_ETHERNET_SEGMENT|${po_name}" "ifname" "${po_name}" &gt; /dev/null 2&gt;&amp;1; redis-cli -n 4 HSET "EVPN_ETHERNET_SEGMENT|${po_name}" "esi" "AUTO" &gt; /dev/null 2&gt;&amp;1; </ACTION> </COMMAND> <COMMAND name="no evpn" access="netadmin" help="Remove EVPN Multihoming"/> <COMMAND name="no evpn ethernet-segment" access="netadmin" help="Configure ethernet-segment" mode="subcommand" ptype="SUBCOMMAND"> <ACTION> redis-cli -n 4 DEL "EVPN_ETHERNET_SEGMENT|${po_name}" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="fallback" access="netadmin" help="Configure fallback mode for the portchannel"> <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "fallback" "true" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no fallback" access="netadmin" help="Reset fallback mode for the portchannel"> <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "fallback" "false" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="fast_rate" access="netadmin" help="Configure LACP fast rate mode for the portchannel"> <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "fast_rate" "true" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND> <COMMAND name="no fast_rate" access="netadmin" help="Reset LACP fast rate mode for the portchannel"> <ACTION> redis-cli -n 4 HSET "PORTCHANNEL|${po_name}" "fast_rate" "false" &gt; /dev/null 2&gt;&amp;1 </ACTION> </COMMAND>-->
+  </VIEW>
+  <!-- End of Configure View for PortChannel-->
+  <VIEW name="configure-evpn-eth-seg" prompt="${SYSTEM_NAME}(config-es-${eth_seg_id})# " depth="3">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-evpn-eth-seg view_keys="iface=${po_name}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Remove settings"/>
+    <COMMAND name="df-preference" access="netadmin" help="Configure DF selection preference">
+      <PARAM name="df_pref" help="DF selection preference (default=32767)" ptype="RANGE_1_65535"/>
+      <ACTION> redis-cli -n 4 HSET "EVPN_ETHERNET_SEGMENT|${po_name}" "df_pref" "${df_pref}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no df-preference" access="netadmin" help="Remove DF selection preference">
+      <ACTION> redis-cli -n 4 HDEL "EVPN_ETHERNET_SEGMENT|${po_name}" "df_pref" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="configure-if-mgmt-view" prompt="${SYSTEM_NAME}(config-if-${iface})# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-if-mgmt view_keys="name=${iface}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="shutdown" access="netadmin" help="Disable the interface" dbpath="sonic-mgmt-port:sonic-mgmt-port/MGMT_PORT/MGMT_PORT_LIST/admin_status=down">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mgmt.py shutdown ${iface} </ACTION>
+    </COMMAND>
+    <COMMAND name="no shutdown" access="netadmin" help="Enable the interface">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic-cli-mgmt.py no-shutdown ${iface} </ACTION>
+    </COMMAND>
+    <COMMAND name="description" access="netadmin" escape_chars="" help="Textual description">
+      <PARAM name="desc" help="Textual description of the interface" ptype="STRING_WITH_PIPE" dbpath="sonic-mgmt-port:sonic-mgmt-port/MGMT_PORT/MGMT_PORT_LIST/description"/>
+      <ACTION> if [ -n "${desc}" ]; then redis-cli -n 4 HSET "MGMT_PORT|eth0" "description" "${desc}" &gt; /dev/null 2&gt;&amp;1; fi; </ACTION>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Remove description">
+      <ACTION> redis-cli -n 4 HDEL "MGMT_PORT|eth0" "description" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="mtu" access="netadmin" help="Configure MTU">
+      <PARAM name="mtu" help="MTU of the interface" ptype="MGMT_RANGE_MTU" dbpath="sonic-mgmt-port:sonic-mgmt-port/MGMT_PORT/MGMT_PORT_LIST/mtu"/>
+      <ACTION> redis-cli -n 4 HSET "MGMT_PORT|eth0" "mtu" "${mtu}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no mtu" access="netadmin" help="Set default MTU (1500)">
+      <ACTION> redis-cli -n 4 HSET "MGMT_PORT|eth0" "mtu" "1500" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="autoneg" access="netadmin" help="Configure autoneg" render_command_cb="if_management_autoneg">
+      <ACTION> redis-cli -n 4 HSET "MGMT_PORT|eth0" "autoneg" "on" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no autoneg" access="netadmin" help="Set default autoneg config">
+      <ACTION> redis-cli -n 4 HSET "MGMT_PORT|eth0" "autoneg" "off" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="speed" access="netadmin" help="Configure speed">
+      <PARAM name="speed" help="Speed config of the interface" ptype="MGMT_INTF_SPEED" dbpath="sonic-port:sonic-port/PORT/PORT_LIST"/>
+      <ACTION> redis-cli -n 4 HSET "MGMT_PORT|eth0" "speed" "${speed}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> Configure the speed of a port. </DESCRIPTION>
+        <USAGE> speed speed-in-Mbps </USAGE>
+        <EXAMPLE summary="speed"> sonic(conf-if-Ethernet0)# speed 10000 sonic(conf-if-Ethernet0)# </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="no speed" access="netadmin" help="Set default speed config">
+<ACTION> redis-cli -n 4 HDEL "MGMT_PORT|eth0" "speed" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+<DOCGEN>
+        <DESCRIPTION> Configure the speed of a port back to default. </DESCRIPTION>
+        <USAGE> no speed </USAGE>
+        <EXAMPLE summary="no speed"> sonic(conf-if-Ethernet0)# no speed sonic(conf-if-Ethernet0)# </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <!-- Configure range of Ethernet interfaces -->
+  <VIEW name="configure-if-range-view" prompt="${SYSTEM_NAME}(config-if-range-eth**)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND name="standalone-link-training" access="netadmin" help="Enable standalone-link-training">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_eth.py patch_ocif_eth_link_training ${iflist} "on" </ACTION>
+    </COMMAND>
+    <COMMAND name="no standalone-link-training" access="netadmin" help="Disable standalone-link-training">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_eth.py patch_ocif_eth_link_training ${iflist} "off" </ACTION>
+    </COMMAND>
+    <COMMAND name="unreliable-los" access="netadmin" help="Configure Unreliable-LOS mode">
+      <PARAM name="unlos" help="Unreliable-LOS configuration of the interface" ptype="INTF_UNLOS"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_eth.py patch_ocif_eth_unlos ${iflist} ${unlos} </ACTION>
+    </COMMAND>
+    <COMMAND name="no unreliable-los" access="netadmin" help="Reset Unreliable-LOS config">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_eth.py patch_ocif_eth_unlos ${iflist} "auto" </ACTION>
+    </COMMAND>
+    <COMMAND name="transceiver" access="netadmin" help="Transceiver Configuration">
+      <PARAM name="if-xcvr-subcommands" help="" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="laser-frequency" help="Configure desirable grid type" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="if-xcvr-laser-freq-subcommands" help="" mode="switch" ptype="SUBCOMMAND">
+            <PARAM name="grid" help="Configure desirable grid type" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="if-xcvr-laser-grid" help="Grid type" ptype="INTF_LASER_GRID"/>
+              <PARAM name="channel" help="Configure desirable channel number" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+                <PARAM name="if-xcvr-laser-chan" help="Channel number" ptype="RANGE_INT16"/>
+              </PARAM>
+              <PARAM name="lane" help="Configure target media lane id" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+                <PARAM name="if-xcvr-laser-lane" help="Media lane id" ptype="RANGE_0_15"/>
+              </PARAM>
+            </PARAM>
+            <PARAM name="fine-tuning" help="Configure desirable fine-tuning offset" mode="subcommand" ptype="SUBCOMMAND">
+              <PARAM name="if-xcvr-laser-tune" help="Fine-Tuning offset" ptype="RANGE_INT16"/>
+              <PARAM name="lane" help="Configure target media lane id" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+                <PARAM name="if-xcvr-laser-lane" help="Media lane id" ptype="RANGE_0_15"/>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="laser-power" help="Configure transceiver laser power" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="output-power" help="Configure target output power" mode="subcommand" ptype="SUBCOMMAND">
+            <PARAM name="if-xcvr-laser-txpower" help="Output power(in units of 0.01 dBm)" ptype="RANGE_INT16"/>
+          </PARAM>
+          <PARAM name="lane" help="Configure target media lane id" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+            <PARAM name="if-xcvr-laser-lane" help="Media lane id" ptype="RANGE_0_15"/>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_xcvr_cmis.py ${__full_line} iflist=${iflist} </ACTION>
+    </COMMAND>
+    <COMMAND name="no transceiver" access="netadmin" help="Reset transceiver config">
+      <PARAM name="lane" help="Target media lane id" mode="subcommand" ptype="SUBCOMMAND" optional="true">
+        <PARAM name="if-xcvr-laser-lane" help="Media lane id" ptype="RANGE_0_15"/>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_xcvr_cmis.py ${__full_line} iflist=${iflist} </ACTION>
+    </COMMAND>
+    <COMMAND name="channel-group" access="netadmin" help="Configure PortChannel parameters">
+      <!-- channel-group <number> -->
+      <PARAM name="lag-id" help="Specify a PortChannel number" ptype="LAG_ID"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_aggregate_id ${lag-id} </ACTION>
+    </COMMAND>
+    <COMMAND name="no channel-group" access="netadmin" help="Remove from PortChannel group">
+      <ACTION> redis-cli -n 4 DEL "PORTCHANNEL_MEMBER|*|${iface}" &gt; /dev/null 2&gt;&amp;1</ACTION>
+      <!--<ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py delete_if_range iflist=${iflist} delete_aggregate_id </ACTION>-->
+    </COMMAND>
+    <COMMAND help="Configure interface link MTU" access="netadmin" name="mtu">
+      <PARAM help="Configure interface MTU size (IP MTU=interface MTU - L2 header)" name="mtu" ptype="RANGE_MTU"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_mtu:uint16 ${mtu} </ACTION>
+    </COMMAND>
+    <COMMAND help="Configure interface link MTU" access="netadmin" name="no mtu">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_mtu:uint16 9100 </ACTION>
+    </COMMAND>
+    <COMMAND name="shutdown" access="netadmin" help="Disable the interface">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_enabled False </ACTION>
+    </COMMAND>
+    <COMMAND name="no shutdown" access="netadmin" help="Enable the interface">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_enabled True </ACTION>
+    </COMMAND>
+    <COMMAND name="description" access="netadmin" escape_chars="" help="Textual description">
+      <PARAM name="desc" help="Textual description of the interface" ptype="STRING_WITH_PIPE"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_description:string ${#desc} </ACTION>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Remove description">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_description </ACTION>
+    </COMMAND>
+    <COMMAND name="switchport" access="netadmin" help="Configure switchport parameters"/>
+    <COMMAND name="switchport access" access="netadmin" help="Set access mode characteristics of the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="vlan-val" help="VLAN ID of the VLAN when this port is in access mode" ptype="VLAN_INTERFACE"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_access_vlan ${vlan-num} </ACTION>
+    </COMMAND>
+    <COMMAND name="switchport trunk" access="netadmin" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="allowed" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vlan-options" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, Vlan20,70-100,142" ptype="VLAN_INTERFACE_RANGE" mode="subcommand"/>
+          <!--<PARAM name="Vlan" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"> <PARAM name="vlan-subcommands" help="Add/Remove Vlan" ptype="SUBCOMMAND" mode="switch"> <PARAM name="add" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="remove" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="except" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="all" help="Configures an interface on all VLANs" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="none" help="Remove all trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"/> </PARAM> </PARAM>-->
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py vlan_trunk_if_range iflist=${iflist} patch_trunk_vlan ${vlan_id_list} ${vlan-subcommands} </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport" access="netadmin" help="Removes switchport parameters"/>
+    <COMMAND name="no switchport access" access="netadmin" help="Remove access mode characteristics of the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="Vlan" help="Remove VLAN when interface is in access mode" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py delete_if_range iflist=${iflist} delete_access_vlan </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport allowed" access="netadmin" help="Remove all VLANs configured on the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="Vlan" help="Remove all VLANs configured on the interface" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py delete_if_range iflist=${iflist} delete_all_vlan </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport trunk" access="netadmin" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="allowed" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vlan-name-list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_INTERFACE_RANGE"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py delete_if_range iflist=${iflist} delete_trunk_vlan ${vlan-id-list} </ACTION>
+    </COMMAND>
+    <COMMAND name="lldp" access="netadmin" help="LLDP interface configuration subcommands">
+      <PARAM name="mode" help="Configure mode" ptype="LLDP_MODE_TYPE"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range set_lldp_intf_mode iflist=${iflist} ${mode} </ACTION>
+    </COMMAND>
+    <COMMAND name="no lldp" access="netadmin" help="LLDP interface configuration subcommands">
+      <PARAM name="mode" help="Configure mode" ptype="LLDP_MODE_TYPE"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range del_lldp_intf_mode iflist=${iflist} </ACTION>
+    </COMMAND>
+    <COMMAND name="lldp enable" access="netadmin" help="Enable LLDP at interface level">
+      <ACTION> redis-cli -n 4 DEL "LLDP_PORT|${iflist}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no lldp enable" access="netadmin" help="Disable LLDP at interface level">
+      <ACTION> redis-cli -n 4 HSET "LLDP_PORT|${iflist}" "enabled" "false" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="lldp tlv-select" access="netadmin" help="Enables LLDP TLV advertisement">
+      <PARAM name="tlv" help="Enables TLV advertisement" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="power-management" help="802.3 TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="port-vlan-id" help="802.1 PORT VLAN ID TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="vlan-name" help="802.1 VLAN NAME TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="link-aggregation" help="802.1 Link Aggregation TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="max-frame-size" help="802.3 Maximum Frame size TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range del_lldp_intf_dot1_dot3_tlv iflist=${iflist} ${tlv} </ACTION>
+    </COMMAND>
+    <COMMAND name="no lldp tlv-select" access="netadmin" help="Disables LLDP TLV advertisement" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}" render_command_cb="lldp_intf_tlv_select">
+      <PARAM name="tlv" help="Disables TLV advertisement" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="power-management" help="802.3 TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="port-vlan-id" help="802.1 PORT VLAN ID TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="vlan-name" help="802.1 VLAN NAME TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="link-aggregation" help="802.1 Link Aggregation TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+        <PARAM name="max-frame-size" help="802.3 Maximum Frame size TLV" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range set_lldp_intf_dot1_dot3_tlv iflist=${iflist} ${tlv} </ACTION>
+    </COMMAND>
+    <COMMAND name="lldp tlv-set" access="netadmin" help="Configures IPv4/IPv6 management address" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}">
+      <PARAM name="management-address" help="Management address that will be used to advertise" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="ipv4-ipv6-subcmd" help="" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="ipv4" help="IPv4 management address" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="address" help="IPv4 address" ptype="IP_ADDR" dbpath="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/mgmt_ipv4"> </PARAM>
+          </PARAM>
+          <PARAM name="ipv6" help="IPv6 management address" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="address" help="IPv6 address" ptype="IPV6_ADDR" dbpath="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/mgmt_ipv6"> </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range set_lldp_intf_mgmt_ip iflist=${iflist} ${ipv4-ipv6-subcmd} ${address} </ACTION>
+    </COMMAND>
+    <COMMAND name="no lldp tlv-set" access="netadmin" help="Unconfigures IPv4/IPv6 management address">
+      <PARAM name="management-address" help="Management address" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="ipv4-ipv6-subcmd" help="" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="ipv4" help="IPv4 management address" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+          <PARAM name="ipv6" help="IPv6 management address" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range del_lldp_intf_mgmt_ip iflist=${iflist} ${ipv4-ipv6-subcmd} </ACTION>
+    </COMMAND>
+    <COMMAND name="lldp med-tlv-select" access="netadmin" help="Enables LLDP-MED TLV advertisement">
+      <PARAM name="tlv" help="MED TLV" ptype="LLDP_MED_TLV_TYPE"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range del_lldp_intf_med_tlv iflist=${iflist} ${tlv} </ACTION>
+    </COMMAND>
+    <COMMAND name="no lldp med-tlv-select" access="netadmin" help="Disables LLDP-MED TLV advertisement" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}" render_command_cb="lldp_intf_med_tlv_select">
+      <PARAM name="tlv" help="MED TLV" ptype="LLDP_MED_TLV_TYPE"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range set_lldp_intf_med_tlv iflist=${iflist} ${tlv} </ACTION>
+    </COMMAND>
+    <COMMAND name="lldp vlan-name-tlv" access="netadmin" help="Configures vlan-list for vlan-name TLV advertisement" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}" render_command_cb="lldp_intf_vlan_name_tlv">
+      <PARAM name="vlan-info" help="Configure vlan-list for vlan-name TLV advertisement" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="allowed" help="Configure allowed VLAN IDs on an interface" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="Vlan" help="Select vlan range option" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="vlan-range" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, Vlan20,70-100,142" ptype="VLAN_RANGE"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="max-tlv-count" help="maximum number of VLAN Name TLVs that can be transmitted" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="tlv-count" help="The maximum number of VLAN Name TLVs that can be transmitted - default 10" ptype="LLDP_MAX_TLV_COUNT_RANGE"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range set_lldp_vlan_name iflist=${iflist} ${vlan-info} ${vlan-range} ${tlv-count} </ACTION>
+    </COMMAND>
+    <COMMAND name="no lldp vlan-name-tlv" access="netadmin" help="Unconfigures vlan-list for vlan-name TLV advertisement" command_tables="sonic-lldp:sonic-lldp/LLDP_PORT/LLDP_PORT_LIST/ifname={name}">
+      <PARAM name="vlan-info" help="Unconfigures vlan-list for vlan-name TLV advertisement" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="allowed" help="Unconfigures allowed VLAN IDs on an interface" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="Vlan" help="Select vlan range option" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="vlan-range" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, Vlan20,70-100,142" ptype="VLAN_RANGE"> </PARAM>
+          </PARAM>
+        </PARAM>
+        <PARAM name="max-tlv-count" help="Configure the maximum number of VLAN Name TLVs that can be transmitted" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_lldp.py config_if_range del_lldp_vlan_name iflist=${iflist} ${vlan-info} ${vlan-range} </ACTION>
+    </COMMAND>
+    <COMMAND name="speed" access="netadmin" help="Configure speed">
+      <PARAM name="speed" help="Speed config of the interface" ptype="INTF_SPEED"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_port_speed:string ${speed} </ACTION>
+    </COMMAND>
+    <COMMAND name="no speed" access="netadmin" help="Set default speed config">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py delete_if_range iflist=${iflist} delete_port_speed </ACTION>
+    </COMMAND>
+    <COMMAND name="link-error-disable" access="netadmin" help="Configure link error disable">
+      <PARAM name="flap-threshold" help="Set link flap threshold for error disable" ptype="SUBCOMMAND" mode="subcommand" optional="true">
+        <PARAM name="flaps" help="Link flap threshold for error disable criteria" ptype="RANGE_1_50">
+          <PARAM name="sampling-interval" help="Set sampling interval for counting link flaps" ptype="SUBCOMMAND" mode="subcommand">
+            <PARAM name="window" help="Sampling interval in seconds." ptype="RANGE_1_65535">
+              <PARAM name="recovery-interval" help="Set link flap error disable recovery interval in seconds. 0 for disabling auto recovery." ptype="SUBCOMMAND" mode="subcommand">
+                <PARAM name="interval" help="Recovery interval in seconds" ptype="RANGE_0_65534"/>
+              </PARAM>
+            </PARAM>
+          </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api patch sonic-errdisable:sonic-errdisable/ERRDISABLE/sonic-errdisable:ERRDISABLE_LIST interface ${iflist} link_flap_threshold ${flaps} link_flap_window ${window} link_flap_recovery_interval ${interval} </ACTION>
+    </COMMAND>
+    <COMMAND name="no link-error-disable" access="netadmin" help="Disable link error disable">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py sonic_call_rest_api delete sonic-errdisable:sonic-errdisable/ERRDISABLE/sonic-errdisable:ERRDISABLE_LIST interface ${iflist} </ACTION>
+    </COMMAND>
+    <COMMAND name="duplex" access="netadmin" help="Configure Duplex mode">
+      <PARAM name="duplex" help="Duplex mode configuration of the interface" ptype="INTF_DUPLEX"/>
+      <ACTION> redis-cli -n 4 HSET "PORT|${iface}" "duplex" "${duplex}" &gt; /dev/null 2&gt;&amp;1 </ACTION>
+    </COMMAND>
+    <COMMAND name="no duplex" access="netadmin" help="Reset duplex to default mode">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py delete_if_range iflist=${iflist} delete_duplex_mode </ACTION>
+    </COMMAND>
+    <COMMAND name="fec" access="netadmin" help="Configure FEC (forward error correction)">
+      <PARAM name="fec" help="FEC configuration of the interface" ptype="INTF_FEC"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_port_fec:string ${fec} </ACTION>
+    </COMMAND>
+    <COMMAND name="no fec" access="netadmin" help="Set default FEC (forward error correction) configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_port_fec:string default </ACTION>
+    </COMMAND>
+    <!-- <COMMAND name="diag-mode" access="netadmin" help="Configure port diagnostic mode"> <PARAM name="diag-mode" help="Put port into diagnostic mode" ptype="INTF_DIAG_MODE"/> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_diag_mode:string ${diag-mode} </ACTION> </COMMAND> <COMMAND name="no diag-mode" access="netadmin" help="Take out port out of diagnostic mode"> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_diag_mode:string default </ACTION> </COMMAND> -->
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py showrun_if_range configure-if iflist=${iflist} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="speed auto" access="netadmin" help="Enable auto-negotiation">
+      <PARAM name="admin_advertise" help="Admin advertisement speeds" optional="true" default="null" ptype="STRING"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_eth.py patch_ocif_eth_autoneg ${iflist} "on" ${admin_advertise} </ACTION>
+    </COMMAND>
+    <COMMAND name="no speed auto" access="netadmin" help="Disable auto-negotiation">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_eth.py patch_ocif_eth_autoneg ${iflist} "off" "" </ACTION>
+    </COMMAND>
+    <COMMAND name="sflow" access="netadmin" help="Interface sFlow settings"/>
+    <COMMAND name="sflow sampling-rate" access="netadmin" help="Set sampling-rate" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="rate" help="Sampling rate" ptype="SFLOW_SAMPLING_RATE"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_sflow.py patch_sonic_sflow_sonic_sflow_sflow_session_sflow_session_list_sample_rate ${iflist} ${rate} </ACTION>
+    </COMMAND>
+    <COMMAND name="sflow enable" access="netadmin" help="Enable sflow" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_sflow.py patch_sonic_sflow_sonic_sflow_sflow_session_sflow_session_list_admin_state ${iflist} up </ACTION>
+    </COMMAND>
+    <COMMAND name="no sflow" access="netadmin" help="Interface sFlow settings"/>
+    <COMMAND name="no sflow enable" access="netadmin" help="Disable sflow">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_sflow.py patch_sonic_sflow_sonic_sflow_sflow_session_sflow_session_list_admin_state ${iflist} down </ACTION>
+    </COMMAND>
+    <COMMAND name="no sflow sampling-rate" access="netadmin" help="Set sampling rate to default" ptype="SUBCOMMAND" mode="subcommand">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_sflow.py delete_sonic_sflow_sonic_sflow_sflow_session_sflow_session_list_sample_rate ${iflist} </ACTION>
+    </COMMAND>
+    <COMMAND name="priority-flow-control" access="netadmin" help="PFC Configuration" command_tables="sonic-port-qos-map:sonic-port-qos-map/PORT_QOS_MAP/PORT_QOS_MAP_LIST/ifname={name}" render_command_cb="qos_intf_pfc">
+      <PARAM name="pfc-subcmd" help="PFC commands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="priority" help="PFC Priority commands" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="dot1p" help="Priority value (0-7)" ptype="VAL_0_7_RANGE"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos.py sonic_call_rest_api patch sonic-qos:sonic-qos/PFC_PRIORITY_TO_QUEUE_MAP/sonic-qos:PFC_PRIORITY_TO_QUEUE_MAP_LIST interface ${iflist} ${__full_line} </ACTION>
+    </COMMAND>
+    <COMMAND name="no priority-flow-control" access="netadmin" help="Delete PFC Configuration">
+      <PARAM name="pfc-subcmd" help="PFC commands" mode="switch" ptype="SUBCOMMAND">
+        <PARAM name="priority" help="PFC Priority commands" ptype="SUBCOMMAND" mode="subcommand">
+          <PARAM name="dot1p" help="Priority value (0-7)" ptype="VAL_0_7_RANGE" optional="true"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos.py sonic_call_rest_api delete sonic-qos:sonic-qos/PFC_PRIORITY_TO_QUEUE_MAP/sonic-qos:PFC_PRIORITY_TO_QUEUE_MAP_LIST interface ${iflist} ${__full_line} </ACTION>
+    </COMMAND>
+    <!-- QoS buffer configuration on interface range -->
+    <COMMAND name="buffer" access="netadmin" help="QoS buffer configuration"> </COMMAND>
+    <COMMAND name="no buffer" access="netadmin" help="Unconfigure QoS buffer"> </COMMAND>
+    <!-- Associate priority-group with QoS buffer profile -->
+    <COMMAND name="buffer priority-group" access="netadmin" help="Associate priority-group with QoS buffer profile" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-buffer-pg:sonic-buffer-pg/BUFFER_PG/BUFFER_PG_LIST/ifname={name},pg_num={pg-range}" render_command_cb="qos_buffer_priority_group">
+      <PARAM name="pg-value-range" help="(-) or (,) separated individual priority and ranges of priority's; for example, 0,2-7" ptype="VAL_0_7_RANGE" dbpath="sonic-buffer-pg:sonic-buffer-pg/BUFFER_PG/BUFFER_PG_LIST/pg_num">
+        <PARAM name="profile-name" help="Name of QoS buffer profile" ptype="STRING" dbpath="sonic-buffer-pg:sonic-buffer-pg/BUFFER_PG/BUFFER_PG_LIST/profile"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos_buffer.py associate_priority_group_with_qos_buffer_profile_iflist ${iflist} ${pg-value-range} ${profile-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> This command maps QoS priority group (ingress) with QoS buffer profile. </DESCRIPTION>
+        <USAGE> sonic(config-if-range-eth**)# buffer priority-group PG-ID-LIST PROFILE-NAME </USAGE>
+        <EXAMPLE summary="The following command maps QoS priority group (ingress) with QoS buffer profile."> sonic(config)# interface range Ethernet 0-8 %Info: Configuring only existing interfaces in range sonic(config-if-range-eth**)# buffer priority-group 3-4 profile_1 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Associate queue with QoS buffer profile -->
+    <COMMAND name="buffer queue" access="netadmin" help="Associate queue with QoS buffer profile" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-buffer-queue:sonic-buffer-queue/BUFFER_QUEUE/BUFFER_QUEUE_LIST/ifname={name},qindex={q-range}" render_command_cb="qos_buffer_queue">
+      <PARAM name="queue-value-range" help="(-) or (,) separated individual queue and ranges of queue's; for example, 0,2-7" ptype="VAL_0_7_RANGE" dbpath="sonic-buffer-queue:sonic-buffer-queue/BUFFER_QUEUE/BUFFER_QUEUE_LIST/qindex">
+        <PARAM name="profile-name" help="Name of QoS buffer profile" ptype="STRING" dbpath="sonic-buffer-queue:sonic-buffer-queue/BUFFER_QUEUE/BUFFER_QUEUE_LIST/profile"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos_buffer.py associate_queue_with_qos_buffer_profile_iflist ${iflist} ${queue-value-range} ${profile-name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> This command maps QoS queue (egress) with QoS buffer profile. </DESCRIPTION>
+        <USAGE> sonic(config-if-range-eth**)# buffer queue Q-ID-LIST PROFILE-NAME </USAGE>
+        <EXAMPLE summary="The following command maps QoS queue (egress) with QoS buffer profile."> sonic# configure terminal sonic(config)# interface range Ethernet 0-8 %Info: Configuring only existing interfaces in range sonic(config-if-range-eth**)# buffer queue 2-6 profile_1 </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Enable default lossless buffer profile -->
+    <COMMAND name="buffer default-lossless-buffer-profile" access="netadmin" help="Enable automatic creation of system's pre-defined default lossless buffer profile" mode="subcommand" ptype="SUBCOMMAND" command_tables="sonic-port:sonic-port/PORT/PORT_LIST/name={name}">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos_buffer.py set_default_lossless_buffer_profile_iflist ${iflist} True </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> This command enables default QoS lossless buffer profile on range of interfaces. </DESCRIPTION>
+        <USAGE> sonic(config-if-range-eth**)# buffer default-lossless-buffer-profile </USAGE>
+        <EXAMPLE summary="The following command enables default QoS lossless buffer profile on interface."> sonic# configure terminal sonic(config)# interface range Ethernet 0-8 %Info: Configuring only existing interfaces in range sonic(config-if-range-eth**)# buffer default-lossless-buffer-profile </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <!-- Disable default lossless buffer profile -->
+    <COMMAND name="no buffer default-lossless-buffer-profile" access="netadmin" help="Disable automatic ingress lossless buffer profile creation based on cable length and speed for user desired ingress lossless buffer profile" mode="subcommand" ptype="SUBCOMMAND" dbpath="sonic-port:sonic-port/PORT/PORT_LIST/default_lossless_buffer_profile=false">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos_buffer.py set_default_lossless_buffer_profile_iflist ${iflist} False </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> This command disables default QoS lossless buffer profile on interface. </DESCRIPTION>
+        <USAGE> sonic(config-if-range-eth**)# no buffer default-lossless-buffer-profile </USAGE>
+        <EXAMPLE summary="The following command disables default QoS lossless buffer profile on range of interfaces."> sonic# configure terminal sonic(config)# interface range Ethernet 0-8 %Info: Configuring only existing interfaces in range sonic(config-if-range-eth**)# no buffer default-lossless-buffer-profile </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="queue" access="netadmin" help="Queue configuration" command_tables="sonic-queue:sonic-queue/QUEUE/QUEUE_LIST/ifname={name},qindex={qindex}" render_command_cb="queue_wred_policy">
+      <PARAM name="qid" help="Queue ID" ptype="RANGE_0_7">
+        <PARAM name="wred-policy" help="WRED policy" mode="subcommand" ptype="SUBCOMMAND">
+          <PARAM name="wred_prof_name" help="WRED profile name" ptype="STRING_32"> </PARAM>
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos.py sonic_call_rest_api patch sonic-qos:sonic-qos/QUEUE/sonic-qos:QUEUE_LIST interface ${iflist} queue_id ${qid} wred_profile ${wred_prof_name} </ACTION>
+    </COMMAND>
+    <COMMAND name="no queue" access="netadmin" help="Negate Queue configuration">
+      <PARAM name="qid" help="Queue ID" ptype="RANGE_0_7">
+        <PARAM name="wred-policy" help="WRED policy" mode="subcommand" ptype="SUBCOMMAND"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos.py sonic_call_rest_api delete sonic-qos:sonic-qos/QUEUE/sonic-qos:QUEUE_LIST interface ${iflist} queue_id ${qid} wred_profile </ACTION>
+    </COMMAND>
+  </VIEW>
+  <!-- Configure range of Vlan interfaces -->
+  <VIEW name="configure-vlan-range-view" prompt="${SYSTEM_NAME}(config-if-range-vl**)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND help="Configure interface link MTU" access="netadmin" name="mtu">
+      <PARAM help="Configure interface MTU size (IP MTU=interface MTU - L2 header)" name="mtu" ptype="RANGE_MTU"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_mtu:uint16 ${mtu} </ACTION>
+    </COMMAND>
+    <COMMAND help="Configure interface link MTU" access="netadmin" name="no mtu">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_mtu:uint16 9100 </ACTION>
+    </COMMAND>
+    <COMMAND help="Configure autostate setting" access="netadmin" name="autostate">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range_autostate iflist=${iflist} True </ACTION>
+    </COMMAND>
+    <COMMAND help="Unconfigure autostate setting" access="netadmin" name="no autostate">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range_autostate iflist=${iflist} False </ACTION>
+    </COMMAND>
+    <COMMAND help="Configure separate IP on Vlan interface for L3 protocol support over MCLAG" access="netadmin" name="mclag-separate-ip">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range_mclag_separate_ip iflist=${iflist} True </ACTION>
+    </COMMAND>
+    <COMMAND help="Unconfigure separate IP on Vlan interface for L3 protocol support over MCLAG" access="netadmin" name="no mclag-separate-ip">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py unconfig_if_range_mclag_separate_ip iflist=${iflist} False </ACTION>
+    </COMMAND>
+    <COMMAND help="Configure MCLAG Peer Gateway on Vlan interface" access="netadmin" name="mclag-peer-gateway">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range_mclag_peer_gateway iflist=${iflist} True </ACTION>
+    </COMMAND>
+    <COMMAND help="Unconfigure MCLAG Peer Gateway on Vlan interface" access="netadmin" name="no mclag-peer-gateway">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py unconfig_if_range_mclag_peer_gateway iflist=${iflist} False </ACTION>
+    </COMMAND>
+    <COMMAND name="shutdown" access="netadmin" help="Disable the interface">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_enabled False </ACTION>
+    </COMMAND>
+    <COMMAND name="no shutdown" access="netadmin" help="Enable the interface">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_enabled True </ACTION>
+    </COMMAND>
+    <COMMAND name="description" access="netadmin" escape_chars="" help="Textual description">
+      <PARAM name="desc" help="Textual description of the interface" ptype="STRING_WITH_PIPE"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_description:string ${#desc} </ACTION>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Remove description">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_description </ACTION>
+    </COMMAND>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py showrun_if_range configure-vlan iflist=${iflist} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+  </VIEW>
+  <!-- Configure range of portchannel interfaces -->
+  <VIEW name="configure-po-range-view" prompt="${SYSTEM_NAME}(config-if-range-po**)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="no" access="netadmin" help="Negate a command or set its defaults"/>
+    <COMMAND help="Configure interface link MTU" access="netadmin" name="mtu">
+      <PARAM help="Configure interface MTU size (IP MTU=interface MTU - L2 header)" name="mtu" ptype="RANGE_MTU"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_mtu:uint16 ${mtu} </ACTION>
+    </COMMAND>
+    <COMMAND help="Configure interface link MTU" access="netadmin" name="no mtu">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_mtu:uint16 9100 </ACTION>
+    </COMMAND>
+    <COMMAND name="shutdown" access="netadmin" help="Disable the interface">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_enabled False </ACTION>
+    </COMMAND>
+    <COMMAND name="no shutdown" access="netadmin" help="Enable the interface">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_enabled True </ACTION>
+    </COMMAND>
+    <COMMAND name="description" access="netadmin" escape_chars="" help="Textual description">
+      <PARAM name="desc" help="Textual description of the interface" ptype="STRING_WITH_PIPE"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_description:string ${#desc} </ACTION>
+    </COMMAND>
+    <COMMAND name="no description" access="netadmin" help="Remove description">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_description </ACTION>
+    </COMMAND>
+    <COMMAND name="switchport" access="netadmin" help="Configure switchport parameters"/>
+    <COMMAND name="switchport access" access="netadmin" help="Set access mode characteristics of the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="vlan-val" help="VLAN ID of the VLAN when this port is in access mode" ptype="VLAN_INTERFACE"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} patch_aggregation_access_vlan ${vlan-num} </ACTION>
+    </COMMAND>
+    <COMMAND name="switchport trunk" access="netadmin" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="allowed" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vlan-options" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="switch">
+          <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, Vlan20,70-100,142" ptype="VLAN_INTERFACE_RANGE" mode="subcommand"/>
+          <!--<PARAM name="Vlan" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand" hidden="true"> <PARAM name="vlan-subcommands" help="Add/Remove Vlan" ptype="SUBCOMMAND" mode="switch"> <PARAM name="add" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="remove" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="except" help="Configure trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"> <PARAM name="vlan_id_list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_RANGE"/> </PARAM> <PARAM name="all" help="Configures an interface on all VLANs" ptype="SUBCOMMAND" mode="subcommand"/> <PARAM name="none" help="Remove all trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand"/> </PARAM> </PARAM>-->
+        </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py vlan_trunk_if_range_pc iflist=${iflist} patch_aggregation_trunk_vlan ${vlan_id_list} ${vlan-subcommands} </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport" access="netadmin" help="Removes switchport parameters"/>
+    <COMMAND name="no switchport access" access="netadmin" help="Remove access mode characteristics of the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="Vlan" help="Remove VLAN when interface is in access mode" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py delete_if_range iflist=${iflist} delete_aggregate_access_vlan </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport allowed" access="netadmin" help="Remove all VLANs configured on the interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="Vlan" help="Remove all VLANs configured on the interface" ptype="SUBCOMMAND" mode="subcommand"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py delete_if_range iflist=${iflist} delete_aggregate_all_vlan </ACTION>
+    </COMMAND>
+    <COMMAND name="no switchport trunk" access="netadmin" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+      <PARAM name="allowed" help="Remove trunking parameters on an interface" ptype="SUBCOMMAND" mode="subcommand">
+        <PARAM name="vlan-name-list" help="(-) or (,) separated individual VLAN IDs and ranges of VLAN IDs; for example, 20,70-100,142" ptype="VLAN_INTERFACE_RANGE"> </PARAM>
+      </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py delete_if_range iflist=${iflist} delete_aggregate_trunk_vlan ${vlan-id-list} </ACTION>
+    </COMMAND>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if.py showrun_if_range configure-lag iflist=${iflist} </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="graceful-shutdown" access="netadmin" help="Enable graceful shutdown for the portchannels">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} graceful_shutdown_enabled True </ACTION>
+    </COMMAND>
+    <COMMAND name="no graceful-shutdown" access="netadmin" help="Disable graceful shutdown for the portchannels">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} graceful_shutdown_enabled False </ACTION>
+    </COMMAND>
+    <COMMAND name="lacp" access="netadmin" help="Configure LACP Individual"/>
+    <COMMAND name="no lacp" access="netadmin" help="Unconfigure LACP Individual"/>
+    <COMMAND name="lacp individual" access="netadmin" help="Enable LACP individual for the portchannels">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} lacp_individual True </ACTION>
+    </COMMAND>
+    <COMMAND name="no lacp individual" access="netadmin" help="Disable LACP individual for the portchannels">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} lacp_individual False </ACTION>
+    </COMMAND>
+    <COMMAND name="lacp individual timeout" access="netadmin" help="Configure LACP Individual timeout for the portchannels">
+      <PARAM name="timeout" help="Enter LACP individual timeout value (3-90 seconds)" ptype="LACP_TIMEOUT"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} lacp_individual_timeout ${timeout} </ACTION>
+    </COMMAND>
+    <COMMAND name="no lacp individual timeout" access="netadmin" help="Default LACP Individual timeout for the portchannels">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} lacp_individual_timeout 3 </ACTION>
+    </COMMAND>
+    <COMMAND name="system-mac" access="netadmin" help="Configure system mac for the portchannels">
+      <PARAM name="sysmac" help="System mac for the portchannel" ptype="MAC_ADDR"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py config_if_range iflist=${iflist} set_system_mac ${sysmac} </ACTION>
+    </COMMAND>
+    <COMMAND name="no system-mac" access="netadmin" help="Remove system mac for the portchannels">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_if_range.py unconfig_if_range_system_mac iflist=${iflist} </ACTION>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="config-if-CPU-view" prompt="${SYSTEM_NAME}(config-if-CPU)# " depth="2">
+    <NAMESPACE ref="hidden-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="false" completion="false"/>
+    <NAMESPACE ref="enable-view" help="true" prefix="do" completion="true"/>
+    <COMMAND name="exit" help="Exit from current mode" lock="false">
+      <ACTION builtin="clish_nested_up"/>
+    </COMMAND>
+    <COMMAND name="end" help="Exit to EXEC mode" view="enable-view">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_utils.py clish_exit_session</ACTION>
+    </COMMAND>
+    <NAMESPACE ref="configure-view" help="false" completion="false"/>
+    <COMMAND name="scheduler-policy" access="netadmin" help="Scheduler Policy configuration">
+      <PARAM name="sp_name" help="Scheduler Policy name" ptype="STRING_32"> </PARAM>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos.py sonic_call_rest_api patch sonic-qos:sonic-qos/SCHEDULER_POLICY/sonic-qos:SCHEDULER_POLICY_LIST interface ${cpu_ifname} scheduler_policy ${sp_name} </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> This command is used to configure scheduler policy of CPU interface. </DESCRIPTION>
+        <USAGE> Use this command to configure scheduler policy of CPU interface. </USAGE>
+        <EXAMPLE summary="Configure scheduler policy of CPU interface."> sonic(conf-if-CPU)# scheduler-policy scheduler.cpu </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+    <COMMAND name="show configuration" access="netadmin" help="show configuration">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=config-if-CPU view_keys="name=${cpu_ifname}" </ACTION>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+      <xi:include href="include/pipe.xml"/>
+    </COMMAND>
+    <COMMAND name="no scheduler-policy" access="netadmin" help="Unconfigure a scheduler policy">
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_qos.py sonic_call_rest_api delete sonic-qos:sonic-qos/SCHEDULER_POLICY/sonic-qos:SCHEDULER_POLICY_LIST interface ${cpu_ifname} scheduler_policy </ACTION>
+      <DOCGEN>
+        <DESCRIPTION> This command can be used to delete scheduler policy of an CPU interface . </DESCRIPTION>
+        <USAGE> Use this command to delete previously configured scheduler policy of an CPU interface. </USAGE>
+        <EXAMPLE summary="Clear scheduler policy of an interface."> sonic(conf-if-CPU)#no scheduler-policy </EXAMPLE>
+      </DOCGEN>
+    </COMMAND>
+  </VIEW>
+  <VIEW name="enable-view">
+    <!-- Clear interface counters commands -->
+    <COMMAND name="clear interface" access="netadmin" help="Clear interface counters"/>
+    <COMMAND name="clear interface counters" access="netadmin" help="Clear interface counters">
+      <PARAM name="interface-name" help="Interface name (e.g., Ethernet0, PortChannel1)" ptype="STRING" optional="true"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_clear_if.py clear_counters ${interface-name} </ACTION>
+    </COMMAND>
+    <COMMAND name="clear interface counters rif" access="netadmin" help="Clear RIF (Router Interface) counters">
+      <PARAM name="rif-interface-name" help="RIF interface name (e.g., Ethernet0, PortChannel1, Vlan100)" ptype="STRING" optional="true"/>
+      <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_clear_if.py clear_rif_counters ${rif-interface-name} </ACTION>
+    </COMMAND>
+  </VIEW>
+  <!--VIEW name="configure-subif-view" prompt="${SYSTEM_NAME}(${__config_mode}-subif-${iface})# " depth="2" > <NAMESPACE ref="configure-view" help="false" completion="false" /> <COMMAND name="show configuration" help = "show configuration"> <ACTION> python3 $SONIC_CLI_ROOT/sonic_cli_show_config.py show_view views=configure-subif view_keys="name=${iface}" </ACTION> </COMMAND> <COMMAND name="no" help="Negate a command or set its defaults" /> <COMMAND name="encapsulation" help=""/> <COMMAND name="encapsulation dot1q" help=""/> <COMMAND name="encapsulation dot1q vlan-id" help="" > <PARAM name="vlanid" ptype="VLAN_ID" help=""> </PARAM> <ACTION builtin="clish_restcl"> oper=PATCH url=/restconf/data/openconfig-interfaces:interfaces/interface=${parent}/subinterfaces/subinterface=${index}/openconfig-vlan:vlan/config/vlan-id body={ "openconfig-vlan:vlan-id": ${vlanid} } </ACTION> </COMMAND> </VIEW-->
+</CLISH_MODULE>
+
