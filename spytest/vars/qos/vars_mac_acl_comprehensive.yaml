@@ -1,0 +1,126 @@
+---
+# MAC ACL Comprehensive Test Variables
+# Author: Shiva
+# 2026
+# Test ID: TC-SONIC-MAC-ACL-COMPREHENSIVE-05
+
+defaults:
+  cli_type: klish
+  verify_timeout: 30
+  cleanup: true
+  # Standalone single DUT - no topology requirements
+  min_topology: []
+
+# Test interface will be read from testbed global params
+# Default: Ethernet16 (as per test case requirement)
+# Can be overridden via testbed.yaml global.params.test_interface
+
+testcases:
+  "step_1":
+    title: "Create MAC ACL with valid rule"
+    description: "Define new MAC ACL and add valid deny rule"
+    acl_table:
+      name: "ACL_deny"
+      type: "L2"
+      description: "MAC ACL for comprehensive testing"
+    acl_rule:
+      table_name: "ACL_deny"
+      rule_name: "RULE_10"
+      rule_seq: 10
+      packet_action: "deny"
+      src_mac: "any"
+      dst_mac: "52:54:00:D3:79:35"
+    expected:
+      result: "pass"
+      error: null
+
+  "step_2":
+    title: "Negative Test - Duplicate Sequence Number"
+    description: "Attempt to add rule with existing sequence number"
+    acl_rule:
+      table_name: "ACL_deny"
+      rule_name: "RULE_10_DUP"
+      rule_seq: 10  # Same as step_1
+      packet_action: "deny"
+      src_mac: "any"
+      dst_mac: "52:54:00:D3:79:35"
+    expected:
+      result: "fail"
+      error: "Rule with sequence number 10 already exists"
+
+  "step_3":
+    title: "Negative Test - Invalid MAC Address Format"
+    description: "Attempt to add rule with incomplete MAC address"
+    acl_table:
+      name: "ACL_Negative"
+      type: "L2"
+      description: "Negative test ACL"
+    acl_rule:
+      table_name: "ACL_Negative"
+      rule_name: "RULE_INVALID"
+      rule_seq: 10
+      packet_action: "permit"
+      src_mac: "any"
+      dst_mac: "00:01:00"  # Invalid - incomplete MAC
+    expected:
+      result: "fail"
+      error: "Invalid input"
+
+  "step_4":
+    title: "Verify ACL Creation in Database"
+    description: "Check global MAC ACL list for valid rules only"
+    verify_acl:
+      - table_name: "ACL_deny"
+        rule_seq: 10
+        action: "deny"
+        dst_mac: "52:54:00:D3:79:35"
+    verify_no_invalid:
+      - dst_mac: "00:01:00"  # Should NOT exist
+    verify_no_duplicate:
+      table_name: "ACL_deny"
+      rule_seq: 10
+      max_count: 1
+
+  "step_5":
+    title: "Negative Test - Incomplete Access-Group Command"
+    description: "Attempt to apply ACL without specifying direction"
+    interface: "Ethernet16"  # Will be read from testbed if available
+    acl_binding:
+      table_name: "ACL_deny"
+      direction: null  # Missing direction - should fail
+    expected:
+      result: "fail"
+      error: "command is not completed"
+
+  "step_6":
+    title: "Negative Test - Applying Non-Existent ACL"
+    description: "Attempt to apply ACL that has not been configured"
+    interface: "Ethernet16"
+    acl_binding:
+      table_name: "ACL_permit"  # Does NOT exist
+      direction: "in"
+    expected:
+      result: "fail"
+      error: "not found"
+
+  "step_7":
+    title: "Positive Test - Apply Valid ACL Successfully"
+    description: "Apply correctly configured ACL to interface"
+    interface: "Ethernet16"
+    acl_binding:
+      table_name: "ACL_deny"  # EXISTS from step_1
+      direction: "in"
+    expected:
+      result: "pass"
+      error: null
+
+  "step_8":
+    title: "Final Verification - Bindings and Running Config"
+    description: "Verify ACL binding in active state and running configuration"
+    verify_access_group:
+      interface: "Ethernet16"
+      acl_name: "ACL_deny"
+      direction: "Ingress"
+    verify_running_config:
+      interface: "Ethernet16"
+      expected_line: "mac access-group ACL_deny in"

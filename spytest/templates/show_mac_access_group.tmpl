@@ -1,0 +1,9 @@
+Value direction (Ingress|Egress)
+Value acl_name (\S+)
+Value interface (\S+)
+
+Start
+  ^${direction}\s+MAC\s+access-list\s+${acl_name}\s+on\s+${interface}\s*$$ -> Record
+  ^No\s+ACL\s+bindings\s+found -> Record
+  ^\s*$$
+  ^.
