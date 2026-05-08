@@ -1,0 +1,112 @@
+# IP Prefix-List Test Variables
+# Author: Shiva
+# 2026
+#
+# Used by: tests/routing/prefix_list/test_ip_prefix_list.py
+# CLI scenarios derived from ip_prifix.md (klish/sonic-cli)
+
+defaults:
+  cli_type: klish
+  verify_timeout: 10
+  cleanup: true
+  min_topology:
+    - "D1"
+
+testcases:
+  "TC_PL_001":
+    title: "Exact match - no ge/le bounds (seq 10 permit 180.0.0.0/16)"
+    prefix_list_name: "Test"
+    entry:
+      seq: 10
+      action: "permit"
+      prefix: "180.0.0.0/16"
+    verify:
+      seq: "10"
+      action: "permit"
+      prefix: "180.0.0.0/16"
+
+  "TC_PL_002":
+    title: "Bounded range - both ge and le (seq 20 permit 170.0.0.0/8 ge 16 le 24)"
+    prefix_list_name: "Test"
+    entry:
+      seq: 20
+      action: "permit"
+      prefix: "170.0.0.0/8"
+      ge: 16
+      le: 24
+    verify:
+      seq: "20"
+      action: "permit"
+      prefix: "170.0.0.0/8"
+      ge: "16"
+      le: "24"
+
+  "TC_PL_003":
+    title: "Upper bound only - le (seq 30 permit 192.168.0.0/16 le 24)"
+    prefix_list_name: "Test"
+    entry:
+      seq: 30
+      action: "permit"
+      prefix: "192.168.0.0/16"
+      le: 24
+    verify:
+      seq: "30"
+      action: "permit"
+      prefix: "192.168.0.0/16"
+      le: "24"
+
+  "TC_PL_004":
+    title: "Lower bound only - ge (seq 40 permit 10.0.0.0/8 ge 24)"
+    prefix_list_name: "Test"
+    entry:
+      seq: 40
+      action: "permit"
+      prefix: "10.0.0.0/8"
+      ge: 24
+    verify:
+      seq: "40"
+      action: "permit"
+      prefix: "10.0.0.0/8"
+      ge: "24"
+
+  "TC_PL_005":
+    title: "Full scenario - all 4 entries, verify via show running-configuration"
+    prefix_list_name: "Test"
+    entries:
+      - seq: 10
+        action: "permit"
+        prefix: "180.0.0.0/16"
+      - seq: 20
+        action: "permit"
+        prefix: "170.0.0.0/8"
+        ge: 16
+        le: 24
+      - seq: 30
+        action: "permit"
+        prefix: "192.168.0.0/16"
+        le: 24
+      - seq: 40
+        action: "permit"
+        prefix: "10.0.0.0/8"
+        ge: 24
+
+  "TC_PL_006":
+    title: "Full scenario - all 4 entries, verify via show ip prefix-list"
+    prefix_list_name: "Test"
+    entries:
+      - seq: 10
+        action: "permit"
+        prefix: "180.0.0.0/16"
+      - seq: 20
+        action: "permit"
+        prefix: "170.0.0.0/8"
+        ge: 16
+        le: 24
+      - seq: 30
+        action: "permit"
+        prefix: "192.168.0.0/16"
+        le: 24
+      - seq: 40
+        action: "permit"
+        prefix: "10.0.0.0/8"
+        ge: 24

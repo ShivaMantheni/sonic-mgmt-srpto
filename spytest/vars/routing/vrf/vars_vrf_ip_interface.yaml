@@ -1,0 +1,23 @@
+# vars/routing/vrf/vars_vrf_ip_interface.yaml
+# Test variables for TC_VRF_IP_01: VRF Interface Binding and IP Assignment
+#
+# Testbed: ztp_standalone.yaml (smic_sonic1 @ 192.168.100.67)
+# CLI type: klish (IS-CLI / sonic-cli)
+
+defaults:
+  cli_type: klish
+  verify_timeout: 30
+  cleanup: true
+  min_topology:
+    - "D1"
+
+testcases:
+  TC_VRF_IP_01:
+    title: "Verify VRF Binding and Interface State"
+    # VRF to create and bind the interface to
+    vrf_name: "Vrf111"
+    # IP address to assign inside the VRF context
+    ip_address: "10.0.1.1"
+    subnet: "24"
+    # Expected Admin/Oper state after 'no shutdown'
+    expected_status: "up/up"
