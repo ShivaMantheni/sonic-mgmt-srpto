@@ -257,32 +257,35 @@ class TestVlanTaggedPacketOnTrunkPort:
         try:
             st.log(f"Sending {packet_count} tagged packets (VLAN {vlan_id}) from {src_interface}")
 
-            # Create Scapy script
+            # Create Scapy script using printf to avoid st.config() adding unwanted prefixes
             script_path = f"/tmp/scapy_send_tag_{int(time.time())}.py"
-            script = f"""
-from scapy.all import Ether, Dot1Q, IP, ICMP, sendp, conf
-import sys
 
-conf.iface = "{src_interface}"
-pkt = Ether(src="{src_mac}", dst="{dst_mac}") / \\
-      Dot1Q(vlan={vlan_id}) / \\
-      IP(src="10.1.1.1", dst="10.1.1.2") / \\
-      ICMP()
+            # Build script with escaped newlines for printf
+            script_lines = [
+                "from scapy.all import Ether, Dot1Q, IP, ICMP, sendp, conf",
+                "import sys",
+                "",
+                f"conf.iface = \"{src_interface}\"",
+                f"pkt = Ether(src=\"{src_mac}\", dst=\"{dst_mac}\") / \\\\",
+                f"      Dot1Q(vlan={vlan_id}) / \\\\",
+                "      IP(src=\"10.1.1.1\", dst=\"10.1.1.2\") / \\\\",
+                "      ICMP()",
+                "",
+                "try:",
+                f"    sendp(pkt, iface=\"{src_interface}\", count={packet_count}, verbose=False)",
+                "    print(\"SUCCESS: Tagged packets sent\")",
+                "except Exception as e:",
+                "    print(f\"ERROR: {e}\")",
+                "    sys.exit(1)"
+            ]
 
-try:
-    sendp(pkt, iface="{src_interface}", count={packet_count}, verbose=False)
-    print("SUCCESS: Tagged packets sent")
-except Exception as e:
-    print(f"ERROR: {{e}}")
-    sys.exit(1)
-"""
+            # Write script using printf with newline escape sequences
+            script_content = "\\n".join(script_lines)
+            cmd = f"printf '{script_content}' > {script_path}"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
 
-            # Write script
-            cmd = f"cat > {script_path} << 'EOF'\n{script}\nEOF"
-            st.config(dut, cmd, skip_error_check=True)
-
-            # Execute script
-            cmd_exec = f"python3 {script_path}"
+            # Execute script with sudo (required for raw packet operations)
+            cmd_exec = f"sudo python3 {script_path}"
             output = st.show(dut, cmd_exec, skip_tmpl=True, skip_error_check=True)
 
             if "SUCCESS" in str(output):
@@ -300,7 +303,8 @@ except Exception as e:
         """Capture packets with tcpdump."""
         try:
             st.log(f"Starting packet capture on {interface} for {timeout}s")
-            cmd = f"timeout {timeout} tcpdump -i {interface} -w {pcap_file} &"
+            # Use sudo for tcpdump (requires elevated privileges for raw packet capture)
+            cmd = f"sudo timeout {timeout} tcpdump -i {interface} -w {pcap_file} &"
             st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
             self.data.pcap_files.append(pcap_file)
             time.sleep(1)
@@ -315,31 +319,34 @@ except Exception as e:
         try:
             st.log(f"Analyzing PCAP for VLAN {vlan_id} tags")
 
-            # Create analysis script
+            # Create analysis script using printf to avoid st.config() adding unwanted prefixes
             script_path = f"/tmp/scapy_analyze_{int(time.time())}.py"
-            script = f"""
-from scapy.all import rdpcap, Dot1Q
-try:
-    packets = rdpcap("{pcap_file}")
 
-    # Check for VLAN {vlan_id} tags
-    vlan_packets = [p for p in packets if Dot1Q in p]
-    vlan_10_packets = [p for p in vlan_packets if p[Dot1Q].vlan == {vlan_id}]
+            # Build script with escaped newlines for printf
+            script_lines = [
+                "from scapy.all import rdpcap, Dot1Q",
+                "try:",
+                f"    packets = rdpcap(\"{pcap_file}\")",
+                "",
+                f"    # Check for VLAN {vlan_id} tags",
+                "    vlan_packets = [p for p in packets if Dot1Q in p]",
+                f"    vlan_{vlan_id}_packets = [p for p in vlan_packets if p[Dot1Q].vlan == {vlan_id}]",
+                "",
+                f"    if vlan_{vlan_id}_packets:",
+                f"        print(f\"SUCCESS: Found {{len(vlan_{vlan_id}_packets)}} VLAN {vlan_id} tagged packets\")",
+                f"    else:",
+                f"        print(\"FAIL: No VLAN {vlan_id} tagged packets found\")",
+                "except Exception as e:",
+                "    print(f\"ERROR: {e}\")"
+            ]
 
-    if vlan_10_packets:
-        print(f"SUCCESS: Found {{len(vlan_10_packets)}} VLAN {vlan_id} tagged packets")
-    else:
-        print("FAIL: No VLAN {vlan_id} tagged packets found")
-except Exception as e:
-    print(f"ERROR: {{e}}")
-"""
+            # Write script using printf with newline escape sequences
+            script_content = "\\n".join(script_lines)
+            cmd = f"printf '{script_content}' > {script_path}"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
 
-            # Write script
-            cmd = f"cat > {script_path} << 'EOF'\n{script}\nEOF"
-            st.config(dut, cmd, skip_error_check=True)
-
-            # Execute analysis
-            cmd_exec = f"python3 {script_path}"
+            # Execute analysis with sudo (may be needed if tcpdump file has restricted permissions)
+            cmd_exec = f"sudo python3 {script_path}"
             output = st.show(dut, cmd_exec, skip_tmpl=True, skip_error_check=True)
 
             if "SUCCESS" in str(output):
