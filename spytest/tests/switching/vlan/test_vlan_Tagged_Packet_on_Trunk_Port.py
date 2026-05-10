@@ -314,6 +314,18 @@ class TestVlanTaggedPacketOnTrunkPort:
             st.error(f"Failed to start capture: {e}")
             return False
 
+    def _stop_capture(self, dut) -> bool:
+        """Kill tcpdump process to ensure PCAP file is flushed to disk."""
+        try:
+            st.log("Stopping packet capture and flushing file to disk")
+            cmd = "sudo pkill -f tcpdump"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
+            time.sleep(1)  # Give time for file to be written
+            return True
+        except Exception as e:
+            st.error(f"Failed to stop capture: {e}")
+            return False
+
     def _analyze_pcap_for_tagged(self, dut, pcap_file: str, vlan_id: int) -> bool:
         """Analyze PCAP file for VLAN-tagged packets."""
         try:
@@ -520,6 +532,13 @@ class TestVlanTaggedPacketOnTrunkPort:
                 st.report_fail("test_case_failed", "Failed to send packets")
 
             time.sleep(3)
+
+            # ====================================================================
+            # STEP 6.5: Stop capture to flush PCAP file
+            # ====================================================================
+            st.log("\nSTEP 6.5: Stopping packet capture to ensure file is flushed")
+            self._stop_capture(dut2)
+            time.sleep(2)  # Extra wait for file to be fully written
 
             # ====================================================================
             # STEP 7: Analyze capture for tagged packets
