@@ -6,7 +6,7 @@ Date: 2026-05-11
 
 How to run:
   ./bin/spytest --tryssh 1 \\
-  --testbed ./testbeds/testbed_vs_1node_vlan.yaml \\
+  --testbed ./testbeds/testbed_vs_2node_vlan.yaml \\
   tests/switching/vlan/test_vlan_Intra-VLAN_Broadcast_Forwarding.py \\
   --logs-path ./logs/vlan_broadcast_001_$(date +%F_%H%M%S) \\
   --log-level debug --skip-init-config --ifname-type native
@@ -17,7 +17,7 @@ Description:
   Objective: Verify broadcast packet forwarding within VLAN
 
   Steps:
-    1. Create VLAN 10 on DUT
+    1. Create VLAN 10 on DUT1
     2. Configure Port1 as untagged access port for VLAN 10
     3. Configure Port2 as untagged access port for VLAN 10
     4. Configure Port3 as untagged access port for VLAN 10
@@ -28,7 +28,7 @@ Description:
                    not flooded to other VLANs or external ports
 
 Pre-requisites:
-  - Topology: One DUT with 3+ ports | Supported: HW and Virtual
+  - Topology: Two DUTs (D1D2) with 3+ connections | Supported: HW and Virtual
   - Feature flags / min SONiC version: SONiC 202211+ with Scapy support
   - Required test variables (YAML): spytest/vars/switching/vlan/vars_vlan_broadcast_001.yaml
 """
@@ -64,7 +64,7 @@ def _load_yaml_config() -> Dict[str, Any]:
             "defaults": {
                 "cli_type": "klish",
                 "vlan_id": 10,
-                "min_topology": ["D1:3"],
+                "min_topology": ["D1D2:3"],
                 "cleanup": True
             },
             "testcases": {}
@@ -77,7 +77,7 @@ def _load_yaml_config() -> Dict[str, Any]:
     return config
 
 
-@pytest.mark.topology("D1:3")
+@pytest.mark.topology("D1D2:3")
 class TestVlanBroadcastForwarding:
     """Test class for intra-VLAN broadcast forwarding (TC_VLAN_BROADCAST_001)."""
 
@@ -93,8 +93,8 @@ class TestVlanBroadcastForwarding:
         config = _load_yaml_config()
         defaults = config.get("defaults", {})
 
-        # Get 1-node topology with 3 ports (D1:3)
-        topology = st.ensure_min_topology("D1:3")
+        # Get 2-node topology with 3 connections (D1D2:3) - we'll use D1's 3 ports
+        topology = st.ensure_min_topology("D1D2:3")
 
         cls.data.config = SpyTestDict(config)
         cls.data.defaults = SpyTestDict(defaults)
@@ -105,10 +105,11 @@ class TestVlanBroadcastForwarding:
         cls.data.cleanup_enabled = bool(defaults.get("cleanup", True))
 
         # Get DUT and ports (DYNAMIC from testbed)
+        # Using D1D2:3 topology with testbed_vs_2node_vlan.yaml
         cls.data.dut1 = topology.D1
-        cls.data.port1 = topology.D1P1  # Sender port
-        cls.data.port2 = topology.D1P2  # Receiver port
-        cls.data.port3 = topology.D1P3  # Receiver port
+        cls.data.port1 = topology.D1D2P1  # Sender port on D1
+        cls.data.port2 = topology.D1D2P2  # Receiver port on D1
+        cls.data.port3 = topology.D1D2P3  # Receiver port on D1
 
         # Track configurations for cleanup
         cls.data.configured_vlans = []
