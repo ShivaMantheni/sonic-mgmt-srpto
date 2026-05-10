@@ -304,29 +304,32 @@ print("Sent {packet_count} tagged packets")
                 st.log("No packets captured - ISOLATION CONFIRMED")
                 return True
 
-            # Analyze with Scapy
-            scapy_analysis = f"""
-from scapy.all import rdpcap, Dot1Q
-try:
-    packets = rdpcap("{pcap_file}")
-    tagged = sum(1 for pkt in packets if Dot1Q in pkt)
-    untagged = sum(1 for pkt in packets if Dot1Q not in pkt)
-    if tagged == 0 and untagged > 0:
-        print("SUCCESS: All untagged")
-    elif tagged > 0:
-        print("FAIL: Found tagged packets")
-    else:
-        print("INFO: No packets")
-except Exception as e:
-    print(f"Error: {{e}}")
-"""
+            # Build analysis script as list of lines (for printf, not local write)
+            script_lines = [
+                "from scapy.all import rdpcap, Dot1Q",
+                "try:",
+                f"    packets = rdpcap(\"{pcap_file}\")",
+                "    tagged = sum(1 for pkt in packets if Dot1Q in pkt)",
+                "    untagged = sum(1 for pkt in packets if Dot1Q not in pkt)",
+                "    if tagged == 0 and untagged > 0:",
+                "        print(\"SUCCESS: All untagged\")",
+                "    elif tagged > 0:",
+                "        print(\"FAIL: Found tagged packets\")",
+                "    else:",
+                "        print(\"INFO: No packets\")",
+                "except Exception as e:",
+                "    print(f\"Error: {e}\")"
+            ]
 
-            script_path = "/tmp/scapy_analyze.py"
-            with open(script_path, "w") as f:
-                f.write(scapy_analysis)
+            # Write script on remote device using printf (not locally)
+            script_path = f"/tmp/scapy_analyze_{int(time.time())}.py"
+            script_content = "\\n".join(script_lines)
+            cmd = f"printf '{script_content}' > {script_path}"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
 
-            cmd = f"python3 {script_path}"
-            output = st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
+            # Execute analysis script
+            cmd_exec = f"python3 {script_path}"
+            output = st.show(dut, cmd_exec, skip_tmpl=True, skip_error_check=True)
             output_str = str(output).lower()
 
             if "success" in output_str or "untagged" in output_str:
