@@ -417,12 +417,12 @@ if __name__ == "__main__":
                 st.log(f"✅ L2 traffic sent successfully from {dut}")
                 return True
             else:
-                st.warn(f"L2 traffic script completed with warnings on {dut}")
-                return True
+                st.error(f"L2 traffic script failed on {dut}")
+                return False
 
         except Exception as e:
             st.error(f"Failed to execute L2 Scapy script: {e}")
-            return True
+            return False
 
     def _start_tcpdump(
         self,

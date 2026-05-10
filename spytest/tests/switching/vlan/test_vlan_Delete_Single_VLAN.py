@@ -103,13 +103,8 @@ class TestVlanDeleteSingle:
         # Pre-test cleanup - ensure VLAN used in test doesn't exist
         cls._cleanup_test_vlan()
 
-        # Ensure device returns to Linux shell mode after klish operations
-        st.log("Ensuring devices are in Linux shell mode after setup")
-        try:
-            st.show(cls.data.dut1, "show vlan brief", type='click', skip_error_check=True, skip_tmpl=True)
-            st.show(cls.data.dut2, "show vlan brief", type='click', skip_error_check=True, skip_tmpl=True)
-        except Exception:
-            pass
+        # Verify VLAN setup completed
+        st.log("Setup Complete - Ready for testing")
 
         st.banner("VLAN Delete Single Test Suite - Setup Complete")
 
@@ -154,13 +149,7 @@ class TestVlanDeleteSingle:
             except Exception as e:
                 st.log(f"Teardown VLAN {vlan_id} on {dut_name} exception (non-fatal): {e}")
 
-        # Ensure devices return to Linux shell mode after klish operations
-        st.log("Ensuring devices are in Linux shell mode after teardown")
-        try:
-            st.show(dut1, "show vlan brief", type='click', skip_error_check=True, skip_tmpl=True)
-            st.show(dut2, "show vlan brief", type='click', skip_error_check=True, skip_tmpl=True)
-        except Exception:
-            pass
+        st.log("✅ Teardown cleanup completed")
 
     def _verify_vlan_5_commands(
         self,

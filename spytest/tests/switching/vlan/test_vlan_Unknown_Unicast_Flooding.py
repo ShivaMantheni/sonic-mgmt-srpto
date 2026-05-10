@@ -129,9 +129,9 @@ class TestVlanUnknownUnicastFlooding:
         try:
             # Clean up VLANs if needed
             if cleanup_cfg.get("cleanup_vlans", True):
-                st.log("Cleaning up VLAN 10")
-                vlan_api.delete_vlan(cls.data.dut1, "10", cli_type="klish")
-                vlan_api.delete_vlan(cls.data.dut2, "10", cli_type="klish")
+                st.log(f"Cleaning up VLAN {cls.data.vlan_id}")
+                vlan_api.delete_vlan(cls.data.dut1, cls.data.vlan_id, cli_type=cls.data.cli_type)
+                vlan_api.delete_vlan(cls.data.dut2, cls.data.vlan_id, cli_type=cls.data.cli_type)
                 st.log("✓ VLAN cleanup completed")
         except Exception as e:
             st.error(f"Error during VLAN cleanup: {e}")

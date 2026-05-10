@@ -161,7 +161,7 @@ class TestVlanTaggedPacketOnTrunkPort:
 
         except Exception as e:
             st.error(f"Setup failed: {e}")
-            st.report_tc_fail(TC_VLAN_TAG_003, "setup_failed", str(e))
+            st.report_fail( "setup_failed", str(e))
             raise
 
     @classmethod
@@ -355,12 +355,14 @@ class TestVlanTaggedPacketOnTrunkPort:
             output_str = str(output)
 
             if is_trunk:
+                if vlan_id in output_str or str(vlan_id) in output_str:
                     st.log(f"✓ Port {interface} correctly configured as trunk for VLAN {vlan_id}")
                     return True
                 else:
                     st.error(f"✗ Port {interface} trunk configuration incomplete for VLAN {vlan_id}")
                     return False
             else:
+                if vlan_id in output_str or str(vlan_id) in output_str:
                     st.log(f"✓ Port {interface} correctly configured as access for VLAN {vlan_id}")
                     return True
                 else:
@@ -587,29 +589,29 @@ SCAPY_EOF
 
         except Exception as e:
             st.error(f"Failed to create VLAN: {e}")
-            st.report_tc_fail(TC_VLAN_TAG_003, "vlan_create_failed", str(e))
+            st.report_fail( "vlan_create_failed", str(e))
             return
 
         # STEP 2: Configure trunk ports for VLAN 10
         st.banner("STEP 2: Configuring trunk ports")
         if not self._configure_trunk_port(d1, trunk_port_1, [vlan_id]):
-            st.report_tc_fail(TC_VLAN_TAG_003, "trunk_config_failed", f"Failed to configure {trunk_port_1} on D1")
+            st.report_fail( "trunk_config_failed", f"Failed to configure {trunk_port_1} on D1")
             return
 
         if not self._configure_trunk_port(d2, trunk_port_2, [vlan_id]):
-            st.report_tc_fail(TC_VLAN_TAG_003, "trunk_config_failed", f"Failed to configure {trunk_port_2} on D2")
+            st.report_fail( "trunk_config_failed", f"Failed to configure {trunk_port_2} on D2")
             return
 
         # STEP 3: Get MAC addresses
         st.banner("STEP 3: Retrieving MAC addresses")
         src_mac = self._get_interface_mac(d1, trunk_port_1)
         if not src_mac:
-            st.report_tc_fail(TC_VLAN_TAG_003, "mac_discovery_failed", f"Failed to get MAC from {trunk_port_1}")
+            st.report_fail( "mac_discovery_failed", f"Failed to get MAC from {trunk_port_1}")
             return
 
         dst_mac = self._get_interface_mac(d2, trunk_port_2)
         if not dst_mac:
-            st.report_tc_fail(TC_VLAN_TAG_003, "mac_discovery_failed", f"Failed to get MAC from {trunk_port_2}")
+            st.report_fail( "mac_discovery_failed", f"Failed to get MAC from {trunk_port_2}")
             return
 
         st.log(f"✓ Source MAC (D1 {trunk_port_1}): {src_mac}")
@@ -631,13 +633,13 @@ SCAPY_EOF
         # STEP 6: Send tagged packets from source
         st.banner("STEP 6: Sending tagged packets from source")
         if not self._send_tagged_packet(d1, trunk_port_1, src_mac, dst_mac, vlan_id, packet_count):
-            st.report_tc_fail(TC_VLAN_TAG_003, "packet_generation_failed", f"Failed to send tagged packets")
+            st.report_fail( "packet_generation_failed", f"Failed to send tagged packets")
             return
 
         # STEP 7: Verify packets with VLAN tag intact
         st.banner("STEP 7: Analyzing captured packets for VLAN tag")
         if not self._stop_and_analyze_capture(d2, vlan_id):
-            st.report_tc_fail(TC_VLAN_TAG_003, "vlan_tag_verification_failed", "Packets did not retain VLAN tag")
+            st.report_fail( "vlan_tag_verification_failed", "Packets did not retain VLAN tag")
             return
 
         # STEP 8: Verify running-configuration
@@ -653,7 +655,7 @@ SCAPY_EOF
 
         # TEST PASSED
         st.log(f"✓ {TC_VLAN_TAG_003} PASSED: Tagged packets remain tagged on trunk-to-trunk forwarding")
-        st.report_tc_pass(TC_VLAN_TAG_003, "test_passed")
+        st.report_pass( "test_passed")
 
 
 # ============================================================================
