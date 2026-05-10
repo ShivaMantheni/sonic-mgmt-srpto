@@ -385,7 +385,7 @@ class TestVlanEgressTaggedPacketOnAccessPort:
 
         if passed == total:
             st.log("✅ TC_VLAN_TAG_002: PASSED")
-            st.report_pass("TC_VLAN_TAG_002 passed")
+            st.report_pass("test_case_passed")
         else:
             st.log(f"❌ TC_VLAN_TAG_002: FAILED ({total-passed} steps failed)")
-            st.report_fail(f"TC_VLAN_TAG_002 failed - {total-passed} steps failed")
+            st.report_fail("test_case_failed", f"Failed steps: {total-passed} steps failed")

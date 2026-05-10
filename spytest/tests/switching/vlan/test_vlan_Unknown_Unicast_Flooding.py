@@ -373,7 +373,7 @@ class TestVlanUnknownUnicastFlooding:
 
         if passed == total:
             st.log("✅ TC_VLAN_FORWARD_005: PASSED")
-            st.report_pass("TC_VLAN_FORWARD_005 passed")
+            st.report_pass("test_case_passed")
         else:
             st.log(f"❌ TC_VLAN_FORWARD_005: FAILED ({total-passed} steps failed)")
-            st.report_fail(f"TC_VLAN_FORWARD_005 failed - {total-passed} steps failed")
+            st.report_fail("test_case_failed", f"Failed steps: {total-passed} steps failed")
