@@ -279,6 +279,18 @@ print("Sent {packet_count} tagged packets")
             st.log(f"Error starting tcpdump: {e}")
             return False
 
+    def _stop_tcpdump(self, dut: str) -> bool:
+        """Kill tcpdump process to ensure PCAP file is flushed to disk."""
+        try:
+            st.log("Stopping tcpdump process and flushing file to disk")
+            cmd = "sudo pkill -f tcpdump"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
+            time.sleep(1)  # Give time for file to be written
+            return True
+        except Exception as e:
+            st.log(f"Error stopping tcpdump: {e}")
+            return False
+
     def _analyze_pcap_for_untagged_packets(self, dut: str, pcap_file: str) -> bool:
         """Analyze pcap file for untagged packets."""
         try:
@@ -481,6 +493,12 @@ except Exception as e:
 
             test_results["step_5"] = step_passed
             self._print_step_result(5, "Send tagged packets", step_passed)
+
+            # STEP 5.5: Stop tcpdump to flush PCAP file
+            st.log("\nSTEP 5.5: Stopping tcpdump and flushing PCAP file")
+            st.log("=" * 80)
+            self._stop_tcpdump(dut2)
+            time.sleep(2)  # Extra wait for file to be fully written
 
             # STEP 6: Analyze packets
             st.log("\nSTEP 6: Analyze pcap and verify packets are untagged")
