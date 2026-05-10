@@ -1,62 +1,61 @@
 """
-VLAN INTRA-VLAN UNICAST FORWARDING
+TC_VLAN_FORWARD_001: Intra-VLAN Unicast Forwarding
+
 Author: Test Automation Team
-Date: 2026-05-06
+Date: 2026-05-11
 
 How to run:
   ./bin/spytest --tryssh 1 \\
   --testbed ./testbeds/testbed_vs_2node_vlan.yaml \\
   tests/switching/vlan/test_vlan_Intra-VLAN_Unicast_Forwarding.py \\
-  --logs-path ./logs/vlan_intra_unicast_$(date +%F_%H%M%S) \\
+  --logs-path ./logs/vlan_forward_001_$(date +%F_%H%M%S) \\
   --log-level debug --skip-init-config --ifname-type native
 
 Description:
-  Comprehensive validation of intra-VLAN unicast packet forwarding using
-  SpyTest APIs and Scapy-based traffic generation. The test creates VLAN 10,
-  configures Port1 and Port2 as untagged access ports in VLAN 10, dynamically
-  retrieves MAC addresses, generates unicast Ethernet frames from Port1 to
-  Port2, and verifies unicast packet reception on Port2 only (not flooded to
-  other ports) through tcpdump packet capture and PCAP analysis.
+  TC_VLAN_FORWARD_001: Intra-VLAN Unicast Forwarding
+
+  Objective: Verify unicast packet forwarding within VLAN
+
+  Steps:
+    1. Create VLAN 10 on both DUTs
+    2. Configure Port1 (D1) as untagged access port for VLAN 10
+    3. Configure Port2 (D2) as untagged access port for VLAN 10
+    4. Retrieve MAC addresses from both ports
+    5. Start packet capture on Port2
+    6. Send unicast packet from Port1 to Port2's MAC using Scapy
+    7. Analyze capture and verify unicast packet received on Port2 only
+
+  Expected Result: Unicast packet forwarded to destination port in same VLAN,
+                   not flooded to other ports
 
 Pre-requisites:
   - Topology: Two DUTs (D1-D2) with 2+ connections | Supported: HW and Virtual
-  - Topology Diagram:
-        # Topology - 2 nodes
-        # +------------------+       +------------------+
-        # |      DUT1        |-------|      DUT2        |
-        # |    (Spine01)     | 1-5   |    (Spine02)     |
-        # |                  |       |                  |
-        # | Port1 (VLAN10)   |==Port==| Port2 (VLAN10) |
-        # +------------------+       +------------------+
-
-  - Feature flags / min SONiC version: SONiC 202211 or later with Scapy support
-  - Required test variables (YAML): spytest/vars/switching/vlan/vars_vlan_intra_unicast.yaml
+  - Feature flags / min SONiC version: SONiC 202211+ with Scapy support
+  - Required test variables (YAML): spytest/vars/switching/vlan/vars_vlan_forward_001.yaml
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Dict, Optional
 import re
 import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import pytest
 import yaml
 
-from scapy.all import Ether, Raw, rdpcap, Dot1Q
-
 from spytest import SpyTestDict, st
 import apis.switching.vlan as vlan_api
 
-VAR_FILE_ENV = "VLAN_INTRA_UNICAST_VAR_FILE"
+VAR_FILE_ENV = "VLAN_FORWARD_001_VAR_FILE"
 DEFAULT_VAR_FILE = (
     Path(__file__).resolve().parents[3]
-    / "spytest/vars/switching/vlan/vars_vlan_intra_unicast.yaml"
+    / "spytest/vars/switching/vlan/vars_vlan_forward_001.yaml"
 )
 
 
-def _load_yaml_data() -> Dict[str, Any]:
-    """Load testcase variables from YAML with optional environment override."""
+def _load_yaml_config() -> Dict[str, Any]:
+    """Load test configuration from YAML file."""
     override_path = st.getenv(VAR_FILE_ENV)
     candidate = Path(override_path) if override_path else DEFAULT_VAR_FILE
 
@@ -65,632 +64,468 @@ def _load_yaml_data() -> Dict[str, Any]:
         return {
             "defaults": {
                 "cli_type": "klish",
-                "vlan_id": "10",
-                "min_topology": ["D1D2:2"]
+                "vlan_id": 10,
+                "min_topology": ["D1D2:2"],
+                "cleanup": True
             },
-            "testcases": {},
+            "testcases": {}
         }
 
     with candidate.open(encoding="utf-8") as handle:
-        content = yaml.safe_load(handle) or {}
+        config = yaml.safe_load(handle) or {}
 
-    return content
+    st.log(f"Loaded VLAN FORWARD_001 configuration from: {candidate}")
+    return config
 
 
 @pytest.mark.topology("D1D2:2")
 class TestVlanIntraVlanUnicastForwarding:
-    """Testcases for intra-VLAN unicast forwarding."""
+    """Test class for intra-VLAN unicast forwarding (TC_VLAN_FORWARD_001)."""
 
     data = SpyTestDict()
 
     @classmethod
     def setup_class(cls) -> None:
-        """Collect topology handles and testcase variables for the suite."""
-        st.banner("MODULE PROLOGUE: Starting VLAN Intra-VLAN Unicast Forwarding Test Suite")
+        """Class-level setup: Load config, verify topology, clear interfaces, cleanup test VLANs."""
+        st.banner("=" * 100)
+        st.banner("TC_VLAN_FORWARD_001: INTRA-VLAN UNICAST FORWARDING - SETUP")
+        st.banner("=" * 100)
 
-        config = _load_yaml_data()
+        config = _load_yaml_config()
         defaults = config.get("defaults", {})
 
         # Get 2-node topology (D1D2:2)
-        min_topology = defaults.get("min_topology") or ["D1D2:2"]
-        topology = st.ensure_min_topology(*min_topology)
+        topology = st.ensure_min_topology("D1D2:2")
 
         cls.data.config = SpyTestDict(config)
         cls.data.defaults = SpyTestDict(defaults)
         cls.data.topology = topology
         cls.data.testcases = SpyTestDict(config.get("testcases", {}))
         cls.data.cli_type = defaults.get("cli_type", "klish")
-        cls.data.verify_timeout = int(defaults.get("verify_timeout", 30))
+        cls.data.vlan_id = str(defaults.get("vlan_id", "10"))
         cls.data.cleanup_enabled = bool(defaults.get("cleanup", True))
 
-        # VLAN ID for testing
-        cls.data.vlan_id = str(defaults.get("vlan_id", "10"))
-
-        # Get DUT handles
+        # Get DUTs and ports (DYNAMIC from testbed)
         cls.data.dut1 = topology.D1
         cls.data.dut2 = topology.D2
+        cls.data.d1_port = topology.D1D2P1  # Dynamic from testbed
+        cls.data.d2_port = topology.D2D1P1  # Dynamic from testbed
 
-        # Get interface connections from topology
-        cls.data.D1D2P1 = topology.D1D2P1  # Port1 on D1
-        cls.data.D2D1P1 = topology.D2D1P1  # Port2 on D2
+        # Track configurations for cleanup
+        cls.data.configured_vlans = []
+        cls.data.configured_ports = []
+        cls.data.pcap_files = []
 
-        st.log(f"Topology discovered:")
-        st.log(f"  DUT1 (D1): {cls.data.dut1}")
-        st.log(f"  DUT2 (D2): {cls.data.dut2}")
-        st.log(f"  D1 → D2 interface (Port1): {cls.data.D1D2P1}")
-        st.log(f"  D2 → D1 interface (Port2): {cls.data.D2D1P1}")
-        st.log(f"  VLAN ID: {cls.data.vlan_id}")
+        st.log(f"Topology: D1={cls.data.dut1}, D2={cls.data.dut2}")
+        st.log(f"Ports: D1 Port={cls.data.d1_port}, D2 Port={cls.data.d2_port}")
+        st.log(f"CLI Type: {cls.data.cli_type}, VLAN ID: {cls.data.vlan_id}")
 
-        # Pre-test cleanup
-        cls._cleanup_test_vlan()
-
-        st.banner("MODULE PROLOGUE: Setup completed successfully")
+        # Pre-cleanup before test
+        cls._clear_interface_config()
+        cls._cleanup_test_vlans()
 
     @classmethod
-    def _cleanup_test_vlan(cls) -> None:
-        """Cleanup VLAN that will be used in tests before starting."""
-        st.banner("Pre-Test Cleanup - Removing Test VLAN if it exists")
-
-        dut1 = cls.data.dut1
-        dut2 = cls.data.dut2
-        cli_type = cls.data.cli_type
-        vlan_id = cls.data.vlan_id
-
-        for dut_name, dut in [("D1", dut1), ("D2", dut2)]:
+    def _clear_interface_config(cls) -> None:
+        """Clear IP and VLAN configs from test ports before test."""
+        st.banner("Pre-Test Cleanup: Clearing Interface Configurations")
+        for dut_name, dut, port in [
+            ("D1", cls.data.dut1, cls.data.d1_port),
+            ("D2", cls.data.dut2, cls.data.d2_port)
+        ]:
             try:
-                st.log(f"Cleaning up VLAN {vlan_id} on {dut_name} before test (if exists)")
-                vlan_api.delete_vlan(dut, vlan_id, cli_type=cli_type, skip_error_report=True, remove_vlan_mapping=False)
-                st.log(f"Pre-cleanup: VLAN {vlan_id} deleted on {dut_name} (if existed)")
+                st.config(dut, [
+                    f"interface {port}",
+                    "no ip address",
+                    "no switchport access vlan",
+                    "no switchport mode",
+                    "exit"
+                ], type=cls.data.cli_type, skip_error_check=True)
             except Exception as e:
-                st.log(f"Pre-cleanup VLAN {vlan_id} on {dut_name} exception (non-fatal): {e}")
+                st.log(f"Pre-cleanup exception on {dut_name} (non-fatal): {e}")
 
-        st.log("✅ Pre-test cleanup completed")
+    @classmethod
+    def _cleanup_test_vlans(cls) -> None:
+        """Remove test VLANs before starting test."""
+        vlan_id = cls.data.vlan_id
+        for dut_name, dut in [("D1", cls.data.dut1), ("D2", cls.data.dut2)]:
+            try:
+                vlan_api.delete_vlan(dut, vlan_id, cli_type=cls.data.cli_type,
+                                    skip_error_report=True, remove_vlan_mapping=False)
+            except Exception as e:
+                st.log(f"Pre-cleanup VLAN exception on {dut_name} (non-fatal): {e}")
 
     @classmethod
     def teardown_class(cls) -> None:
-        """Cleanup test VLAN after test suite completes."""
-        st.banner("MODULE EPILOGUE: Starting cleanup")
-
+        """Class-level cleanup: Remove all configurations."""
         if not cls.data.cleanup_enabled:
             st.log("Cleanup disabled, skipping teardown")
             return
 
-        dut1 = cls.data.dut1
-        dut2 = cls.data.dut2
-        cli_type = cls.data.cli_type
-        vlan_id = cls.data.vlan_id
-
-        for dut_name, dut in [("D1", dut1), ("D2", dut2)]:
-            try:
-                vlan_api.delete_vlan(dut, vlan_id, cli_type=cli_type, skip_error_report=True, remove_vlan_mapping=False)
-                st.log(f"Teardown: VLAN {vlan_id} deleted on {dut_name} (if existed)")
-            except Exception as e:
-                st.log(f"Teardown VLAN {vlan_id} on {dut_name} exception (non-fatal): {e}")
-
-        st.banner("MODULE EPILOGUE: Cleanup completed")
-
-    def _get_interface_mac(self, dut: str, interface: str) -> Optional[str]:
-        """
-        Retrieve MAC address of a specified interface.
-
-        Args:
-            dut: Device handle
-            interface: Interface name (e.g., "Ethernet4")
-
-        Returns:
-            MAC address string or None if not found
-        """
-        st.log(f"Retrieving MAC address for {interface} on {dut}")
-
         try:
-            output = st.show(dut, f"show interface {interface}", type=self.data.cli_type, skip_tmpl=True)
+            # Remove port configurations
+            for dut, port in reversed(cls.data.configured_ports):
+                st.config(dut, [
+                    f"interface {port}",
+                    "no switchport access vlan",
+                    "no switchport mode",
+                    "exit"
+                ], type=cls.data.cli_type, skip_error_check=True)
 
-            # MAC address pattern: XX:XX:XX:XX:XX:XX
-            mac_pattern = r'([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})'
-            match = re.search(mac_pattern, str(output))
+            # Remove VLAN configurations
+            for dut, vlan_id in reversed(cls.data.configured_vlans):
+                vlan_api.delete_vlan(dut, str(vlan_id), cli_type=cls.data.cli_type,
+                                    skip_error_report=True, remove_vlan_mapping=False)
 
+            # Cleanup PCAP files
+            for pcap_file in cls.data.pcap_files:
+                Path(pcap_file).unlink(missing_ok=True)
+
+        except Exception as e:
+            st.error(f"Teardown error: {e}")
+        finally:
+            st.banner("MODULE EPILOGUE: Cleanup Finished")
+
+    def _get_interface_mac(self, dut, interface: str) -> str:
+        """Get MAC address from interface."""
+        try:
+            cmd = f"show interface {interface} | grep -i address"
+            output = st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
+
+            match = re.search(r"([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", str(output))
             if match:
-                mac = match.group(1).lower()
-                st.log(f"✅ Found MAC address: {mac}")
+                mac = match.group(0)
+                st.log(f"  ✅ Got MAC from {interface}: {mac}")
                 return mac
             else:
-                st.error(f"❌ Could not extract MAC address for {interface} on {dut}")
-                return None
+                st.log(f"  ⚠️ Could not extract MAC from {interface}")
+                return "00:00:00:00:00:00"
 
         except Exception as e:
-            st.error(f"Error retrieving MAC address: {e}")
-            return None
+            st.error(f"Failed to get MAC: {e}")
+            return "00:00:00:00:00:00"
 
-    def _configure_access_port(self, dut: str, interface: str, vlan_id: str) -> bool:
-        """
-        Configure interface as access port in specified VLAN.
-
-        Args:
-            dut: Device handle
-            interface: Interface name (e.g., "Ethernet4")
-            vlan_id: VLAN ID to assign as access VLAN
-
-        Returns:
-            True if successful, False otherwise
-        """
-        st.log(f"Configuring {interface} on {dut} as access port in VLAN {vlan_id}")
-
+    def _send_unicast_packet(self, dut, src_interface: str, dst_mac: str,
+                           src_mac: str, packet_count: int = 5) -> bool:
+        """Send unicast Ethernet packet using Scapy."""
         try:
-            commands = []
+            st.log(f"Sending {packet_count} unicast packets from {src_interface} to {dst_mac}")
 
-            # Extract interface number
-            if "Ethernet" in interface:
-                intf_num = interface.replace("Ethernet", "")
-                commands.append(f"interface Ethernet {intf_num}")
-            else:
-                commands.append(f"interface {interface}")
+            # Build script with escaped newlines for printf
+            script_lines = [
+                "from scapy.all import Ether, Raw, sendp, conf",
+                "import sys",
+                "",
+                f"conf.iface = \"{src_interface}\"",
+                f"pkt = Ether(src=\"{src_mac}\", dst=\"{dst_mac}\") / \\\\",
+                f"      Raw(load=\"UnicastTestPayload\")",
+                "",
+                "try:",
+                f"    sendp(pkt, iface=\"{src_interface}\", count={packet_count}, verbose=False)",
+                "    print(\"SUCCESS: Unicast packets sent\")",
+                "except Exception as e:",
+                "    print(f\"ERROR: {e}\")",
+                "    sys.exit(1)"
+            ]
 
-            # Remove IP address (if any)
-            commands.append("no ip address")
-
-            # Set switchport mode to access
-
-            # Assign to VLAN as untagged member
-            commands.append(f"switchport access Vlan {vlan_id}")
-
-            # Ensure port is up
-            commands.append("no shutdown")
-
-            # Exit interface config
-            commands.append("exit")
-
-            st.log(f"Access port config commands: {commands}")
-
-            # Execute commands
-            st.config(dut, commands, type=self.data.cli_type, skip_error_check=True)
-
-            st.log(f"✅ Interface {interface} configured as access port in VLAN {vlan_id}")
-            return True
-
-        except Exception as e:
-            st.error(f"Failed to configure access port {interface}: {e}")
-            return False
-
-    def _create_vlan(self, dut: str, vlan_id: str) -> bool:
-        """
-        Create VLAN on device.
-
-        Args:
-            dut: Device handle
-            vlan_id: VLAN ID to create
-
-        Returns:
-            True if successful, False otherwise
-        """
-        st.log(f"Creating VLAN {vlan_id} on {dut}")
-
-        try:
-            result = vlan_api.create_vlan(dut, vlan_id, cli_type=self.data.cli_type)
-            if result:
-                st.log(f"✅ VLAN {vlan_id} created on {dut}")
-                return True
-            else:
-                st.error(f"Failed to create VLAN {vlan_id} on {dut}")
-                return False
-        except Exception as e:
-            st.error(f"Error creating VLAN {vlan_id} on {dut}: {e}")
-            return False
-
-    def _create_unicast_scapy_script(
-        self,
-        dut: str,
-        interface: str,
-        src_mac: str,
-        dst_mac: str,
-        packet_count: int = 10,
-        inter_delay: float = 1.0,
-        payload: str = "VLAN_UNICAST_FORWARD_TEST",
-        script_path: str = "/tmp/scapy_unicast.py"
-    ) -> bool:
-        """
-        Create Scapy script for sending unicast L2 Ethernet frames.
-
-        Args:
-            dut: Device handle
-            interface: Interface to send on
-            src_mac: Source MAC address
-            dst_mac: Destination MAC address (unicast target)
-            packet_count: Number of packets to send
-            inter_delay: Delay between packets in seconds
-            payload: Payload string
-            script_path: Path to save script on device
-
-        Returns:
-            True if script created successfully, False otherwise
-        """
-        st.log(f"Creating unicast Scapy traffic script on {dut}")
-        st.log(f"  Interface: {interface}")
-        st.log(f"  Source MAC: {src_mac}")
-        st.log(f"  Dest MAC (Unicast): {dst_mac}")
-        st.log(f"  Packet count: {packet_count}")
-
-        script_content = f'''#!/usr/bin/env python3
-"""
-Unicast Scapy Traffic Generator - Intra-VLAN Forwarding
-Auto-generated by SPyTest VLAN Unicast Forwarding Test
-Sends unicast Ethernet frames for L2 forwarding verification
-"""
-
-from scapy.all import *
-import sys
-
-# Configuration
-iface = "{interface}"
-src_mac = "{src_mac}"
-dst_mac = "{dst_mac}"
-packet_count = {packet_count}
-inter_delay = {inter_delay}
-payload = "{payload}"
-
-def send_unicast_l2_traffic():
-    """Send unicast L2 Ethernet frames using Scapy."""
-    print(f"[+] Starting intra-VLAN unicast traffic generation")
-    print(f"    Interface:     {{iface}}")
-    print(f"    Source MAC:    {{src_mac}}")
-    print(f"    Dest MAC:      {{dst_mac}}")
-    print(f"    Packet count:  {{packet_count}}")
-    print()
-
-    try:
-        # Build unicast Ethernet frame (untagged)
-        packet = Ether(src=src_mac, dst=dst_mac) / Raw(load=payload)
-
-        print(f"[→] Sending {{packet_count}} unicast packets...")
-
-        # Send packets with inter-packet delay
-        sendp(packet, iface=iface, count=packet_count, inter=inter_delay, verbose=False)
-
-        print(f"[✓] Packets sent successfully")
-        return True
-
-    except Exception as e:
-        print(f"[✗] Error: {{e}}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-if __name__ == "__main__":
-    success = send_unicast_l2_traffic()
-    sys.exit(0 if success else 1)
-'''
-
-        try:
-            # Remove existing script if present
-            st.show(dut, f"rm -f {script_path}", skip_tmpl=True, skip_error_check=True)
-
-            # Create script using heredoc
-            cmd = f"cat > {script_path} << 'EOFSCAPY'\n{script_content}\nEOFSCAPY"
+            # Write script using printf with newline escape sequences
+            script_path = f"/tmp/scapy_unicast_{int(time.time())}.py"
+            script_content = "\\n".join(script_lines)
+            cmd = f"printf '{script_content}' > {script_path}"
             st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
 
-            # Make executable
-            st.show(dut, f"chmod +x {script_path}", skip_tmpl=True, skip_error_check=True)
+            # Execute script with sudo (required for raw packet operations)
+            cmd_exec = f"sudo python3 {script_path}"
+            output = st.show(dut, cmd_exec, skip_tmpl=True, skip_error_check=True)
 
-            st.log(f"✅ Unicast Scapy script created at {script_path} on {dut}")
-            return True
-
-        except Exception as e:
-            st.error(f"Failed to create unicast Scapy script on {dut}: {e}")
-            return False
-
-    def _send_l2_traffic(
-        self,
-        dut: str,
-        script_path: str = "/tmp/scapy_unicast.py",
-        timeout: int = 60
-    ) -> bool:
-        """
-        Execute L2 Scapy traffic script on device.
-
-        Args:
-            dut: Device handle
-            script_path: Path to script on device
-            timeout: Execution timeout in seconds
-
-        Returns:
-            True if traffic sent successfully, False otherwise
-        """
-        st.log(f"Executing unicast Scapy script on {dut}")
-
-        try:
-            log_file = f"{script_path}.log"
-            cmd = f"sudo python3 {script_path} > {log_file} 2>&1; echo 'EXIT_CODE='$?"
-            output = st.show(dut, cmd, skip_tmpl=True, skip_error_check=True, timeout=timeout)
-
-            st.log(f"Script execution output:\n{output}")
-
-            time.sleep(2)
-
-            log_output = st.show(dut, f"cat {log_file}", skip_tmpl=True, skip_error_check=True)
-            st.log(f"Script log file output:\n{log_output}")
-
-            if "Packets sent successfully" in str(log_output) or "[✓]" in str(log_output) or "EXIT_CODE=0" in str(output):
-                st.log(f"✅ Unicast L2 traffic sent successfully from {dut}")
+            if "SUCCESS" in str(output):
+                st.log("✅ Unicast packets sent successfully")
                 return True
             else:
-                st.warn(f"Unicast traffic script completed with warnings on {dut}")
-                return True
+                st.error(f"Packet send failed: {output}")
+                return False
 
         except Exception as e:
-            st.error(f"Failed to execute unicast Scapy script: {e}")
-            return True
+            st.error(f"Exception sending packets: {e}")
+            return False
 
-    def _start_tcpdump(
-        self,
-        dut: str,
-        interface: str,
-        pcap_file: str,
-        dst_mac: str,
-        timeout: int = 120
-    ) -> bool:
-        """
-        Start tcpdump packet capture in background.
-
-        Args:
-            dut: Device handle
-            interface: Interface to capture on
-            pcap_file: Path to pcap file to create
-            dst_mac: Destination MAC address to filter
-            timeout: Maximum capture duration in seconds
-
-        Returns:
-            True if tcpdump started successfully, False otherwise
-        """
-        st.log(f"Starting tcpdump on {dut} interface {interface}")
-        st.log(f"  PCAP file: {pcap_file}")
-        st.log(f"  Filter: ether dst {dst_mac}")
-
+    def _capture_packets(self, dut, interface: str, pcap_file: str, timeout: int = 30) -> bool:
+        """Capture packets with tcpdump."""
         try:
-            # Kill any existing tcpdump processes on this interface
-            st.show(dut, f"sudo pkill -9 -f 'tcpdump.*{interface}' 2>/dev/null || true", skip_tmpl=True, skip_error_check=True)
-
+            st.log(f"Starting packet capture on {interface} for {timeout}s")
+            # Use sudo for tcpdump (requires elevated privileges for raw packet capture)
+            cmd = f"sudo timeout {timeout} tcpdump -i {interface} -w {pcap_file} &"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
+            self.data.pcap_files.append(pcap_file)
             time.sleep(1)
+            st.log(f"Packet capture started: {pcap_file}")
+            return True
+        except Exception as e:
+            st.error(f"Failed to start capture: {e}")
+            return False
 
-            # Remove old pcap file if exists
-            st.show(dut, f"sudo rm -f {pcap_file}", skip_tmpl=True, skip_error_check=True)
+    def _stop_capture(self, dut) -> bool:
+        """Kill tcpdump process to ensure PCAP file is flushed to disk."""
+        try:
+            st.log("Stopping packet capture and flushing file to disk")
+            cmd = "sudo pkill -f tcpdump"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
+            time.sleep(1)  # Give time for file to be written
+            return True
+        except Exception as e:
+            st.error(f"Failed to stop capture: {e}")
+            return False
 
-            # Start tcpdump in background with filter for destination MAC
-            cmd = f"nohup sudo timeout {timeout} tcpdump -i {interface} -w {pcap_file} -e ether dst {dst_mac} > /tmp/tcpdump.log 2>&1 &"
+    def _analyze_pcap_for_unicast(self, dut, pcap_file: str, expected_dst_mac: str) -> bool:
+        """Analyze PCAP file for unicast packets destined to specific MAC."""
+        try:
+            st.log(f"Analyzing PCAP for unicast packets to {expected_dst_mac}")
+
+            # Build script with escaped newlines for printf
+            script_lines = [
+                "from scapy.all import rdpcap, Ether",
+                "try:",
+                f"    packets = rdpcap(\"{pcap_file}\")",
+                "",
+                "    # Filter unicast packets (not broadcast/multicast)",
+                f"    unicast_packets = [p for p in packets if Ether in p]",
+                f"    target_packets = [p for p in unicast_packets if p[Ether].dst == \"{expected_dst_mac}\"]",
+                "",
+                "    if target_packets:",
+                f"        print(f\"SUCCESS: Found {{len(target_packets)}} unicast packets to {expected_dst_mac}\")",
+                "    else:",
+                f"        print(\"FAIL: No unicast packets found to {expected_dst_mac}\")",
+                "except Exception as e:",
+                "    print(f\"ERROR: {e}\")"
+            ]
+
+            # Write script using printf with newline escape sequences
+            script_path = f"/tmp/scapy_analyze_{int(time.time())}.py"
+            script_content = "\\n".join(script_lines)
+            cmd = f"printf '{script_content}' > {script_path}"
             st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
 
-            time.sleep(3)
+            # Execute analysis with sudo (may be needed if tcpdump file has restricted permissions)
+            cmd_exec = f"sudo python3 {script_path}"
+            output = st.show(dut, cmd_exec, skip_tmpl=True, skip_error_check=True)
 
-            # Verify tcpdump is running
-            ps_output = st.show(dut, f"ps aux | grep '[t]cpdump.*{interface}'", skip_tmpl=True, skip_error_check=True)
-            if "tcpdump" in str(ps_output):
-                st.log(f"✅ tcpdump started successfully on {interface}")
+            if "SUCCESS" in str(output):
+                st.log(f"✅ Analysis passed: {output}")
                 return True
             else:
-                st.warn("tcpdump process not found in ps output, but continuing...")
-                return True
-
-        except Exception as e:
-            st.error(f"Failed to start tcpdump: {e}")
-            return False
-
-    def _stop_tcpdump(self, dut: str, interface: str) -> bool:
-        """
-        Stop tcpdump packet capture.
-
-        Args:
-            dut: Device handle
-            interface: Interface where tcpdump is running
-
-        Returns:
-            True if stopped successfully, False otherwise
-        """
-        st.log(f"Stopping tcpdump on {dut} interface {interface}")
-
-        try:
-            st.show(dut, f"sudo pkill -TERM -f 'tcpdump.*{interface}' 2>/dev/null || true", skip_tmpl=True, skip_error_check=True)
-
-            time.sleep(2)
-
-            st.show(dut, f"sudo pkill -9 -f 'tcpdump.*{interface}' 2>/dev/null || true", skip_tmpl=True, skip_error_check=True)
-
-            time.sleep(1)
-
-            st.log(f"✅ tcpdump stopped on {interface}")
-            return True
-
-        except Exception as e:
-            st.error(f"Failed to stop tcpdump: {e}")
-            return True
-
-    def _verify_pcap_unicast_packets(
-        self,
-        dut: str,
-        pcap_file: str,
-        expected_count: int,
-        src_mac: str,
-        dst_mac: str
-    ) -> bool:
-        """
-        Verify unicast packets in pcap file.
-
-        Args:
-            dut: Device handle
-            pcap_file: Path to pcap file
-            expected_count: Expected number of packets
-            src_mac: Source MAC address
-            dst_mac: Destination MAC address (unicast)
-
-        Returns:
-            True if unicast packets verified, False otherwise
-        """
-        st.log(f"Verifying unicast packets in PCAP file: {pcap_file}")
-        st.log(f"  Expected count: {expected_count}")
-        st.log(f"  Source MAC: {src_mac}")
-        st.log(f"  Dest MAC: {dst_mac}")
-
-        try:
-            # Read PCAP file using Scapy
-            packets = rdpcap(pcap_file)
-            packet_count = len(packets)
-
-            st.log(f"Total packets captured: {packet_count}")
-
-            if packet_count == 0:
-                st.error(f"❌ No packets captured in PCAP file")
-                return False
-
-            # Verify packets
-            unicast_count = 0
-            for pkt in packets:
-                if Ether in pkt:
-                    eth = pkt[Ether]
-                    # Check if packet is unicast (not broadcast/multicast)
-                    # Broadcast: FF:FF:FF:FF:FF:FF
-                    # Multicast: first octet is odd (LSB of first byte is 1)
-                    dst_bytes = eth.dst.split(':')
-                    first_byte = int(dst_bytes[0], 16)
-
-                    # Unicast check: LSB of first byte should be 0 and not broadcast
-                    if (first_byte & 1) == 0 and eth.dst != "ff:ff:ff:ff:ff:ff":
-                        unicast_count += 1
-                        st.log(f"  Found unicast packet: {eth.src} → {eth.dst}")
-
-            st.log(f"Unicast packets verified: {unicast_count}")
-
-            if unicast_count >= (expected_count * 0.8):  # Allow 20% tolerance
-                st.log(f"✅ Unicast packet verification passed (found {unicast_count}/{expected_count} expected)")
-                return True
-            else:
-                st.error(f"❌ Insufficient unicast packets (found {unicast_count}, expected {expected_count})")
+                st.error(f"Analysis failed: {output}")
                 return False
 
         except Exception as e:
-            st.error(f"Failed to verify PCAP packets: {e}")
+            st.error(f"Exception analyzing PCAP: {e}")
             return False
 
-    def _cleanup_pcap_file(self, dut: str, pcap_file: str) -> bool:
-        """
-        Clean up PCAP file.
+    def _print_step_result(self, step_num: int, step_name: str, passed: bool) -> None:
+        """Print formatted step result."""
+        status = "✅ PASS" if passed else "❌ FAIL"
+        st.log("=" * 80)
+        st.log(f"STEP {step_num}: {step_name} - {status}")
+        st.log("=" * 80)
 
-        Args:
-            dut: Device handle
-            pcap_file: Path to pcap file
-
-        Returns:
-            True if successful, False otherwise
-        """
-        st.log(f"Cleaning up PCAP file: {pcap_file}")
-
-        try:
-            st.show(dut, f"sudo rm -f {pcap_file}", skip_tmpl=True, skip_error_check=True)
-            st.log(f"✅ PCAP file cleaned up")
-            return True
-
-        except Exception as e:
-            st.error(f"Failed to cleanup PCAP file: {e}")
-            return False
+    # ========================================================================
+    # TEST METHOD
+    # ========================================================================
 
     @pytest.mark.inventory(feature="VLAN_Forwarding", testcases=["TC_VLAN_FORWARD_001"])
-    def test_vlan_intra_vlan_unicast_forwarding(self) -> None:
+    def test_vlan_forward_001_intra_vlan_unicast(self) -> None:
         """
         TC_VLAN_FORWARD_001: Intra-VLAN Unicast Forwarding
 
         Objective: Verify unicast packet forwarding within VLAN
-        Steps:
-        1. Create VLAN 10 on both DUTs
-        2. Configure Port1 (D1D2P1) as untagged member of VLAN 10 on D1
-        3. Configure Port2 (D2D1P1) as untagged member of VLAN 10 on D2
-        4. Retrieve MAC addresses for both ports
-        5. Start tcpdump on Port2 to capture packets destined to Port2
-        6. Send unicast packets from Port1 to Port2 using Scapy
-        7. Verify ONLY Port2 receives packets (no flooding to other ports)
-        8. Cleanup PCAP files and test configuration
 
-        Expected Result: Unicast packets forwarded to destination port only in same VLAN
+        Steps:
+            1. Create VLAN 10 on both DUTs
+            2. Configure Port1 (D1) as untagged access port for VLAN 10
+            3. Configure Port2 (D2) as untagged access port for VLAN 10
+            4. Retrieve MAC addresses from both ports
+            5. Start packet capture on Port2
+            6. Send unicast packet from Port1 to Port2's MAC using Scapy
+            7. Analyze capture and verify unicast packet received
+
+        Expected Result: Unicast packet forwarded to destination port in same VLAN
         """
-        st.banner("TC_VLAN_FORWARD_001: Intra-VLAN Unicast Forwarding")
+        st.banner("=" * 100)
+        st.banner("TEST: TC_VLAN_FORWARD_001 - INTRA-VLAN UNICAST FORWARDING")
+        st.banner("=" * 100)
 
         dut1 = self.data.dut1
         dut2 = self.data.dut2
-        cli_type = self.data.cli_type
+        d1_port = self.data.d1_port
+        d2_port = self.data.d2_port
         vlan_id = self.data.vlan_id
-        port1 = self.data.D1D2P1
-        port2 = self.data.D2D1P1
+        cli_type = self.data.cli_type
 
-        # Retrieve test parameters from YAML
-        test_config = self.data.testcases.get("TC_VLAN_FORWARD_001", {})
-        traffic_config = test_config.get("traffic", {})
-        packet_count = traffic_config.get("packet_count", 10)
+        # Initialize test result tracking
+        test_results = {
+            "step_1": False,  # Create VLAN
+            "step_2": False,  # Configure D1 access port
+            "step_3": False,  # Configure D2 access port
+            "step_4": False,  # Get MACs
+            "step_5": False,  # Start capture
+            "step_6": False,  # Send packets
+            "step_7": False,  # Analyze packets
+        }
 
-        # Step 1: Create VLAN 10 on both DUTs
-        st.log("Step 1: Creating VLAN 10 on both DUTs")
-        if not self._create_vlan(dut1, vlan_id):
-            st.report_fail("msg", f"Failed to create VLAN {vlan_id} on D1")
-        if not self._create_vlan(dut2, vlan_id):
-            st.report_fail("msg", f"Failed to create VLAN {vlan_id} on D2")
+        try:
+            # ====================================================================
+            # STEP 1: Create VLAN 10 on both DUTs
+            # ====================================================================
+            st.log("\nSTEP 1: Creating VLAN 10 on both DUTs")
+            step_passed = True
+            for dut_name, dut in [("D1", dut1), ("D2", dut2)]:
+                try:
+                    result = vlan_api.create_vlan(dut, vlan_id, cli_type=cli_type)
+                    if result:
+                        st.log(f"  ✅ VLAN {vlan_id} created on {dut_name}")
+                        self.data.configured_vlans.append((dut, vlan_id))
+                    else:
+                        st.log(f"  ❌ Failed to create VLAN on {dut_name}")
+                        step_passed = False
+                except Exception as e:
+                    st.log(f"  ❌ Exception creating VLAN on {dut_name}: {e}")
+                    step_passed = False
 
-        # Step 2: Configure Port1 as access port in VLAN 10
-        st.log(f"Step 2: Configuring Port1 ({port1}) as access port in VLAN {vlan_id} on D1")
-        if not self._configure_access_port(dut1, port1, vlan_id):
-            st.report_fail("msg", f"Failed to configure Port1 as access port")
+            test_results["step_1"] = step_passed
+            self._print_step_result(1, "Create VLAN 10", step_passed)
 
-        # Step 3: Configure Port2 as access port in VLAN 10
-        st.log(f"Step 3: Configuring Port2 ({port2}) as access port in VLAN {vlan_id} on D2")
-        if not self._configure_access_port(dut2, port2, vlan_id):
-            st.report_fail("msg", f"Failed to configure Port2 as access port")
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to create VLAN")
 
-        # Step 4: Retrieve MAC addresses for both ports
-        st.log("Step 4: Retrieving MAC addresses for both ports")
-        port1_mac = self._get_interface_mac(dut1, port1)
-        port2_mac = self._get_interface_mac(dut2, port2)
-
-        if not port1_mac or not port2_mac:
-            st.report_fail("msg", "Failed to retrieve MAC addresses for one or both ports")
-
-        st.log(f"Port1 MAC: {port1_mac}")
-        st.log(f"Port2 MAC: {port2_mac}")
-
-        # Step 5: Start tcpdump on Port2 to capture incoming unicast packets
-        st.log(f"Step 5: Starting tcpdump on Port2 ({port2}) on D2 to capture unicast packets")
-        pcap_file = f"/tmp/vlan_unicast_forward_{vlan_id}.pcap"
-        if not self._start_tcpdump(dut2, port2, pcap_file, port2_mac):
-            st.warn("Failed to start tcpdump, continuing with test...")
-
-        time.sleep(3)
-
-        # Step 6: Send unicast packets from Port1 to Port2
-        st.log(f"Step 6: Sending {packet_count} unicast packets from Port1 to Port2")
-        script_path = "/tmp/scapy_unicast.py"
-        if not self._create_unicast_scapy_script(dut1, port1, port1_mac, port2_mac, packet_count, script_path=script_path):
-            st.report_fail("msg", "Failed to create Scapy script")
-
-        if not self._send_l2_traffic(dut1, script_path):
-            st.warn("Failed to send L2 traffic, continuing with packet verification...")
-
-        time.sleep(3)
-
-        # Step 7: Stop tcpdump and verify unicast packets
-        st.log("Step 7: Stopping tcpdump and verifying unicast packets")
-        if not self._stop_tcpdump(dut2, port2):
-            st.warn("Failed to stop tcpdump, continuing with verification...")
-
-        time.sleep(2)
-
-        # Verify unicast packets in PCAP file
-        if not self._verify_pcap_unicast_packets(dut2, pcap_file, packet_count, port1_mac, port2_mac):
-            st.log("⚠️ Unicast packet verification inconclusive, checking if file exists...")
+            # ====================================================================
+            # STEP 2: Configure D1 access port
+            # ====================================================================
+            st.log("\nSTEP 2: Configuring D1 access port for VLAN 10")
+            step_passed = True
             try:
-                tcpdump_output = st.show(dut2, f"tcpdump -r {pcap_file} 2>/dev/null | wc -l", skip_tmpl=True, skip_error_check=True)
-                captured_packets = int(str(tcpdump_output).strip())
-                if captured_packets > 0:
-                    st.log(f"✅ Alternative verification: {captured_packets} packets captured")
-                else:
-                    st.report_fail("msg", "No unicast packets captured on Port2")
+                st.config(dut1, [
+                    f"interface {d1_port}",
+                    f"switchport access vlan {vlan_id}",
+                    "exit"
+                ], type=cli_type, skip_error_check=True)
+                st.log(f"  ✅ D1 access port configured")
+                self.data.configured_ports.append((dut1, d1_port))
+                step_passed = True
             except Exception as e:
-                st.warn(f"Alternative verification failed: {e}")
+                st.log(f"  ❌ Failed to configure D1 access port: {e}")
+                step_passed = False
 
-        # Step 8: Cleanup PCAP files
-        st.log("Step 8: Cleaning up PCAP files")
-        self._cleanup_pcap_file(dut2, pcap_file)
+            test_results["step_2"] = step_passed
+            self._print_step_result(2, "Configure D1 Access Port", step_passed)
 
-        st.log(f"✅ TC_VLAN_FORWARD_001 completed successfully")
-        st.report_pass("test_case_passed")
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to configure access port")
+
+            # ====================================================================
+            # STEP 3: Configure D2 access port
+            # ====================================================================
+            st.log("\nSTEP 3: Configuring D2 access port for VLAN 10")
+            step_passed = True
+            try:
+                st.config(dut2, [
+                    f"interface {d2_port}",
+                    f"switchport access vlan {vlan_id}",
+                    "exit"
+                ], type=cli_type, skip_error_check=True)
+                st.log(f"  ✅ D2 access port configured")
+                self.data.configured_ports.append((dut2, d2_port))
+                step_passed = True
+            except Exception as e:
+                st.log(f"  ❌ Failed to configure D2 access port: {e}")
+                step_passed = False
+
+            test_results["step_3"] = step_passed
+            self._print_step_result(3, "Configure D2 Access Port", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to configure access port")
+
+            # ====================================================================
+            # STEP 4: Retrieve MAC addresses
+            # ====================================================================
+            st.log("\nSTEP 4: Retrieving MAC addresses from ports")
+            d1_mac = self._get_interface_mac(dut1, d1_port)
+            d2_mac = self._get_interface_mac(dut2, d2_port)
+            step_passed = bool(d1_mac and d1_mac != "00:00:00:00:00:00" and
+                              d2_mac and d2_mac != "00:00:00:00:00:00")
+
+            if step_passed:
+                st.log(f"  ✅ MAC addresses obtained")
+            else:
+                st.log(f"  ⚠️ Using default MACs")
+
+            test_results["step_4"] = step_passed
+            self._print_step_result(4, "Retrieve MAC Addresses", step_passed)
+
+            # ====================================================================
+            # STEP 5: Start packet capture on D2
+            # ====================================================================
+            st.log("\nSTEP 5: Starting packet capture on D2 access port")
+            pcap_file = f"/tmp/vlan_forward_001_{int(time.time())}.pcap"
+            step_passed = self._capture_packets(dut2, d2_port, pcap_file, timeout=30)
+
+            test_results["step_5"] = step_passed
+            self._print_step_result(5, "Start Packet Capture", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to start packet capture")
+
+            time.sleep(2)
+
+            # ====================================================================
+            # STEP 6: Send unicast packets from D1
+            # ====================================================================
+            st.log("\nSTEP 6: Sending unicast packets from D1")
+            step_passed = self._send_unicast_packet(dut1, d1_port, d2_mac, d1_mac,
+                                                   packet_count=5)
+
+            test_results["step_6"] = step_passed
+            self._print_step_result(6, "Send Unicast Packets", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to send packets")
+
+            time.sleep(3)
+
+            # ====================================================================
+            # STEP 6.5: Stop capture to flush PCAP file
+            # ====================================================================
+            st.log("\nSTEP 6.5: Stopping packet capture to ensure file is flushed")
+            self._stop_capture(dut2)
+            time.sleep(2)  # Extra wait for file to be fully written
+
+            # ====================================================================
+            # STEP 7: Analyze capture for unicast packets
+            # ====================================================================
+            st.log("\nSTEP 7: Analyzing captured packets for unicast forwarding")
+            step_passed = self._analyze_pcap_for_unicast(dut2, pcap_file, d2_mac)
+
+            test_results["step_7"] = step_passed
+            self._print_step_result(7, "Analyze Unicast Packets", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Unicast packet not received or forwarded incorrectly")
+
+            # ====================================================================
+            # OVERALL RESULT
+            # ====================================================================
+            overall_passed = all(test_results.values())
+            passed_count = sum(test_results.values())
+
+            st.log("\n" + "=" * 100)
+            st.log(f"OVERALL TEST RESULT: {'✅ PASSED' if overall_passed else '❌ FAILED'}")
+            st.log(f"Steps Passed: {passed_count}/{len(test_results)}")
+            st.log("=" * 100)
+
+            if overall_passed:
+                st.report_pass("test_case_passed")
+            else:
+                failed_steps = [k for k, v in test_results.items() if not v]
+                st.report_fail("test_case_failed", f"Failed steps: {failed_steps}")
+
+        except Exception as e:
+            st.error(f"Test exception: {e}")
+            st.report_fail("test_case_failed", f"Test exception: {e}")
