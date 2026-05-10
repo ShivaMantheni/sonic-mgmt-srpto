@@ -207,8 +207,14 @@ class TestVlanEgressTaggedPacketOnAccessPort:
                 st.log(f"Resetting port {port_name} on {dut}")
                 try:
                     # Reset port to default (remove from VLAN)
-                    cmd = f"no switchport mode\nno switchport access vlan\nno switchport trunk allowed vlan"
-                    st.config(dut, cmd, type=cls.data.cli_type)
+                    # Use list format for multiple commands, not newline-separated string
+                    # For access ports: no switchport access vlan
+                    st.config(dut, [
+                        f"interface {port_name}",
+                        "no switchport access vlan",
+                        "no switchport mode",
+                        "exit"
+                    ], type=cls.data.cli_type)
                 except Exception as e:
                     st.warn(f"Failed to reset port {port_name}: {e}")
 
@@ -436,7 +442,7 @@ class TestVlanEgressTaggedPacketOnAccessPort:
                 if in_interface:
                     if mode == "access":
                         # For access ports, look for "switchport access vlan X"
-                        if re.search(rf"switchport access\s+vlan\s+{vlan_id}", line_stripped, re.IGNORECASE), line_stripped):
+                        if re.search(rf"switchport access\s+vlan\s+{vlan_id}", line_stripped, re.IGNORECASE):
                             st.log(f"✓ Found access port VLAN configuration: {line_stripped}")
                             vlan_found = True
                     elif mode == "trunk":
