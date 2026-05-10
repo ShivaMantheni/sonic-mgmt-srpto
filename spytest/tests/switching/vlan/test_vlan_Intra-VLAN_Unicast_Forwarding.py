@@ -180,20 +180,20 @@ class TestVlanIntraVlanUnicastForwarding:
             st.banner("MODULE EPILOGUE: Cleanup Finished")
 
     def _get_interface_mac(self, dut, interface: str) -> str:
-        """Get MAC address from interface."""
+        """Get MAC address from interface using ethtool."""
         try:
-            # Use proper klish command to show interface details
-            cmd = f"show interface {interface}"
+            # Use ethtool to get interface MAC address (works in both click and klish)
+            cmd = f"ethtool -P {interface}"
             output = st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
 
-            # Search for MAC address pattern in output (HH:HH:HH:HH:HH:HH)
+            # Extract MAC from ethtool output format: "Permanent address: HH:HH:HH:HH:HH:HH"
             match = re.search(r"([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", str(output))
             if match:
                 mac = match.group(0)
                 st.log(f"  ✅ Got MAC from {interface}: {mac}")
                 return mac
             else:
-                st.log(f"  ⚠️ Could not extract MAC from {interface}")
+                st.log(f"  ⚠️ Could not extract MAC from {interface}, using default")
                 return "00:00:00:00:00:00"
 
         except Exception as e:
