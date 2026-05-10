@@ -359,7 +359,7 @@ class TestVlanCreateMultiple:
             self._print_step_result(1, "Create VLANs", step_passed)
 
             if not step_passed:
-                st.report_fail("msg", "STEP 1 FAILED: Failed to create one or more VLANs")
+                st.report_fail("vlan_creation_failed", "Failed to create one or more VLANs")
 
             # STEP 2: Execute show running-config to verify all VLANs exist
             st.log("\n" + "=" * 80)
@@ -429,11 +429,11 @@ class TestVlanCreateMultiple:
             if overall_passed:
                 st.report_pass("test_case_passed")
             else:
-                st.report_fail("msg", "TC_VLAN_CREATE_002 FAILED: One or more steps failed")
+                st.report_fail("test_case_failed", "TC_VLAN_CREATE_002 FAILED: One or more steps failed")
 
         except Exception as e:
             st.log(f"\n❌ TEST EXCEPTION: {e}")
-            st.report_fail("msg", f"TC_VLAN_CREATE_002 EXCEPTION: {e}")
+            st.report_fail("test_case_failed", f"TC_VLAN_CREATE_002 EXCEPTION: {e}")
 
         finally:
             # Cleanup - always remove created VLANs
@@ -505,7 +505,7 @@ class TestVlanCreateMultiple:
             self._print_step_result(1, f"Create VLAN {test_vlan}", step_passed)
 
             if not step_passed:
-                st.report_fail("msg", f"STEP 1 FAILED: Failed to create VLAN {test_vlan}")
+                st.report_fail("test_case_failed", f"STEP 1 FAILED: Failed to create VLAN {test_vlan}")
 
             # STEP 2: Verify VLAN 100 exists on both DUTs
             st.log("\n" + "=" * 80)
@@ -524,7 +524,7 @@ class TestVlanCreateMultiple:
             self._print_step_result(2, f"Verify VLAN {test_vlan} exists", step_passed)
 
             if not step_passed:
-                st.report_fail("msg", f"STEP 2 FAILED: VLAN {test_vlan} verification failed")
+                st.report_fail("test_case_failed", f"STEP 2 FAILED: VLAN {test_vlan} verification failed")
 
             # STEP 3: Delete VLAN 100 from both DUTs
             st.log("\n" + "=" * 80)
@@ -577,11 +577,11 @@ class TestVlanCreateMultiple:
             if overall_passed:
                 st.report_pass("test_case_passed")
             else:
-                st.report_fail("msg", "TC_VLAN_DELETE_001 FAILED: One or more steps failed")
+                st.report_fail("test_case_failed", "TC_VLAN_DELETE_001 FAILED: One or more steps failed")
 
         except Exception as e:
             st.log(f"\n❌ TEST EXCEPTION: {e}")
-            st.report_fail("msg", f"TC_VLAN_DELETE_001 EXCEPTION: {e}")
+            st.report_fail("test_case_failed", f"TC_VLAN_DELETE_001 EXCEPTION: {e}")
 
         finally:
             # Cleanup - ensure VLAN 100 is removed

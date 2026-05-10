@@ -202,8 +202,12 @@ class TestVlanUntaggedPacketTagging:
                 st.log(f"Resetting port {port_name} on {dut}")
                 try:
                     # Reset port to default (remove from VLAN)
-                    cmd = f"no switchport mode\nno switchport access vlan\nno switchport trunk allowed vlan"
-                    st.config(dut, cmd, type=cls.data.cli_type)
+                    st.config(dut, [
+                        f"interface {port_name}",
+                        "no switchport access vlan",
+                        "no switchport mode",
+                        "exit"
+                    ], type=cls.data.cli_type)
                 except Exception as e:
                     st.warn(f"Failed to reset port {port_name}: {e}")
 
@@ -773,7 +777,7 @@ PYEOF
         testcase = self.data.testcases.get(tc_id)
         if not testcase:
             st.error(f"Test case {tc_id} not found in YAML configuration")
-            st.report_fail("msg", f"Test case {tc_id} configuration missing")
+            st.report_fail("test_case_failed", f"Test case {tc_id} configuration missing")
 
         # Get test parameters
         vlan_10 = testcase.get("vlans", {}).get("vlan_10", 10)
@@ -793,14 +797,14 @@ PYEOF
             st.log(f"  Creating VLAN {vlan_10} on {self.data.D1}")
             if not vlan_api.create_vlan(self.data.D1, vlan_10, cli_type=self.data.cli_type):
                 st.error(f"Failed to create VLAN {vlan_10} on {self.data.D1}")
-                st.report_fail("msg", f"VLAN creation failed on {self.data.D1}")
+                st.report_fail("test_case_failed", f"VLAN creation failed on {self.data.D1}")
             self.data.configured_vlans.append((self.data.D1, vlan_10))
 
             # Create VLAN 10 on D2
             st.log(f"  Creating VLAN {vlan_10} on {self.data.D2}")
             if not vlan_api.create_vlan(self.data.D2, vlan_10, cli_type=self.data.cli_type):
                 st.error(f"Failed to create VLAN {vlan_10} on {self.data.D2}")
-                st.report_fail("msg", f"VLAN creation failed on {self.data.D2}")
+                st.report_fail("test_case_failed", f"VLAN creation failed on {self.data.D2}")
             self.data.configured_vlans.append((self.data.D2, vlan_10))
 
             st.log(f"✓ VLAN {vlan_10} created on both DUTs")
@@ -814,7 +818,7 @@ PYEOF
                 vlan_10
             ):
                 st.error(f"Failed to configure access port")
-                st.report_fail("msg", "Access port configuration failed")
+                st.report_fail("test_case_failed", "Access port configuration failed")
 
             # Verify access port configuration
             if not self._verify_port_vlan_config(
@@ -824,7 +828,7 @@ PYEOF
                 mode="access"
             ):
                 st.error(f"Access port configuration not verified")
-                st.report_fail("msg", "Access port verification failed")
+                st.report_fail("test_case_failed", "Access port verification failed")
 
             st.log(f"✓ Access port {self.data.D1D2P1} configured for VLAN {vlan_10}")
 
@@ -838,7 +842,7 @@ PYEOF
                 trunk_vlans
             ):
                 st.error(f"Failed to configure trunk port")
-                st.report_fail("msg", "Trunk port configuration failed")
+                st.report_fail("test_case_failed", "Trunk port configuration failed")
 
             # Verify trunk port configuration
             if not self._verify_port_vlan_config(
@@ -848,7 +852,7 @@ PYEOF
                 mode="trunk"
             ):
                 st.error(f"Trunk port configuration not verified")
-                st.report_fail("msg", "Trunk port verification failed")
+                st.report_fail("test_case_failed", "Trunk port verification failed")
 
             st.log(f"✓ Trunk port {self.data.D2D1P1} configured for VLAN {vlan_10}")
 
@@ -858,12 +862,12 @@ PYEOF
             d1_mac = self._get_interface_mac(self.data.D1, self.data.D1D2P1)
             if not d1_mac:
                 st.error("Could not retrieve D1 MAC address")
-                st.report_fail("msg", "MAC address retrieval failed")
+                st.report_fail("test_case_failed", "MAC address retrieval failed")
 
             d2_mac = self._get_interface_mac(self.data.D2, self.data.D2D1P1)
             if not d2_mac:
                 st.error("Could not retrieve D2 MAC address")
-                st.report_fail("msg", "MAC address retrieval failed")
+                st.report_fail("test_case_failed", "MAC address retrieval failed")
 
             st.log(f"✓ D1 {self.data.D1D2P1} MAC: {d1_mac}")
             st.log(f"✓ D2 {self.data.D2D1P1} MAC: {d2_mac}")
@@ -890,7 +894,7 @@ PYEOF
 
             if not success or not pcap_file:
                 st.error("Failed to start packet capture")
-                st.report_fail("msg", "Packet capture initialization failed")
+                st.report_fail("test_case_failed", "Packet capture initialization failed")
 
             pcap_files.append(pcap_file)
             st.log(f"✓ Packet capture started on {self.data.D2D1P1}")
@@ -910,7 +914,7 @@ PYEOF
                 packet_size=64
             ):
                 st.error("Failed to send untagged packets")
-                st.report_fail("msg", "Packet transmission failed")
+                st.report_fail("test_case_failed", "Packet transmission failed")
 
             st.log(f"✓ Sent {packet_count} untagged packets from {self.data.D1D2P1}")
 
@@ -926,7 +930,7 @@ PYEOF
                 vlan_10
             ):
                 st.error("VLAN tag verification failed")
-                st.report_fail("msg", "Captured packets do not have correct VLAN tag")
+                st.report_fail("test_case_failed", "Captured packets do not have correct VLAN tag")
 
             st.log(f"✓ Packets verified with VLAN {vlan_10} tag")
 
@@ -938,7 +942,7 @@ PYEOF
             st.error(f"Test failed with exception: {e}")
             import traceback
             st.error(traceback.format_exc())
-            st.report_fail("msg", f"Test failed: {e}")
+            st.report_fail("test_case_failed", f"Test failed: {e}")
 
         finally:
             # Clean up pcap files
