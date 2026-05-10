@@ -188,9 +188,11 @@ class TestVlanIntraVlanUnicastForwarding:
     def _get_interface_mac(self, dut, interface: str) -> str:
         """Get MAC address from interface."""
         try:
-            cmd = f"show interface {interface} | grep -i address"
+            # Use proper klish command to show interface details
+            cmd = f"show interface {interface}"
             output = st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
 
+            # Search for MAC address pattern in output (HH:HH:HH:HH:HH:HH)
             match = re.search(r"([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", str(output))
             if match:
                 mac = match.group(0)
