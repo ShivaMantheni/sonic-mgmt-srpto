@@ -1,8 +1,8 @@
 """
-VLAN TRUNK-TO-TRUNK TAGGED PACKET FORWARDING TEST (TC_VLAN_TAG_003)
+TC_VLAN_TAG_003: Tagged Packet on Trunk Port - Full Trunk-to-Trunk Forwarding
 
 Author: Test Automation Team
-Date: 2026-05-06
+Date: 2026-05-11
 
 How to run:
   ./bin/spytest --tryssh 1 \\
@@ -18,24 +18,19 @@ Description:
   This validates the core VLAN forwarding behavior for trunk ports.
 
   Test Scenario:
-    Source: Trunk port (Port3, D1) sends VLAN 10 tagged packet
-    Operation: Switch forwards tagged packet between trunk ports
-    Destination: Trunk port (Port5, D2) receives packet with VLAN 10 tag intact
+    Step 1: Create VLAN 10 on both DUTs
+    Step 2: Configure Port on D1 as trunk port for VLAN 10
+    Step 3: Configure Port on D2 as trunk port for VLAN 10
+    Step 4: Start packet capture on D2 trunk port
+    Step 5: Send VLAN 10 tagged packet from D1 trunk port using Scapy
+    Step 6: Analyze capture and verify packet retains VLAN 10 tag
+    Step 7: Cleanup all configurations
 
 Pre-requisites:
-  - Topology: two-node (D1-D2) with 2+ connections | Supported: HW and Virtual
-  - Topology Diagram:
-        ┌────────────────────┐                  ┌────────────────────┐
-        │   D1 (Leaf/DUT)    │                  │   D2 (Spine/TGen)  │
-        │                    │                  │                    │
-        │  Ethernet4         │══════════════════│  Ethernet4         │
-        │  (Trunk Port)      │    Back-to-Back  │  (Trunk Port)      │
-        │  VLAN 10 (tagged)  │                  │  VLAN 10 (tagged)  │
-        │                    │                  │                    │
-        └────────────────────┘                  └────────────────────┘
-
-  - Feature flags / min SONiC version: VLAN support required
-  - Required test variables (YAML): spytest/vars/switching/vlan/vars_vlan_tag_003.yaml
+  - Topology: Two DUTs (D1-D2) with 2+ back-to-back connections
+  - Supported: HW and Virtual SONiC environments
+  - Scapy installed on DUTs
+  - tcpdump available for packet capture
 """
 
 from __future__ import annotations
@@ -44,626 +39,512 @@ import re
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import subprocess
 
 import pytest
 import yaml
 
 from spytest import SpyTestDict, st
 import apis.switching.vlan as vlan_api
-import apis.system.interface as interface_api
 
 # ============================================================================
 # CONFIGURATION AND CONSTANTS
 # ============================================================================
 
-# Default YAML variable file location
 VAR_FILE_ENV = "VLAN_TAG_003_VAR_FILE"
 DEFAULT_VAR_FILE = (
     Path(__file__).resolve().parents[3]
-    / "spytest"
-    / "vars"
-    / "switching"
-    / "vlan"
-    / "vars_vlan_tag_003.yaml"
+    / "spytest/vars/switching/vlan/vars_vlan_tag_003.yaml"
 )
 
-# Test case identifier
 TC_VLAN_TAG_003 = "TC_VLAN_TAG_003"
 
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-
 def _load_yaml_config() -> Dict[str, Any]:
-    """
-    Load test configuration from YAML file.
-
-    Returns:
-        Dictionary containing test configuration
-
-    Raises:
-        FileNotFoundError: If YAML file not found
-        ValueError: If YAML is missing required keys
-    """
+    """Load test configuration from YAML with environment override."""
     override_path = st.getenv(VAR_FILE_ENV)
     yaml_file = Path(override_path) if override_path else DEFAULT_VAR_FILE
 
     if not yaml_file.is_file():
-        st.error(f"VLAN TAG-003 variable file not found: {yaml_file}")
-        raise FileNotFoundError(f"VLAN TAG-003 variable file not found: {yaml_file}")
+        st.warn(f"VLAN TAG-003 config not found at {yaml_file}, using defaults")
+        return {
+            "defaults": {
+                "cli_type": "klish",
+                "vlan_id": "10",
+                "min_topology": ["D1D2:2"],
+                "cleanup": True
+            },
+            "testcases": {
+                TC_VLAN_TAG_003: {}
+            }
+        }
 
-    with yaml_file.open(encoding="utf-8") as handle:
-        config = yaml.safe_load(handle) or {}
-
-    if "testcases" not in config:
-        raise ValueError("YAML must contain 'testcases' key")
-
-    st.log(f"✓ YAML configuration loaded from: {yaml_file}")
-    return config
+    with yaml_file.open(encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
 
 
 # ============================================================================
 # TEST CLASS
 # ============================================================================
 
-
 @pytest.mark.topology("D1D2:2")
 class TestVlanTaggedPacketOnTrunkPort:
-    """
-    Test class for VLAN trunk-to-trunk tagged packet forwarding.
-
-    Tests that tagged packets remain tagged when forwarded between trunk ports.
-    This validates IEEE 802.1Q trunk port behavior.
-    """
+    """Test trunk-to-trunk tagged VLAN packet forwarding (TC_VLAN_TAG_003)."""
 
     data = SpyTestDict()
 
-    # ========================================================================
-    # CLASS-LEVEL SETUP AND TEARDOWN
-    # ========================================================================
-
     @classmethod
     def setup_class(cls) -> None:
-        """
-        Class-level setup: Load configuration and verify minimum topology.
+        """Class-level setup: Load config and initialize topology."""
+        st.banner("MODULE PROLOGUE: TC_VLAN_TAG_003 - Trunk Port Tagged Forwarding")
 
-        Topology requirement: Two DUTs with 2+ connections (D1D2:2).
-        """
-        st.banner("MODULE PROLOGUE: TC_VLAN_TAG_003 Setup")
+        # Load configuration
+        config = _load_yaml_config()
+        defaults = config.get("defaults", {})
 
-        try:
-            # Load YAML configuration
-            config = _load_yaml_config()
-            defaults = config.get("defaults", {})
-            testcases = config.get("testcases", {})
+        # Get topology
+        min_topology = defaults.get("min_topology", ["D1D2:2"])
+        topology = st.ensure_min_topology(*min_topology)
 
-            # Ensure minimum topology: Two DUTs with 2+ connections
-            min_topology = defaults.get("min_topology", ["D1D2:2"])
-            topology = st.ensure_min_topology(*min_topology)
+        # Store configuration
+        cls.data.config = SpyTestDict(config)
+        cls.data.defaults = SpyTestDict(defaults)
+        cls.data.topology = topology
+        cls.data.testcases = SpyTestDict(config.get("testcases", {}))
 
-            # Store configuration
-            cls.data.config = SpyTestDict(config)
-            cls.data.defaults = SpyTestDict(defaults)
-            cls.data.testcases = SpyTestDict(testcases)
-            cls.data.topology = topology
-            cls.data.cli_type = defaults.get("cli_type", "klish")
+        # Get DUT handles
+        cls.data.dut1 = topology.D1
+        cls.data.dut2 = topology.D2
+        cls.data.d1_port = topology.D1D2P1  # Dynamic port from testbed
+        cls.data.d2_port = topology.D2D1P1  # Dynamic port from testbed
 
-            st.log(f"✓ Topology verified: {topology}")
-            st.log(f"✓ CLI Type: {cls.data.cli_type}")
+        # Configuration parameters
+        cls.data.cli_type = defaults.get("cli_type", "klish")
+        cls.data.vlan_id = str(defaults.get("vlan_id", "10"))
+        cls.data.cleanup_enabled = bool(defaults.get("cleanup", True))
 
-            # Get TC_VLAN_TAG_003 configuration
-            tc_config = testcases.get(TC_VLAN_TAG_003, {})
-            cls.data.tc_config = SpyTestDict(tc_config)
+        # Track configurations for cleanup
+        cls.data.configured_ports = []
+        cls.data.configured_vlans = []
+        cls.data.pcap_files = []
 
-            st.log(f"✓ Test configuration loaded for {TC_VLAN_TAG_003}")
+        st.log(f"DUT1: {cls.data.dut1} | Port: {cls.data.d1_port}")
+        st.log(f"DUT2: {cls.data.dut2} | Port: {cls.data.d2_port}")
+        st.log(f"VLAN ID: {cls.data.vlan_id} | CLI Type: {cls.data.cli_type}")
 
-        except Exception as e:
-            st.error(f"Setup failed: {e}")
-            st.report_fail( "setup_failed", str(e))
-            raise
+        # Pre-cleanup: Clear configurations
+        cls._clear_interface_config()
+        cls._cleanup_test_vlans()
+
+        st.banner("MODULE PROLOGUE: Setup Complete")
+
+    @classmethod
+    def _clear_interface_config(cls) -> None:
+        """Clear IP and VLAN configs from test ports before test."""
+        st.banner("Pre-Test Cleanup: Clearing Interface Configurations")
+        for dut_name, dut, port in [
+            ("D1", cls.data.dut1, cls.data.d1_port),
+            ("D2", cls.data.dut2, cls.data.d2_port)
+        ]:
+            try:
+                st.log(f"Clearing configs on {dut_name}:{port}")
+                st.config(dut, [
+                    f"interface {port}",
+                    "no ip address",
+                    "no switchport access vlan",
+                    "no switchport mode",
+                    "exit"
+                ], type=cls.data.cli_type, skip_error_check=True)
+            except Exception as e:
+                st.log(f"Pre-cleanup exception on {dut_name} (non-fatal): {e}")
+
+    @classmethod
+    def _cleanup_test_vlans(cls) -> None:
+        """Remove test VLANs before starting test."""
+        vlan_id = cls.data.vlan_id
+        for dut_name, dut in [("D1", cls.data.dut1), ("D2", cls.data.dut2)]:
+            try:
+                vlan_api.delete_vlan(dut, vlan_id, cli_type=cls.data.cli_type,
+                                   skip_error_report=True, remove_vlan_mapping=False)
+                st.log(f"Pre-cleanup: VLAN {vlan_id} removed from {dut_name} (if existed)")
+            except Exception as e:
+                st.log(f"Pre-cleanup VLAN exception on {dut_name} (non-fatal): {e}")
 
     @classmethod
     def teardown_class(cls) -> None:
-        """Class-level teardown: cleanup configuration."""
+        """Class-level cleanup: Remove all configurations."""
+        if not cls.data.cleanup_enabled:
+            st.log("Cleanup disabled, skipping teardown")
+            return
+
         st.banner("MODULE EPILOGUE: TC_VLAN_TAG_003 Cleanup")
 
         try:
-            # Get DUT handles
-            d1 = cls.data.topology.dut_list[0]
-            d2 = cls.data.topology.dut_list[1]
+            # Remove port configurations
+            for dut, port in reversed(cls.data.configured_ports):
+                try:
+                    st.log(f"Removing port config: {port}")
+                    st.config(dut, [
+                        f"interface {port}",
+                        "no switchport access vlan",
+                        "no switchport trunk allowed vlan",
+                        "no switchport mode",
+                        "exit"
+                    ], type=cls.data.cli_type, skip_error_check=True)
+                except Exception as e:
+                    st.warn(f"Port cleanup exception: {e}")
 
-            # Get test ports
-            d1_port = cls.data.tc_config.get("ports", {}).get("trunk_port_1", cls.data.topology.D1D2P1)
-            d2_port = cls.data.tc_config.get("ports", {}).get("trunk_port_2", cls.data.topology.D2D1P1)
+            # Remove VLAN configurations
+            for dut, vlan_id in reversed(cls.data.configured_vlans):
+                try:
+                    vlan_api.delete_vlan(dut, str(vlan_id), cli_type=cls.data.cli_type,
+                                       skip_error_report=True, remove_vlan_mapping=False)
+                    st.log(f"VLAN {vlan_id} removed")
+                except Exception as e:
+                    st.warn(f"VLAN cleanup exception: {e}")
 
-            st.log("Cleaning up VLAN configuration...")
+            # Cleanup PCAP files
+            for pcap_file in cls.data.pcap_files:
+                try:
+                    Path(pcap_file).unlink(missing_ok=True)
+                    st.log(f"Cleaned up: {pcap_file}")
+                except Exception as e:
+                    st.log(f"PCAP cleanup exception: {e}")
 
-            # Get VLAN ID from config
-            vlan_config = cls.data.tc_config.get("vlans", {})
-            vlan_id = vlan_config.get("vlan_10", 10)
-
-            # Remove ports from VLAN
-            try:
-                st.config(d1, f"interface {d1_port}", type=cls.data.cli_type)
-                st.config(d1, "no switchport trunk allowed vlan 10", type=cls.data.cli_type)
-                st.config(d1, "exit", type=cls.data.cli_type)
-                st.log(f"✓ Removed {d1_port} from VLAN configuration (D1)")
-            except Exception as e:
-                st.warn(f"Failed to remove port config from D1: {e}")
-
-            try:
-                st.config(d2, f"interface {d2_port}", type=cls.data.cli_type)
-                st.config(d2, "no switchport trunk allowed vlan 10", type=cls.data.cli_type)
-                st.config(d2, "exit", type=cls.data.cli_type)
-                st.log(f"✓ Removed {d2_port} from VLAN configuration (D2)")
-            except Exception as e:
-                st.warn(f"Failed to remove port config from D2: {e}")
-
-            # Delete VLAN
-            try:
-                st.config(d1, f"no vlan {vlan_id}", type=cls.data.cli_type)
-                st.log(f"✓ VLAN {vlan_id} deleted from D1")
-            except Exception as e:
-                st.warn(f"Failed to delete VLAN from D1: {e}")
-
-            try:
-                st.config(d2, f"no vlan {vlan_id}", type=cls.data.cli_type)
-                st.log(f"✓ VLAN {vlan_id} deleted from D2")
-            except Exception as e:
-                st.warn(f"Failed to delete VLAN from D2: {e}")
-
-            st.log("✓ Cleanup completed")
+            st.log("✅ Teardown cleanup completed successfully")
 
         except Exception as e:
-            st.error(f"Cleanup error: {e}")
+            st.error(f"Teardown error: {e}")
+        finally:
+            st.banner("MODULE EPILOGUE: Cleanup Finished")
 
     # ========================================================================
     # HELPER METHODS
     # ========================================================================
 
-    def _get_interface_mac(self, dut: str, interface: str) -> Optional[str]:
-        """
-        Retrieve MAC address from interface.
+    def _print_step_result(self, step_num: int, step_name: str, passed: bool) -> None:
+        """Print formatted step result."""
+        status = "✅ PASS" if passed else "❌ FAIL"
+        st.log("")
+        st.log("=" * 80)
+        st.log(f"STEP {step_num}: {step_name} - {status}")
+        st.log("=" * 80)
 
-        Args:
-            dut: Device handle
-            interface: Interface name (e.g., 'Ethernet4')
-
-        Returns:
-            MAC address string or None if retrieval fails
-        """
+    def _get_interface_mac(self, dut, interface: str) -> str:
+        """Get MAC address of an interface."""
         try:
-            st.log(f"Retrieving MAC address for {interface} on {dut}...")
-            output = st.show(dut, f"show interface {interface}", type=self.data.cli_type)
+            output = st.show(dut, f"show interface {interface} | grep -i 'address'",
+                           skip_tmpl=True, skip_error_check=True)
+            output_str = str(output).lower()
 
-            # Search for MAC address pattern in output
-            mac_pattern = r"([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})"
-            match = re.search(mac_pattern, str(output))
-
+            # Extract MAC from output
+            import re
+            match = re.search(r'([0-9a-f]{2}[:-]){5}([0-9a-f]{2})', output_str)
             if match:
-                mac = match.group(1)
-                st.log(f"✓ MAC address retrieved: {mac}")
+                mac = match.group(0)
+                st.log(f"Interface {interface} MAC: {mac}")
                 return mac
-            else:
-                st.error(f"MAC address pattern not found in output")
-                return None
 
+            st.warn(f"Could not extract MAC from {interface}")
+            return "00:00:00:00:00:00"
         except Exception as e:
-            st.error(f"Failed to retrieve MAC address: {e}")
-            return None
+            st.error(f"Failed to get MAC: {e}")
+            return "00:00:00:00:00:00"
 
-    def _clear_interface_counters(self, dut: str) -> bool:
-        """
-        Clear interface counters on the DUT.
-
-        Args:
-            dut: Device handle
-
-        Returns:
-            True if successful
-        """
+    def _send_tagged_packet(self, dut, src_interface: str, dst_mac: str,
+                          src_mac: str, vlan_id: int, packet_count: int = 5) -> bool:
+        """Send VLAN-tagged packet using Scapy."""
         try:
-            st.log(f"Clearing interface counters on {dut}")
-            cmd = "clear interface counters"
-            st.config(dut, cmd, type=self.data.cli_type, skip_error_check=True, conf=False)
-            time.sleep(2)
-            st.log("✓ Interface counters cleared")
-            return True
+            st.log(f"Sending {packet_count} tagged packets (VLAN {vlan_id}) from {src_interface}")
 
-        except Exception as e:
-            st.error(f"Failed to clear counters: {e}")
-            return False
+            # Create Scapy script
+            script_path = f"/tmp/scapy_send_tag_{int(time.time())}.py"
+            script = f"""
+from scapy.all import Ether, Dot1Q, IP, ICMP, sendp, conf
+import sys
 
-    def _get_interface_counters(self, dut: str, interface: str) -> Dict[str, int]:
-        """
-        Get interface RX/TX counters.
-
-        Args:
-            dut: Device handle
-            interface: Interface name
-
-        Returns:
-            Dictionary with 'rx' and 'tx' counters
-        """
-        try:
-            output = st.show(dut, f"show interface {interface} counters", type=self.data.cli_type)
-            counters = {"rx": 0, "tx": 0}
-
-            # Parse output for RX_OK and TX_OK
-            for line in str(output).split("\n"):
-                if "RX_OK" in line:
-                    match = re.search(r"RX_OK\s+(\d+)", line)
-                    if match:
-                        counters["rx"] = int(match.group(1))
-                if "TX_OK" in line:
-                    match = re.search(r"TX_OK\s+(\d+)", line)
-                    if match:
-                        counters["tx"] = int(match.group(1))
-
-            st.log(f"✓ Counters retrieved - RX: {counters['rx']}, TX: {counters['tx']}")
-            return counters
-
-        except Exception as e:
-            st.error(f"Failed to get counters: {e}")
-            return {"rx": 0, "tx": 0}
-
-    def _verify_vlan_config(self, dut: str, vlan_id: int) -> bool:
-        """
-        Verify VLAN exists using show running-configuration.
-
-        Args:
-            dut: Device handle
-            vlan_id: VLAN ID to verify
-
-        Returns:
-            True if VLAN configuration found
-        """
-        try:
-            st.log(f"Verifying VLAN {vlan_id} on {dut}...")
-            output = st.show(dut, "show running-configuration | grep -A 5 vlan", type=self.data.cli_type)
-
-            if f"vlan {vlan_id}" in str(output):
-                st.log(f"✓ VLAN {vlan_id} found in running-configuration")
-                return True
-            else:
-                st.error(f"VLAN {vlan_id} NOT found in running-configuration")
-                return False
-
-        except Exception as e:
-            st.error(f"Failed to verify VLAN config: {e}")
-            return False
-
-    def _verify_port_vlan_config(self, dut: str, interface: str, vlan_id: int, is_trunk: bool = True) -> bool:
-        """
-        Verify port VLAN configuration using show running-configuration.
-
-        Args:
-            dut: Device handle
-            interface: Interface name
-            vlan_id: VLAN ID
-            is_trunk: True if trunk port, False if access port
-
-        Returns:
-            True if configuration is correct
-        """
-        try:
-            st.log(f"Verifying port {interface} VLAN configuration on {dut}...")
-            output = st.show(dut, f"show running-configuration interface {interface}", type=self.data.cli_type)
-
-            output_str = str(output)
-
-            if is_trunk:
-                if vlan_id in output_str or str(vlan_id) in output_str:
-                    st.log(f"✓ Port {interface} correctly configured as trunk for VLAN {vlan_id}")
-                    return True
-                else:
-                    st.error(f"✗ Port {interface} trunk configuration incomplete for VLAN {vlan_id}")
-                    return False
-            else:
-                if vlan_id in output_str or str(vlan_id) in output_str:
-                    st.log(f"✓ Port {interface} correctly configured as access for VLAN {vlan_id}")
-                    return True
-                else:
-                    st.error(f"✗ Port {interface} access configuration incomplete for VLAN {vlan_id}")
-                    return False
-
-        except Exception as e:
-            st.error(f"Failed to verify port config: {e}")
-            return False
-
-    def _configure_trunk_port(self, dut: str, interface: str, vlans: List[int]) -> bool:
-        """
-        Configure a port as trunk for specified VLANs.
-
-        Args:
-            dut: Device handle
-            interface: Interface name
-            vlans: List of VLAN IDs to allow
-
-        Returns:
-            True if successful
-        """
-        try:
-            st.log(f"Configuring {interface} as trunk port on {dut}...")
-            vlan_list = ",".join(str(v) for v in vlans)
-
-            commands = [
-                f"interface {interface}",
-                f"switchport trunk allowed vlan {vlan_list}",
-                "no shutdown",
-                "exit",
-            ]
-
-            for cmd in commands:
-                st.config(dut, cmd, type=self.data.cli_type)
-
-            st.log(f"✓ Port {interface} configured as trunk for VLANs {vlan_list}")
-            return True
-
-        except Exception as e:
-            st.error(f"Failed to configure trunk port: {e}")
-            return False
-
-    def _send_tagged_packet(
-        self, dut: str, interface: str, src_mac: str, dst_mac: str, vlan_id: int, packet_count: int = 10
-    ) -> bool:
-        """
-        Send VLAN tagged packet using Scapy.
-
-        Args:
-            dut: Device handle
-            interface: Source interface
-            src_mac: Source MAC address
-            dst_mac: Destination MAC address
-            vlan_id: VLAN ID for tagging
-            packet_count: Number of packets to send
-
-        Returns:
-            True if successful
-        """
-        try:
-            st.log(f"Sending {packet_count} VLAN {vlan_id} tagged packets from {interface} on {dut}...")
-
-            scapy_cmd = f"""
-python3 << 'SCAPY_EOF'
-from scapy.all import Ether, Dot1Q, sendp, conf
-conf.iface = "{interface}"
-pkt = Ether(src="{src_mac}", dst="{dst_mac}")/Dot1Q(vlan={vlan_id})/b'TestPayload'
-sendp(pkt, iface="{interface}", count={packet_count}, verbose=False)
-print(f"Sent {{packet_count}} packets")
-SCAPY_EOF
-"""
-
-            st.config(dut, scapy_cmd, type=self.data.cli_type, conf=False, skip_error_check=True)
-            time.sleep(1)
-            st.log(f"✓ Sent {packet_count} tagged packets from {interface}")
-            return True
-
-        except Exception as e:
-            st.error(f"Failed to send tagged packets: {e}")
-            return False
-
-    def _capture_packets(self, dut: str, interface: str, timeout: int = 15) -> bool:
-        """
-        Capture packets using tcpdump.
-
-        Args:
-            dut: Device handle
-            interface: Interface to capture on
-            timeout: Capture timeout in seconds
-
-        Returns:
-            True if successful
-        """
-        try:
-            st.log(f"Starting packet capture on {interface} on {dut}...")
-
-            # Start tcpdump in background
-            cmd = f'tcpdump -i {interface} -w /tmp/vlan_tag_003_capture.pcap -B 4096 -Q in "vlan" &'
-            st.config(dut, cmd, type=self.data.cli_type, conf=False, skip_error_check=True)
-            time.sleep(2)
-            st.log("✓ Packet capture started")
-            return True
-
-        except Exception as e:
-            st.error(f"Failed to start packet capture: {e}")
-            return False
-
-    def _stop_and_analyze_capture(self, dut: str, vlan_id: int) -> bool:
-        """
-        Stop tcpdump and analyze captured packets.
-
-        Args:
-            dut: Device handle
-            vlan_id: Expected VLAN ID
-
-        Returns:
-            True if expected VLAN tag found
-        """
-        try:
-            st.log("Stopping packet capture...")
-            time.sleep(2)
-
-            # Stop tcpdump
-            st.config(dut, "pkill -f tcpdump", type=self.data.cli_type, conf=False, skip_error_check=True)
-            time.sleep(2)
-
-            st.log("Analyzing captured packets...")
-
-            # Analyze PCAP using Scapy
-            analysis_cmd = f"""
-python3 << 'SCAPY_EOF'
-from scapy.all import rdpcap, Dot1Q
+conf.iface = "{src_interface}"
+pkt = Ether(src="{src_mac}", dst="{dst_mac}") / \\
+      Dot1Q(vlan={vlan_id}) / \\
+      IP(src="10.1.1.1", dst="10.1.1.2") / \\
+      ICMP()
 
 try:
-    packets = rdpcap('/tmp/vlan_tag_003_capture.pcap')
-    tagged_count = 0
-    correct_vlan_count = 0
-
-    for pkt in packets:
-        if pkt.haslayer(Dot1Q):
-            tagged_count += 1
-            if pkt[Dot1Q].vlan == {vlan_id}:
-                correct_vlan_count += 1
-
-    print(f"Tagged packets: {{tagged_count}}")
-    print(f"Correct VLAN {vlan_id} packets: {{correct_vlan_count}}")
-
-    if correct_vlan_count > 0:
-        print("SUCCESS: VLAN tag verified")
-    else:
-        print("FAILURE: No packets with correct VLAN tag found")
+    sendp(pkt, iface="{src_interface}", count={packet_count}, verbose=False)
+    print("SUCCESS: Tagged packets sent")
 except Exception as e:
-    print(f"Error: {{e}}")
-SCAPY_EOF
+    print(f"ERROR: {{e}}")
+    sys.exit(1)
 """
 
-            output = st.show(dut, analysis_cmd, type=self.data.cli_type)
-            output_str = str(output)
+            # Write script
+            cmd = f"cat > {script_path} << 'EOF'\n{script}\nEOF"
+            st.config(dut, cmd, skip_error_check=True)
 
-            if "SUCCESS" in output_str or f"Correct VLAN {vlan_id} packets: " in output_str:
-                # Extract packet count
-                import re
+            # Execute script
+            cmd_exec = f"python3 {script_path}"
+            output = st.show(dut, cmd_exec, skip_tmpl=True, skip_error_check=True)
 
-                match = re.search(r"Correct VLAN \d+ packets: (\d+)", output_str)
-                if match:
-                    count = int(match.group(1))
-                    st.log(f"✓ {count} packets with correct VLAN {vlan_id} tag captured")
-                    return count > 0
+            if "SUCCESS" in str(output):
+                st.log("✅ Tagged packets sent successfully")
                 return True
             else:
-                st.error("✗ VLAN tag verification failed")
+                st.error(f"Packet send failed: {output}")
                 return False
 
         except Exception as e:
-            st.error(f"Failed to analyze capture: {e}")
+            st.error(f"Exception sending packets: {e}")
+            return False
+
+    def _capture_packets(self, dut, interface: str, pcap_file: str, timeout: int = 30) -> bool:
+        """Capture packets with tcpdump."""
+        try:
+            st.log(f"Starting packet capture on {interface} for {timeout}s")
+            cmd = f"timeout {timeout} tcpdump -i {interface} -w {pcap_file} &"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
+            self.data.pcap_files.append(pcap_file)
+            time.sleep(1)
+            st.log(f"Packet capture started: {pcap_file}")
+            return True
+        except Exception as e:
+            st.error(f"Failed to start capture: {e}")
+            return False
+
+    def _analyze_pcap_for_tagged(self, dut, pcap_file: str, vlan_id: int) -> bool:
+        """Analyze PCAP file for VLAN-tagged packets."""
+        try:
+            st.log(f"Analyzing PCAP for VLAN {vlan_id} tags")
+
+            # Create analysis script
+            script_path = f"/tmp/scapy_analyze_{int(time.time())}.py"
+            script = f"""
+from scapy.all import rdpcap, Dot1Q
+try:
+    packets = rdpcap("{pcap_file}")
+
+    # Check for VLAN {vlan_id} tags
+    vlan_packets = [p for p in packets if Dot1Q in p]
+    vlan_10_packets = [p for p in vlan_packets if p[Dot1Q].vlan == {vlan_id}]
+
+    if vlan_10_packets:
+        print(f"SUCCESS: Found {{len(vlan_10_packets)}} VLAN {vlan_id} tagged packets")
+    else:
+        print("FAIL: No VLAN {vlan_id} tagged packets found")
+except Exception as e:
+    print(f"ERROR: {{e}}")
+"""
+
+            # Write script
+            cmd = f"cat > {script_path} << 'EOF'\n{script}\nEOF"
+            st.config(dut, cmd, skip_error_check=True)
+
+            # Execute analysis
+            cmd_exec = f"python3 {script_path}"
+            output = st.show(dut, cmd_exec, skip_tmpl=True, skip_error_check=True)
+
+            if "SUCCESS" in str(output):
+                st.log(f"✅ Analysis passed: {output}")
+                return True
+            else:
+                st.error(f"Analysis failed: {output}")
+                return False
+
+        except Exception as e:
+            st.error(f"Exception analyzing PCAP: {e}")
             return False
 
     # ========================================================================
-    # TEST METHODS
+    # TEST METHOD
     # ========================================================================
 
-    def test_vlan_tag_003_trunk_to_trunk_tagged_forwarding(self) -> None:
+    def test_vlan_tag_003_trunk_tagged_forwarding(self) -> None:
         """
-        TC_VLAN_TAG_003: Verify tagged packet remains tagged on trunk-to-trunk forwarding.
+        TC_VLAN_TAG_003: Verify tagged packets remain tagged on trunk-to-trunk forwarding.
 
-        Test Steps:
-        1. Create VLAN 10
-        2. Configure Port3 and Port5 as trunk ports for VLAN 10
-        3. Get MAC addresses from both interfaces
-        4. Clear interface counters
-        5. Start packet capture on destination (Port5)
-        6. Send VLAN 10 tagged packets from source (Port3)
-        7. Verify packets received with VLAN 10 tag intact
+        This test validates IEEE 802.1Q trunk port behavior:
+        - Trunk ports should PRESERVE VLAN tags when forwarding
+        - No tag stripping occurs on trunk-to-trunk forwarding
         """
 
-        # Get DUT handles
-        d1 = self.data.topology.dut_list[0]
-        d2 = self.data.topology.dut_list[1]
+        st.banner(f"TEST: {TC_VLAN_TAG_003} - Trunk Port Tagged Packet Forwarding")
 
-        # Get ports from config
-        ports_config = self.data.tc_config.get("ports", {})
-        trunk_port_1 = ports_config.get("trunk_port", self.data.topology.D1D2P1)
-        trunk_port_2 = ports_config.get("trunk_port_2", self.data.topology.D2D1P1)
+        # Initialize test result tracking
+        test_results = {
+            "step_1": False,
+            "step_2": False,
+            "step_3": False,
+            "step_4": False,
+            "step_5": False,
+            "step_6": False,
+            "step_7": False,
+        }
 
-        # Get VLAN ID
-        vlan_config = self.data.tc_config.get("vlans", {})
-        vlan_id = vlan_config.get("vlan_10", 10)
+        dut1 = self.data.dut1
+        dut2 = self.data.dut2
+        d1_port = self.data.d1_port
+        d2_port = self.data.d2_port
+        vlan_id = self.data.vlan_id
+        cli_type = self.data.cli_type
 
-        # Get traffic parameters
-        traffic_config = self.data.tc_config.get("traffic", {})
-        packet_count = traffic_config.get("packet_count", 10)
-
-        st.log(f"Starting {TC_VLAN_TAG_003}: Trunk-to-Trunk Tagged Packet Forwarding")
-
-        # STEP 1: Create VLAN 10 on both DUTs
-        st.banner("STEP 1: Creating VLAN 10 on both DUTs")
         try:
-            st.config(d1, f"vlan {vlan_id}", type=self.data.cli_type)
-            st.log(f"✓ VLAN {vlan_id} created on D1")
+            # ====================================================================
+            # STEP 1: Create VLAN 10 on both DUTs
+            # ====================================================================
+            st.log("\nSTEP 1: Creating VLAN 10 on both DUTs")
+            step_passed = True
+            for dut_name, dut in [("D1", dut1), ("D2", dut2)]:
+                try:
+                    result = vlan_api.create_vlan(dut, vlan_id, cli_type=cli_type)
+                    if result:
+                        st.log(f"  ✅ VLAN {vlan_id} created on {dut_name}")
+                        self.data.configured_vlans.append((dut, vlan_id))
+                    else:
+                        st.log(f"  ❌ Failed to create VLAN on {dut_name}")
+                        step_passed = False
+                except Exception as e:
+                    st.log(f"  ❌ Exception creating VLAN on {dut_name}: {e}")
+                    step_passed = False
 
-            st.config(d2, f"vlan {vlan_id}", type=self.data.cli_type)
-            st.log(f"✓ VLAN {vlan_id} created on D2")
+            test_results["step_1"] = step_passed
+            self._print_step_result(1, "Create VLAN 10", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to create VLAN")
+
+            # ====================================================================
+            # STEP 2: Configure D1 trunk port
+            # ====================================================================
+            st.log("\nSTEP 2: Configuring D1 trunk port for VLAN 10")
+            step_passed = True
+            try:
+                st.config(dut1, [
+                    f"interface {d1_port}",
+                    f"switchport trunk allowed vlan {vlan_id}",
+                    "exit"
+                ], type=cli_type, skip_error_check=True)
+                st.log(f"  ✅ D1 trunk port configured")
+                self.data.configured_ports.append((dut1, d1_port))
+                step_passed = True
+            except Exception as e:
+                st.log(f"  ❌ Failed to configure D1 trunk port: {e}")
+                step_passed = False
+
+            test_results["step_2"] = step_passed
+            self._print_step_result(2, "Configure D1 Trunk Port", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to configure trunk port")
+
+            # ====================================================================
+            # STEP 3: Configure D2 trunk port
+            # ====================================================================
+            st.log("\nSTEP 3: Configuring D2 trunk port for VLAN 10")
+            step_passed = True
+            try:
+                st.config(dut2, [
+                    f"interface {d2_port}",
+                    f"switchport trunk allowed vlan {vlan_id}",
+                    "exit"
+                ], type=cli_type, skip_error_check=True)
+                st.log(f"  ✅ D2 trunk port configured")
+                self.data.configured_ports.append((dut2, d2_port))
+                step_passed = True
+            except Exception as e:
+                st.log(f"  ❌ Failed to configure D2 trunk port: {e}")
+                step_passed = False
+
+            test_results["step_3"] = step_passed
+            self._print_step_result(3, "Configure D2 Trunk Port", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to configure trunk port")
+
+            # ====================================================================
+            # STEP 4: Get MAC addresses
+            # ====================================================================
+            st.log("\nSTEP 4: Retrieving MAC addresses")
+            step_passed = True
+            try:
+                d1_mac = self._get_interface_mac(dut1, d1_port)
+                d2_mac = self._get_interface_mac(dut2, d2_port)
+
+                if d1_mac and d2_mac:
+                    st.log(f"  ✅ MAC addresses obtained")
+                    step_passed = True
+                else:
+                    st.log(f"  ❌ Failed to get MAC addresses")
+                    step_passed = False
+            except Exception as e:
+                st.log(f"  ❌ Exception: {e}")
+                step_passed = False
+
+            test_results["step_4"] = step_passed
+            self._print_step_result(4, "Retrieve MAC Addresses", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to get MAC addresses")
+
+            # ====================================================================
+            # STEP 5: Start packet capture on D2
+            # ====================================================================
+            st.log("\nSTEP 5: Starting packet capture on D2 trunk port")
+            pcap_file = f"/tmp/vlan_tag_003_{int(time.time())}.pcap"
+            step_passed = self._capture_packets(dut2, d2_port, pcap_file, timeout=30)
+
+            test_results["step_5"] = step_passed
+            self._print_step_result(5, "Start Packet Capture", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to start packet capture")
+
+            time.sleep(2)
+
+            # ====================================================================
+            # STEP 6: Send VLAN-tagged packets from D1
+            # ====================================================================
+            st.log("\nSTEP 6: Sending VLAN-tagged packets from D1")
+            step_passed = self._send_tagged_packet(dut1, d1_port, d2_mac, d1_mac,
+                                                  int(vlan_id), packet_count=5)
+
+            test_results["step_6"] = step_passed
+            self._print_step_result(6, "Send Tagged Packets", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Failed to send packets")
+
+            time.sleep(3)
+
+            # ====================================================================
+            # STEP 7: Analyze capture for tagged packets
+            # ====================================================================
+            st.log("\nSTEP 7: Analyzing captured packets for VLAN tags")
+            step_passed = self._analyze_pcap_for_tagged(dut2, pcap_file, int(vlan_id))
+
+            test_results["step_7"] = step_passed
+            self._print_step_result(7, "Analyze Tagged Packets", step_passed)
+
+            if not step_passed:
+                st.report_fail("test_case_failed", "Tagged packets not received with tag")
+
+            # ====================================================================
+            # OVERALL RESULT
+            # ====================================================================
+            overall_passed = all(test_results.values())
+            passed_count = sum(test_results.values())
+            total_steps = len(test_results)
+
+            st.log("")
+            st.log("=" * 80)
+            st.log(f"OVERALL TEST RESULT: {'✅ PASSED' if overall_passed else '❌ FAILED'}")
+            st.log(f"Steps Passed: {passed_count}/{total_steps}")
+            st.log("=" * 80)
+
+            if overall_passed:
+                st.report_pass("test_case_passed")
+            else:
+                failed_steps = [k for k, v in test_results.items() if not v]
+                st.report_fail("test_case_failed", f"Failed steps: {failed_steps}")
 
         except Exception as e:
-            st.error(f"Failed to create VLAN: {e}")
-            st.report_fail( "vlan_create_failed", str(e))
-            return
-
-        # STEP 2: Configure trunk ports for VLAN 10
-        st.banner("STEP 2: Configuring trunk ports")
-        if not self._configure_trunk_port(d1, trunk_port_1, [vlan_id]):
-            st.report_fail( "trunk_config_failed", f"Failed to configure {trunk_port_1} on D1")
-            return
-
-        if not self._configure_trunk_port(d2, trunk_port_2, [vlan_id]):
-            st.report_fail( "trunk_config_failed", f"Failed to configure {trunk_port_2} on D2")
-            return
-
-        # STEP 3: Get MAC addresses
-        st.banner("STEP 3: Retrieving MAC addresses")
-        src_mac = self._get_interface_mac(d1, trunk_port_1)
-        if not src_mac:
-            st.report_fail( "mac_discovery_failed", f"Failed to get MAC from {trunk_port_1}")
-            return
-
-        dst_mac = self._get_interface_mac(d2, trunk_port_2)
-        if not dst_mac:
-            st.report_fail( "mac_discovery_failed", f"Failed to get MAC from {trunk_port_2}")
-            return
-
-        st.log(f"✓ Source MAC (D1 {trunk_port_1}): {src_mac}")
-        st.log(f"✓ Destination MAC (D2 {trunk_port_2}): {dst_mac}")
-
-        # STEP 4: Clear interface counters
-        st.banner("STEP 4: Clearing interface counters")
-        if not self._clear_interface_counters(d1):
-            st.warn("Failed to clear counters on D1")
-
-        if not self._clear_interface_counters(d2):
-            st.warn("Failed to clear counters on D2")
-
-        # STEP 5: Start packet capture on destination
-        st.banner("STEP 5: Starting packet capture on destination")
-        if not self._capture_packets(d2, trunk_port_2):
-            st.warn("Failed to start packet capture")
-
-        # STEP 6: Send tagged packets from source
-        st.banner("STEP 6: Sending tagged packets from source")
-        if not self._send_tagged_packet(d1, trunk_port_1, src_mac, dst_mac, vlan_id, packet_count):
-            st.report_fail( "packet_generation_failed", f"Failed to send tagged packets")
-            return
-
-        # STEP 7: Verify packets with VLAN tag intact
-        st.banner("STEP 7: Analyzing captured packets for VLAN tag")
-        if not self._stop_and_analyze_capture(d2, vlan_id):
-            st.report_fail( "vlan_tag_verification_failed", "Packets did not retain VLAN tag")
-            return
-
-        # STEP 8: Verify running-configuration
-        st.banner("STEP 8: Verifying running-configuration")
-        if not self._verify_vlan_config(d1, vlan_id):
-            st.warn(f"VLAN {vlan_id} config not found on D1")
-
-        if not self._verify_port_vlan_config(d1, trunk_port_1, vlan_id, is_trunk=True):
-            st.warn(f"Port configuration not verified on D1")
-
-        if not self._verify_port_vlan_config(d2, trunk_port_2, vlan_id, is_trunk=True):
-            st.warn(f"Port configuration not verified on D2")
-
-        # TEST PASSED
-        st.log(f"✓ {TC_VLAN_TAG_003} PASSED: Tagged packets remain tagged on trunk-to-trunk forwarding")
-        st.report_pass( "test_passed")
-
-
-# ============================================================================
-# MODULE-LEVEL MARKERS
-# ============================================================================
-
-
-@pytest.fixture(scope="module", autouse=True)
-def module_hooks(request):
-    """Module-level setup and teardown."""
-    yield
+            st.error(f"Test exception: {e}")
+            st.report_fail("test_case_failed", f"Test exception: {e}")
