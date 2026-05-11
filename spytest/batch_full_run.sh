@@ -1143,8 +1143,8 @@ fi
 # ==========================================================
 
 if should_run_batch "BA"; then
-    run_batch "SM_ISCLI_52_LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_1node.yaml" \
-    system/lldp/test_lldp_cli_validation.py
+    run_batch "SM_ISCLI_52_LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_2d.yaml" \
+    system/lldp/test_sm_iscli_52_lldp_cli_output.py
 else
     echo "Skipping Batch BA (SM_ISCLI_52_LLDP_CLI_VALIDATION) - not selected"
 fi
