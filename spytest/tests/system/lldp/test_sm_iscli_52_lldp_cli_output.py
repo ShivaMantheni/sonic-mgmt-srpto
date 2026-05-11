@@ -215,7 +215,7 @@ class TestSmIscli52LldpCliOutput:
             st.log("Step 4: Verify 'show lldp neighbor' returns data")
             if not output:
                 st.log("✗ 'show lldp neighbor' returned empty output")
-                st.report_fail()
+                st.report_fail("tc_sm_iscli_52_001")
 
             output_str = str(output)
             st.log(f"Output length: {len(output_str)} characters")
@@ -227,18 +227,18 @@ class TestSmIscli52LldpCliOutput:
             if missing_keywords:
                 st.log(f"✗ Missing keywords in output: {missing_keywords}")
                 st.log(f"Output: {output_str[:500]}")
-                st.report_fail()
+                st.report_fail("tc_sm_iscli_52_001")
 
             st.log(f"✓ 'show lldp neighbor' returned data with required keywords")
             st.log(f"  Output preview: {output_str[:200]}...")
 
             self.test_passed = True
-            st.report_pass()
+            st.report_pass("lldp_show_neighbor_pass")
 
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail()
+            st.report_fail("lldp_show_neighbor_fail")
 
     @pytest.mark.inventory(feature="Regression", testcases=[TESTCASE_ID])
     def test_02_lldp_show_table_not_empty(self) -> None:
@@ -270,7 +270,7 @@ class TestSmIscli52LldpCliOutput:
             st.log("Step 4: Verify 'show lldp table' returns data")
             if not output:
                 st.log("✗ 'show lldp table' returned empty output")
-                st.report_fail()
+                st.report_fail("tc_sm_iscli_52_002")
 
             output_str = str(output)
             st.log(f"Output length: {len(output_str)} characters")
@@ -282,18 +282,18 @@ class TestSmIscli52LldpCliOutput:
             if missing_keywords:
                 st.log(f"✗ Missing keywords in table output: {missing_keywords}")
                 st.log(f"Output: {output_str[:500]}")
-                st.report_fail()
+                st.report_fail("tc_sm_iscli_52_002")
 
             st.log(f"✓ 'show lldp table' returned data with required headers")
             st.log(f"  Output preview: {output_str[:200]}...")
 
             self.test_passed = True
-            st.report_pass()
+            st.report_pass("tc_sm_iscli_52_002")
 
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail()
+            st.report_fail("tc_sm_iscli_52_002")
 
     @pytest.mark.inventory(feature="Regression", testcases=[TESTCASE_ID])
     def test_03_lldp_show_statistics_not_empty(self) -> None:
@@ -320,7 +320,7 @@ class TestSmIscli52LldpCliOutput:
             st.log("Step 3: Verify 'show lldp statistics' returns data")
             if not output:
                 st.log("✗ 'show lldp statistics' returned empty output")
-                st.report_fail()
+                st.report_fail("tc_sm_iscli_52_003")
 
             output_str = str(output)
             st.log(f"Output length: {len(output_str)} characters")
@@ -333,18 +333,18 @@ class TestSmIscli52LldpCliOutput:
             if not has_stats:
                 st.log(f"✗ Statistics output too short: {len(output_str)} chars")
                 st.log(f"Output: {output_str}")
-                st.report_fail()
+                st.report_fail("tc_sm_iscli_52_003")
 
             st.log(f"✓ 'show lldp statistics | no-more' returned data")
             st.log(f"  Output preview: {output_str[:200]}...")
 
             self.test_passed = True
-            st.report_pass()
+            st.report_pass("tc_sm_iscli_52_003")
 
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail()
+            st.report_fail("tc_sm_iscli_52_003")
 
     @pytest.mark.inventory(feature="Regression", testcases=[TESTCASE_ID])
     def test_04_lldp_show_command_has_subcommands(self) -> None:
@@ -420,17 +420,17 @@ class TestSmIscli52LldpCliOutput:
             if is_valid_response:
                 st.log(f"✓ 'show lldp' command responds appropriately with subcommand help")
                 self.test_passed = True
-                st.report_pass()
+                st.report_pass("tc_sm_iscli_52_004")
             else:
                 st.log(f"✗ 'show lldp' response is not appropriate")
                 st.log(f"  Found {len(found_subcommands)}/3 subcommands")
                 st.log(f"  Output length: {len(output_str)} characters")
-                st.report_fail()
+                st.report_fail("tc_sm_iscli_52_004")
 
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail()
+            st.report_fail("tc_sm_iscli_52_004")
 
     @pytest.mark.inventory(feature="Regression", testcases=[TESTCASE_ID])
     def test_05_lldp_commands_compare_click_vs_klish(self) -> None:
@@ -497,15 +497,15 @@ class TestSmIscli52LldpCliOutput:
             if failed_commands:
                 st.log(f"✗ Critical commands failed: {failed_commands}")
                 st.log(f"Results: {results}")
-                st.report_fail()
+                st.report_fail("tc_sm_iscli_52_005")
 
             st.log(f"✓ All LLDP commands returned appropriate output")
             st.log(f"  Summary: {results}")
 
             self.test_passed = True
-            st.report_pass()
+            st.report_pass("tc_sm_iscli_52_005")
 
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail()
+            st.report_fail("tc_sm_iscli_52_005")
