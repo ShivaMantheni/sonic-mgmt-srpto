@@ -1,0 +1,41 @@
+defaults:
+  cli_type: klish
+  vlan_id: 100           # VLAN ID to create and attempt to delete
+  cleanup: true          # Remove all configurations after test
+
+testcases:
+  TC_VLAN_DELETE_002:
+    description: "Delete VLAN with Active Members"
+    objective: "Verify system behavior when deleting VLAN with port members"
+
+    steps:
+      - id: 1
+        description: "Create VLAN 100"
+        expected: "VLAN successfully created"
+
+      - id: 2
+        description: "Add Port1 as untagged member"
+        expected: "Port successfully added to VLAN"
+
+      - id: 3
+        description: "Attempt to delete VLAN with active members"
+        expected: "System handles deletion appropriately (allow or reject based on behavior)"
+
+      - id: 4
+        description: "Verify expected behavior"
+        expected: "VLAN either deleted or still exists based on system behavior"
+
+    # Optional: Define member configurations
+    vlan_member_config:
+      mode: "access"                # Port mode: access or trunk
+      untagged: true               # Whether member is untagged
+
+    # Pre-conditions
+    pre_conditions:
+      - clear_interface_config: true    # Clear IP and VLAN config before test
+      - cleanup_vlans: true             # Remove test VLANs before test
+
+    # Post-conditions
+    post_conditions:
+      - remove_port_from_vlan: true     # Remove port from VLAN during cleanup
+      - delete_vlans: true              # Delete all test VLANs after test
