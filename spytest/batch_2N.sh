@@ -12,8 +12,8 @@
 #   ./batch_2N.sh --features BGP_IPV4_FEATURES
 #
 # Statistics:
-#   Total Batches: 8 (B, C, D, E, F, H, I, K)
-#   Total Test Scripts: 35+
+#   Total Batches: 9 (B, C, D, E, F, H, I, K, BA)
+#   Total Test Scripts: 33 (32 standard + 1 SM_ISCLI_52 LLDP)
 #   Last Updated: 2026-05-11
 # ==========================================================
 
@@ -39,6 +39,9 @@ declare -A BATCH_NAMES=(
     ["H"]="PORTCHANNEL_ISCLI"
     ["I"]="VLAN_ISCLI"
     ["K"]="SYS_INTERFACE_EVENTS"
+
+    # 2-Node SM_ISCLI Tests
+    ["BA"]="SM_ISCLI_52_LLDP_CLI_VALIDATION"
 )
 
 # ==========================================================
@@ -344,6 +347,18 @@ if should_run_batch "K"; then
     system/iscli_interface_events/test_interface_5_iscli_events_ipv6_address.py
 else
     echo "Skipping Batch K (SYS_INTERFACE_EVENTS) - not selected"
+fi
+
+
+# ==========================================================
+# BATCH-BA : SM_ISCLI_52 - LLDP CLI Validation (2-Node)
+# ==========================================================
+
+if should_run_batch "BA"; then
+    run_batch "SM_ISCLI_52_LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_2d.yaml" \
+    system/lldp/test_sm_iscli_52_lldp_cli_output.py
+else
+    echo "Skipping Batch BA (SM_ISCLI_52_LLDP_CLI_VALIDATION) - not selected"
 fi
 
 
