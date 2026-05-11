@@ -175,16 +175,16 @@ class TestVlanCreateValidRange:
                 st.log(f"Teardown VLAN {vlan_id} exception (non-fatal): {e}")
 
     def _verify_vlan_exists(self, dut, vlan_id: int) -> bool:
-        """Verify VLAN exists using show running-config."""
+        """Verify VLAN exists using show running-configuration."""
         try:
-            cmd = f"show running-config | grep 'vlan {vlan_id}'"
-            output = st.show(dut, cmd, skip_tmpl=True, skip_error_check=True)
+            cmd = f'show running-configuration | grep "vlan {vlan_id}"'
+            output = st.show(dut, cmd, type=self.data.cli_type, skip_tmpl=True, skip_error_check=True)
 
             if output and f"vlan {vlan_id}" in str(output).lower():
-                st.log(f"  ✅ VLAN {vlan_id} verified in running-config")
+                st.log(f"  ✅ VLAN {vlan_id} verified in running-configuration")
                 return True
             else:
-                st.log(f"  ❌ VLAN {vlan_id} NOT found in running-config")
+                st.log(f"  ❌ VLAN {vlan_id} NOT found in running-configuration")
                 return False
         except Exception as e:
             st.log(f"  Error verifying VLAN {vlan_id}: {e}")
