@@ -158,7 +158,7 @@ class TestSmIscli52LldpCliOutput:
 
         st.log(f"Waiting {timeout} seconds for LLDP neighbors to be discovered on {dut}...")
         return st.poll_wait(
-            lambda: self._has_lldp_neighbors(dut),
+            lambda _: self._has_lldp_neighbors(dut),
             timeout,
             2
         )
@@ -214,7 +214,8 @@ class TestSmIscli52LldpCliOutput:
             # Step 4: Verify command returns data (not empty)
             st.log("Step 4: Verify 'show lldp neighbor' returns data")
             if not output:
-                st.report_fail("lldp_neighbors_output_empty")
+                st.log("✗ 'show lldp neighbor' returned empty output")
+                st.report_fail()
 
             output_str = str(output)
             st.log(f"Output length: {len(output_str)} characters")
@@ -226,7 +227,7 @@ class TestSmIscli52LldpCliOutput:
             if missing_keywords:
                 st.log(f"✗ Missing keywords in output: {missing_keywords}")
                 st.log(f"Output: {output_str[:500]}")
-                st.report_fail("lldp_neighbors_incomplete")
+                st.report_fail()
 
             st.log(f"✓ 'show lldp neighbor' returned data with required keywords")
             st.log(f"  Output preview: {output_str[:200]}...")
@@ -237,7 +238,7 @@ class TestSmIscli52LldpCliOutput:
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail("lldp_neighbors_test_failed")
+            st.report_fail()
 
     @pytest.mark.inventory(feature="Regression", testcases=[TESTCASE_ID])
     def test_02_lldp_show_table_not_empty(self) -> None:
@@ -268,7 +269,8 @@ class TestSmIscli52LldpCliOutput:
             # Step 4: Verify command returns data (not empty)
             st.log("Step 4: Verify 'show lldp table' returns data")
             if not output:
-                st.report_fail("lldp_table_output_empty")
+                st.log("✗ 'show lldp table' returned empty output")
+                st.report_fail()
 
             output_str = str(output)
             st.log(f"Output length: {len(output_str)} characters")
@@ -280,7 +282,7 @@ class TestSmIscli52LldpCliOutput:
             if missing_keywords:
                 st.log(f"✗ Missing keywords in table output: {missing_keywords}")
                 st.log(f"Output: {output_str[:500]}")
-                st.report_fail("lldp_table_incomplete")
+                st.report_fail()
 
             st.log(f"✓ 'show lldp table' returned data with required headers")
             st.log(f"  Output preview: {output_str[:200]}...")
@@ -291,7 +293,7 @@ class TestSmIscli52LldpCliOutput:
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail("lldp_table_test_failed")
+            st.report_fail()
 
     @pytest.mark.inventory(feature="Regression", testcases=[TESTCASE_ID])
     def test_03_lldp_show_statistics_not_empty(self) -> None:
@@ -317,7 +319,8 @@ class TestSmIscli52LldpCliOutput:
             # Step 3: Verify command returns data (not empty)
             st.log("Step 3: Verify 'show lldp statistics' returns data")
             if not output:
-                st.report_fail("lldp_statistics_output_empty")
+                st.log("✗ 'show lldp statistics' returned empty output")
+                st.report_fail()
 
             output_str = str(output)
             st.log(f"Output length: {len(output_str)} characters")
@@ -330,7 +333,7 @@ class TestSmIscli52LldpCliOutput:
             if not has_stats:
                 st.log(f"✗ Statistics output too short: {len(output_str)} chars")
                 st.log(f"Output: {output_str}")
-                st.report_fail("lldp_statistics_incomplete")
+                st.report_fail()
 
             st.log(f"✓ 'show lldp statistics | no-more' returned data")
             st.log(f"  Output preview: {output_str[:200]}...")
@@ -341,7 +344,7 @@ class TestSmIscli52LldpCliOutput:
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail("lldp_statistics_test_failed")
+            st.report_fail()
 
     @pytest.mark.inventory(feature="Regression", testcases=[TESTCASE_ID])
     def test_04_lldp_show_command_has_subcommands(self) -> None:
@@ -422,12 +425,12 @@ class TestSmIscli52LldpCliOutput:
                 st.log(f"✗ 'show lldp' response is not appropriate")
                 st.log(f"  Found {len(found_subcommands)}/3 subcommands")
                 st.log(f"  Output length: {len(output_str)} characters")
-                st.report_fail("lldp_show_subcommand_help_invalid")
+                st.report_fail()
 
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail("lldp_subcommand_help_test_failed")
+            st.report_fail()
 
     @pytest.mark.inventory(feature="Regression", testcases=[TESTCASE_ID])
     def test_05_lldp_commands_compare_click_vs_klish(self) -> None:
@@ -494,7 +497,7 @@ class TestSmIscli52LldpCliOutput:
             if failed_commands:
                 st.log(f"✗ Critical commands failed: {failed_commands}")
                 st.log(f"Results: {results}")
-                st.report_fail("lldp_comparison_critical_failed")
+                st.report_fail()
 
             st.log(f"✓ All LLDP commands returned appropriate output")
             st.log(f"  Summary: {results}")
@@ -505,4 +508,4 @@ class TestSmIscli52LldpCliOutput:
         except Exception as err:
             self.test_failed_reason = str(err)
             st.log(f"✗ Test failed: {err}")
-            st.report_fail("lldp_comparison_test_failed")
+            st.report_fail()
