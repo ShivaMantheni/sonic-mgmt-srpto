@@ -130,11 +130,11 @@ sonic-cli(config)# interface PortChannel 1
 sonic-cli(conf-if-Po1)# exit
 
 sonic-cli(config)# interface Ethernet0
-sonic-cli(conf-if-Ethernet0)# channel-group 1 mode passive
+sonic-cli(conf-if-Ethernet0)# channel-group 1 
 sonic-cli(conf-if-Ethernet0)# exit
 
 sonic-cli(config)# interface Ethernet1
-sonic-cli(conf-if-Ethernet1)# channel-group 1 mode passive
+sonic-cli(conf-if-Ethernet1)# channel-group 1 
 sonic-cli(conf-if-Ethernet1)# exit
 
 sonic-cli(config)# interface PortChannel 1
@@ -166,6 +166,7 @@ sonic-cli# show lacp statistics PortChannel 1
 
 #### LACP_CLI_003: Static Mode PortChannel (No LACP)
 
+**Note:** Not supported in sonic
 **Category:** CLI Configuration  
 **Platform:** VS + HW  
 **Duration:** 5 min  
