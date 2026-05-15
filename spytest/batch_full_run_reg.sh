@@ -550,7 +550,7 @@ if should_run_batch "G"; then
     routing/iscli_OSPF/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Eth.py \
     routing/iscli_OSPF/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_PC.py \
     routing/iscli_OSPF/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Vlan.py \
-    routing/isCLI/test_ospf_1_iscli_basic.py
+    routing/iscli_OSPF/test_ospf_1_iscli_basic.py
 else
     echo "Skipping Batch G (OSPF_ISCLI_MASTER) - not selected"
 fi
