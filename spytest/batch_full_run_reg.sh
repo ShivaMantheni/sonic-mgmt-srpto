@@ -508,54 +508,52 @@ fi
 # ==========================================================
 # BATCH-G : OSPF isCLI MASTER
 # ==========================================================
-'''
 if should_run_batch "G"; then
     run_batch "OSPF_ISCLI_MASTER" "./testbeds/testbed_4node_reg.yaml" \
-    routing/isCLI/testcases_OSPF_1_iscli_Basic_2_node_Reboot.py \
-    routing/isCLI/testcases_OSPF_2_iscli_Basic_4_node.py \
-    routing/isCLI/testcases_OSPF_2_iscli_Basic_4_node_Reboot.py \
-    routing/isCLI/testcases_OSPF_3_iscli_Basic_4_node_Vlan.py \
-    routing/isCLI/testcases_OSPF_3_iscli_Basic_4_node_Vlan_Reboot.py \
-    routing/isCLI/testcases_OSPF_4_iscli_Basic_4_node_PortChannel.py \
-    routing/isCLI/testcases_OSPF_4_iscli_Basic_4_node_PortChannel_Reboot.py \
-    routing/isCLI/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_Eth.py \
-    routing/isCLI/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_PC.py \
-    routing/isCLI/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_Vlan.py \
-    routing/isCLI/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_Eth.py \
-    routing/isCLI/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_PC.py \
-    routing/isCLI/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_Vlan.py \
-    routing/isCLI/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_Eth.py \
-    routing/isCLI/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_PC.py \
-    routing/isCLI/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_VLAN.py \
-    routing/isCLI/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_Eth.py \
-    routing/isCLI/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_PC.py \
-    routing/isCLI/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_Eth.py \
-    routing/isCLI/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_PC.py \
-    routing/isCLI/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_Eth.py \
-    routing/isCLI/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_PC.py \
-    routing/isCLI/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_Eth.py \
-    routing/isCLI/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_PC.py \
-    routing/isCLI/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_Eth.py \
-    routing/isCLI/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_PC.py \
-    routing/isCLI/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_VLAN.py \
-    routing/isCLI/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_Eth.py \
-    routing/isCLI/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_PC.py \
-    routing/isCLI/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_Eth.py \
-    routing/isCLI/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_PC.py \
-    routing/isCLI/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Eth.py \
-    routing/isCLI/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_PC.py \
-    routing/isCLI/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_1_iscli_Basic_2_node_Reboot.py \
+    routing/iscli_OSPF/testcases_OSPF_2_iscli_Basic_4_node.py \
+    routing/iscli_OSPF/testcases_OSPF_2_iscli_Basic_4_node_Reboot.py \
+    routing/iscli_OSPF/testcases_OSPF_3_iscli_Basic_4_node_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_3_iscli_Basic_4_node_Vlan_Reboot.py \
+    routing/iscli_OSPF/testcases_OSPF_4_iscli_Basic_4_node_PortChannel.py \
+    routing/iscli_OSPF/testcases_OSPF_4_iscli_Basic_4_node_PortChannel_Reboot.py \
+    routing/iscli_OSPF/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_VLAN.py \
+    routing/iscli_OSPF/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_VLAN.py \
+    routing/iscli_OSPF/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Vlan.py \
     routing/isCLI/test_ospf_1_iscli_basic.py
 else
     echo "Skipping Batch G (OSPF_ISCLI_MASTER) - not selected"
 fi
-'''
 # ==========================================================
 # BATCH-H : PortChannel isCLI
 # ==========================================================
