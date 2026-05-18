@@ -446,12 +446,12 @@ class TestLacpCli005RemoveMembers:
             # Step 3c: Configure IP addresses on VLAN SVI
             st.log("Step 3c: Configuring IP addresses on VLAN SVI")
             ip_api.config_ip_addr_interface(
-                dut1, f"Vlan{VLAN_ID}", DUT1_IP,
-                subnet=SUBNET, family="ipv4", cli_type=self.data.cli_type
+                dut1, f"Vlan{VLAN_ID}", f"{DUT1_IP}/{SUBNET}",
+                family="ipv4", cli_type=self.data.cli_type
             )
             ip_api.config_ip_addr_interface(
-                dut2, f"Vlan{VLAN_ID}", DUT2_IP,
-                subnet=SUBNET, family="ipv4", cli_type=self.data.cli_type
+                dut2, f"Vlan{VLAN_ID}", f"{DUT2_IP}/{SUBNET}",
+                family="ipv4", cli_type=self.data.cli_type
             )
 
             # Bring up PortChannel
@@ -587,12 +587,12 @@ class TestLacpCli005RemoveMembers:
 
             # Configure IPs with correct parameter format
             ip_api.config_ip_addr_interface(
-                dut1, f"Vlan{VLAN_ID}", DUT1_IP,
-                subnet=SUBNET, family="ipv4", cli_type=self.data.cli_type
+                dut1, f"Vlan{VLAN_ID}", f"{DUT1_IP}/{SUBNET}",
+                family="ipv4", cli_type=self.data.cli_type
             )
             ip_api.config_ip_addr_interface(
-                dut2, f"Vlan{VLAN_ID}", DUT2_IP,
-                subnet=SUBNET, family="ipv4", cli_type=self.data.cli_type
+                dut2, f"Vlan{VLAN_ID}", f"{DUT2_IP}/{SUBNET}",
+                family="ipv4", cli_type=self.data.cli_type
             )
 
             intf_api.interface_operation(
