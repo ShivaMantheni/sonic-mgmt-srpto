@@ -353,14 +353,17 @@ def get_interface_counters_all(dut, port=None, cli_type=''):
         else:
             return st.show(dut, "show interfaces counters -a", type=cli_type)
     elif cli_type == 'klish':
+        # Get full output without grep to avoid breaking TextFSM parsing
+        cmd = "show interface counters rate | no-more"
+        cmd_op = st.show(dut, cmd, type=cli_type)
+
+        # Filter in Python instead of using grep
         if port:
             port_hash_list = segregate_intf_list_type(intf=port, range_format=False)
             interface_list = port_hash_list['intf_list_all']
-            interface_li = ' |'.join([str(elem) for elem in interface_list])
-            cmd = "show interface counters rate | grep \"Interface|{} \"".format(interface_li)
-        else:
-            cmd = "show interface counters rate"
-        cmd_op = st.show(dut, cmd, type=cli_type)
+            cmd_op = [entry for entry in cmd_op if entry.get('iface') in interface_list] if cmd_op else []
+
+        # Add legacy fields
         for i in range(0, len(cmd_op)):
             # Creating rx_bps and tx_bps for legacy script.
             # Click doesnt have mpbs data
@@ -410,7 +413,7 @@ def clear_interface_counters(dut, **kwargs):
         if not interface_val:
             st.log("Invalid interface type")
             return False
-        command = "clear counters interface {}".format(interface_val)
+        command = "clear interface counters {}".format(interface_val)
         st.config(dut, command, type=cli_type, confirm=confirm, conf=False, skip_error_check=True)
     elif cli_type == "click":
         command = "show interfaces counters -c"

@@ -188,7 +188,7 @@ class TestLacpCli008RunningConfig:
         st.log(f"Verifying running-config on {dut} contains expected entries")
 
         output = st.show(
-            dut, "show running-config",
+            dut, "show running-config | no-more",
             type=self.data.cli_type, skip_tmpl=True
         )
 
@@ -217,7 +217,7 @@ class TestLacpCli008RunningConfig:
         st.log(f"Verifying running-config for {interface} on {dut}")
 
         output = st.show(
-            dut, f"show running-config interface {interface}",
+            dut, f"show running-config interface {interface} | no-more",
             type=self.data.cli_type, skip_tmpl=True
         )
 
@@ -243,7 +243,7 @@ class TestLacpCli008RunningConfig:
     def _get_running_config_section(self, dut: str, section_pattern: str) -> str:
         """Get a specific section from running-config."""
         output = st.show(
-            dut, "show running-config",
+            dut, "show running-config | no-more",
             type=self.data.cli_type, skip_tmpl=True
         )
 
@@ -468,7 +468,7 @@ class TestLacpCli008RunningConfig:
             # Step 2: Get running-config
             st.log("Step 2: Getting running-config")
             running_output = st.show(
-                dut1, "show running-config",
+                dut1, "show running-config | no-more",
                 type=self.data.cli_type, skip_tmpl=True
             )
 
@@ -479,7 +479,7 @@ class TestLacpCli008RunningConfig:
             # Step 3: Get startup-config
             st.log("Step 3: Getting startup-config (if available)")
             startup_output = st.show(
-                dut1, "show startup-config",
+                dut1, "show startup-config | no-more",
                 type=self.data.cli_type, skip_tmpl=True
             )
 

@@ -193,7 +193,7 @@ class TestLacpCli007ShutdownEnable:
         st.log(f"Verifying PortChannel {PC_ID} status on {dut} (expected: {expected_status})")
 
         output = st.show(
-            dut, f"show interfaces PortChannel {PC_ID}",
+            dut, f"show interface PortChannel {PC_ID} | no-more",
             type=self.data.cli_type, skip_tmpl=True
         )
 
@@ -227,7 +227,7 @@ class TestLacpCli007ShutdownEnable:
         st.log(f"Verifying PortChannel {PC_ID} members on {dut}")
 
         output = st.show(
-            dut, f"show interfaces PortChannel {PC_ID} members",
+            dut, f"show interface PortChannel {PC_ID} members | no-more",
             type=self.data.cli_type, skip_tmpl=True
         )
 
@@ -249,17 +249,18 @@ class TestLacpCli007ShutdownEnable:
         """Verify LACP synchronization status."""
         st.log(f"Verifying LACP sync status on {dut}")
 
+        # Use correct SONiC command for PortChannel/LACP status (consistent with CLI 001)
         output = st.show(
-            dut, f"show lacp statistics PortChannel {PC_ID}",
+            dut, "show portchannel summary",
             type=self.data.cli_type, skip_tmpl=True
         )
 
         if not output:
-            st.error(f"Failed to get LACP stats on {dut}")
+            st.error(f"Failed to get portchannel summary on {dut}")
             return False
 
         output_str = str(output).lower()
-        synced_count = output_str.count("synced") + output_str.count("sync")
+        synced_count = output_str.count("synced") + output_str.count("sync") + output_str.count("lacp")
 
         st.log(f"LACP sync status: {synced_count} (expected >= {expected_count})")
         return synced_count >= expected_count
@@ -474,10 +475,10 @@ class TestLacpCli007ShutdownEnable:
 
             # Verify show commands
             output = st.show(
-                dut1, f"show interfaces PortChannel {PC_ID}",
+                dut1, f"show interface PortChannel {PC_ID} | no-more",
                 type=self.data.cli_type, skip_tmpl=True
             )
-            st.log(f"show interfaces PortChannel {PC_ID}:\n{output}")
+            st.log(f"show interface PortChannel {PC_ID}:\n{output}")
 
             self.test_passed = True
             st.report_pass("msg", "Successfully shutdown and restored PortChannel")

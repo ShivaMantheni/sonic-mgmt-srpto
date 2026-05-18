@@ -296,11 +296,11 @@ def show_interface_counters(dut, interface, **kwargs):
 
     # Build command based on CLI type
     if cli_type == "klish":
-        cmd = f"show interface counters {interface}"
+        cmd = f"show interface counters {interface} | no-more"
     elif cli_type == "click":
         cmd = f"show interfaces counters -i {interface}"
     else:
-        cmd = f"show interface counters {interface}"
+        cmd = f"show interface counters {interface} | no-more"
 
     # Execute command
     try:

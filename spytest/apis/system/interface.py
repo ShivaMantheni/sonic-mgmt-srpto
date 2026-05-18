@@ -495,9 +495,9 @@ def clear_interface_counters(dut, **kwargs):
         if not interface_val:
             st.log("Invalid interface type")
             return False
-        command = "clear counters interface {}".format(interface_val)
+        command = "clear interface counters {}".format(interface_val)
         if rif:
-            command = "clear counters interface rif"
+            command = "clear interface counters rif"
         st.config(dut, command, type=cli_type, confirm=confirm, conf=False, skip_error_check=True, exec_mode=exec_mode)
     elif cli_type == "click":
         if rif:
@@ -598,9 +598,9 @@ def show_interfaces_counters(dut, interface=None, property=None, rif=None, cli_t
                 output_value.extend(filter_and_select(output, None, {'iface': intf}))
         return output_value
     elif cli_type == "klish":
-        command = "show interface counters"
+        command = "show interface counters | no-more"
         if rif:
-            command += " rif"
+            command = "show interface counters rif | no-more"
         if interface is None:
             return st.show(dut, command, type=cli_type)
         port_hash_list = segregate_intf_list_type(intf=interface, range_format=False)
@@ -642,9 +642,9 @@ def show_interface_counters_all(dut, rif=None, cli_type=''):
             command = "show interfaces counters rif"
         return st.show(dut, command, type=cli_type)
     elif cli_type == 'klish':
-        command = "show interface counters"
+        command = "show interface counters | no-more"
         if rif:
-            command += ' rif'
+            command = "show interface counters rif | no-more"
         return st.show(dut, command, type=cli_type)
     elif cli_type in ["rest-patch", "rest-put"]:
         return portapi.get_interface_counters_all(dut, cli_type=cli_type)
@@ -697,9 +697,11 @@ def show_specific_interface_counters(dut, interface_name, cli_type='', rif=None,
     elif cli_type == 'klish':
         port_hash_list = segregate_intf_list_type(intf=interface_name, range_format=False)
         interface_list = port_hash_list['intf_list_all']
-        interface_li = ' |'.join([str(elem) for elem in interface_list])
-        command = "show interface counters | grep \"Interface|{} \"".format(interface_li)
-        output = st.show(dut, command, type=cli_type, exec_mode=exec_mode)
+        # Use full output without grep - filter in Python to avoid breaking TextFSM parsing
+        command = "show interface counters | no-more"
+        all_output = st.show(dut, command, type=cli_type, exec_mode=exec_mode)
+        # Filter parsed output in Python instead of using grep
+        output = [entry for entry in all_output if entry.get('iface') in interface_list] if all_output else []
 
     elif cli_type in ["rest-patch", "rest-put"]:
         rest_urls = st.get_datastore(dut, "rest_urls")
@@ -966,7 +968,7 @@ def show_interface_counters_detailed(dut, interface, filter_key=None, cli_type="
     if cli_type == "click":
         command = "show interfaces counters detailed {}".format(interface)
     else:
-        command = "show interface counters {}".format(interface)
+        command = "show interface counters {} | no-more".format(interface)
     if not st.is_feature_supported("show-interfaces-counters-detailed-command", dut):
         st.community_unsupported(command, dut)
         output = st.show(dut, command, skip_error_check=True)
