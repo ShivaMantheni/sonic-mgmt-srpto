@@ -173,8 +173,8 @@ class TestLacpCli005RemoveMembers:
             # Remove VLAN and IP configuration
             try:
                 ip_api.delete_ip_interface(
-                    dut, f"Vlan{VLAN_ID}", dut_ip,
-                    subnet=24, family="ipv4",
+                    dut, f"Vlan{VLAN_ID}", f"{dut_ip}/{SUBNET}",
+                    family="ipv4",
                     cli_type=cls.data.cli_type
                 )
             except Exception as e:
