@@ -55,7 +55,7 @@ import pytest
 import yaml
 
 from spytest import SpyTestDict, st
-import apis.switching.portchannel as pc_api
+import apis.switching.lacp as lacp_api
 import apis.switching.vlan as vlan_api
 import apis.system.interface as intf_api
 import apis.routing.ip as ip_api
@@ -155,7 +155,7 @@ class TestLacpCli008RunningConfig:
             # Remove member configurations
             for member in ALL_MEMBERS:
                 try:
-                    pc_api.delete_portchannel_member(
+                    lacp_api.delete_portchannel_member(
                         dut, PC_ID, member, cli_type=cls.data.cli_type
                     )
                 except Exception as e:
@@ -163,14 +163,14 @@ class TestLacpCli008RunningConfig:
 
             # Remove PortChannel
             try:
-                pc_api.delete_portchannel(dut, PC_ID, cli_type=cls.data.cli_type)
+                lacp_api.delete_portchannel(dut, PC_ID, cli_type=cls.data.cli_type)
             except Exception as e:
                 st.debug(f"Error removing PortChannel: {e}")
 
             # Remove VLAN and IP configuration
             try:
                 ip_api.delete_ip_interface(
-                    dut, f"Vlan{VLAN_ID}", f"{DUT1_IP}/24", family="ipv4",
+                    dut, f"Vlan{VLAN_ID}", DUT1_IP, subnet="24", family="ipv4",
                     cli_type=cls.data.cli_type
                 )
             except Exception as e:
@@ -293,41 +293,41 @@ class TestLacpCli008RunningConfig:
 
             # Step 1: Create PortChannel
             st.log("Step 1: Creating PortChannel with 2 members")
-            pc_api.create_portchannel(dut1, PC_ID, cli_type=self.data.cli_type)
-            pc_api.create_portchannel(dut2, PC_ID, cli_type=self.data.cli_type)
+            lacp_api.create_portchannel(dut1, PC_ID, cli_type=self.data.cli_type)
+            lacp_api.create_portchannel(dut2, PC_ID, cli_type=self.data.cli_type)
 
             # Add members
             for member in MEMBERS:
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut1, PC_ID, member, cli_type=self.data.cli_type
                 )
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut2, PC_ID, member, cli_type=self.data.cli_type
                 )
 
             # Step 2: Configure description
             st.log("Step 2: Configuring PortChannel description")
-            intf_api.interface_config(
-                dut1, interface_name=f"PortChannel{PC_ID}",
-                description=PC_DESCRIPTION,
+            intf_api.interface_properties_set(
+                dut1, f"PortChannel{PC_ID}",
+                "description", PC_DESCRIPTION,
                 cli_type=self.data.cli_type
             )
-            intf_api.interface_config(
-                dut2, interface_name=f"PortChannel{PC_ID}",
-                description=PC_DESCRIPTION,
+            intf_api.interface_properties_set(
+                dut2, f"PortChannel{PC_ID}",
+                "description", PC_DESCRIPTION,
                 cli_type=self.data.cli_type
             )
 
             # Step 3: Configure MTU
             st.log("Step 3: Configuring PortChannel MTU")
-            intf_api.interface_config(
-                dut1, interface_name=f"PortChannel{PC_ID}",
-                mtu=PC_MTU,
+            intf_api.interface_properties_set(
+                dut1, f"PortChannel{PC_ID}",
+                "mtu", PC_MTU,
                 cli_type=self.data.cli_type
             )
-            intf_api.interface_config(
-                dut2, interface_name=f"PortChannel{PC_ID}",
-                mtu=PC_MTU,
+            intf_api.interface_properties_set(
+                dut2, f"PortChannel{PC_ID}",
+                "mtu", PC_MTU,
                 cli_type=self.data.cli_type
             )
 
@@ -346,11 +346,11 @@ class TestLacpCli008RunningConfig:
             )
 
             ip_api.config_ip_addr_interface(
-                dut1, f"Vlan{VLAN_ID}", f"{DUT1_IP}/{SUBNET}",
+                dut1, f"Vlan{VLAN_ID}", DUT1_IP, subnet=str(SUBNET),
                 family="ipv4", cli_type=self.data.cli_type
             )
             ip_api.config_ip_addr_interface(
-                dut2, f"Vlan{VLAN_ID}", f"{DUT2_IP}/{SUBNET}",
+                dut2, f"Vlan{VLAN_ID}", DUT2_IP, subnet=str(SUBNET),
                 family="ipv4", cli_type=self.data.cli_type
             )
 
@@ -426,29 +426,37 @@ class TestLacpCli008RunningConfig:
 
             # Step 1: Create PortChannel with comprehensive configuration
             st.log("Step 1: Creating PortChannel with comprehensive configuration")
-            pc_api.create_portchannel(dut1, PC_ID, cli_type=self.data.cli_type)
-            pc_api.create_portchannel(dut2, PC_ID, cli_type=self.data.cli_type)
+            lacp_api.create_portchannel(dut1, PC_ID, cli_type=self.data.cli_type)
+            lacp_api.create_portchannel(dut2, PC_ID, cli_type=self.data.cli_type)
 
             # Add members
             for member in MEMBERS:
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut1, PC_ID, member, cli_type=self.data.cli_type
                 )
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut2, PC_ID, member, cli_type=self.data.cli_type
                 )
 
             # Configure settings
-            intf_api.interface_config(
-                dut1, interface_name=f"PortChannel{PC_ID}",
-                description=PC_DESCRIPTION,
-                mtu=PC_MTU,
+            intf_api.interface_properties_set(
+                dut1, f"PortChannel{PC_ID}",
+                "description", PC_DESCRIPTION,
                 cli_type=self.data.cli_type
             )
-            intf_api.interface_config(
-                dut2, interface_name=f"PortChannel{PC_ID}",
-                description=PC_DESCRIPTION,
-                mtu=PC_MTU,
+            intf_api.interface_properties_set(
+                dut1, f"PortChannel{PC_ID}",
+                "mtu", PC_MTU,
+                cli_type=self.data.cli_type
+            )
+            intf_api.interface_properties_set(
+                dut2, f"PortChannel{PC_ID}",
+                "description", PC_DESCRIPTION,
+                cli_type=self.data.cli_type
+            )
+            intf_api.interface_properties_set(
+                dut2, f"PortChannel{PC_ID}",
+                "mtu", PC_MTU,
                 cli_type=self.data.cli_type
             )
 

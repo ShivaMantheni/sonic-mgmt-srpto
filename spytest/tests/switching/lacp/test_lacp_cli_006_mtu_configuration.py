@@ -49,7 +49,7 @@ import pytest
 import yaml
 
 from spytest import SpyTestDict, st
-import apis.switching.portchannel as pc_api
+import apis.switching.lacp as lacp_api
 import apis.switching.vlan as vlan_api
 import apis.system.interface as intf_api
 import apis.routing.ip as ip_api
@@ -152,7 +152,7 @@ class TestLacpCli006MtuConfiguration:
             # Remove member configurations
             for member in ALL_MEMBERS:
                 try:
-                    pc_api.delete_portchannel_member(
+                    lacp_api.delete_portchannel_member(
                         dut, PC_ID, member, cli_type=cls.data.cli_type
                     )
                 except Exception as e:
@@ -160,14 +160,14 @@ class TestLacpCli006MtuConfiguration:
 
             # Remove PortChannel
             try:
-                pc_api.delete_portchannel(dut, PC_ID, cli_type=cls.data.cli_type)
+                lacp_api.delete_portchannel(dut, PC_ID, cli_type=cls.data.cli_type)
             except Exception as e:
                 st.debug(f"Error removing PortChannel: {e}")
 
             # Remove VLAN and IP configuration
             try:
                 ip_api.delete_ip_interface(
-                    dut, f"Vlan{VLAN_ID}", f"{DUT1_IP}/24", family="ipv4",
+                    dut, f"Vlan{VLAN_ID}", DUT1_IP, subnet="24", family="ipv4",
                     cli_type=cls.data.cli_type
                 )
             except Exception as e:
@@ -379,19 +379,19 @@ class TestLacpCli006MtuConfiguration:
 
             # Step 2: Create PortChannel with 2 members
             st.log("Step 2: Creating PortChannel with 2 members")
-            pc_api.create_portchannel(
+            lacp_api.create_portchannel(
                 dut1, PC_ID, cli_type=self.data.cli_type
             )
-            pc_api.create_portchannel(
+            lacp_api.create_portchannel(
                 dut2, PC_ID, cli_type=self.data.cli_type
             )
 
             # Add members
             for member in MEMBERS:
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut1, PC_ID, member, cli_type=self.data.cli_type
                 )
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut2, PC_ID, member, cli_type=self.data.cli_type
                 )
 
@@ -408,12 +408,12 @@ class TestLacpCli006MtuConfiguration:
             # Step 3: Configure IP addresses on VLAN SVI
             st.log("Step 3: Configuring IP addresses on VLAN SVI")
             ip_api.config_ip_addr_interface(
-                dut1, f"Vlan{VLAN_ID}", f"{DUT1_IP}/{SUBNET}",
-                family="ipv4", cli_type=self.data.cli_type
+                dut1, f"Vlan{VLAN_ID}", DUT1_IP,
+                subnet=str(SUBNET), family="ipv4", cli_type=self.data.cli_type
             )
             ip_api.config_ip_addr_interface(
-                dut2, f"Vlan{VLAN_ID}", f"{DUT2_IP}/{SUBNET}",
-                family="ipv4", cli_type=self.data.cli_type
+                dut2, f"Vlan{VLAN_ID}", DUT2_IP,
+                subnet=str(SUBNET), family="ipv4", cli_type=self.data.cli_type
             )
 
             # Bring up PortChannel
@@ -443,14 +443,14 @@ class TestLacpCli006MtuConfiguration:
 
             # Step 6: Change PortChannel MTU to 9216
             st.log("Step 6: Changing PortChannel MTU to 9216")
-            intf_api.interface_config(
-                dut1, interface_name=f"PortChannel{PC_ID}",
-                ip_address=None, mtu=JUMBO_MTU,
+            intf_api.interface_properties_set(
+                dut1, f"PortChannel{PC_ID}",
+                "mtu", JUMBO_MTU,
                 cli_type=self.data.cli_type
             )
-            intf_api.interface_config(
-                dut2, interface_name=f"PortChannel{PC_ID}",
-                ip_address=None, mtu=JUMBO_MTU,
+            intf_api.interface_properties_set(
+                dut2, f"PortChannel{PC_ID}",
+                "mtu", JUMBO_MTU,
                 cli_type=self.data.cli_type
             )
 
@@ -523,27 +523,27 @@ class TestLacpCli006MtuConfiguration:
             vlan_api.create_vlan(dut1, VLAN_ID, cli_type=self.data.cli_type)
             vlan_api.create_vlan(dut2, VLAN_ID, cli_type=self.data.cli_type)
 
-            pc_api.create_portchannel(dut1, PC_ID, cli_type=self.data.cli_type)
-            pc_api.create_portchannel(dut2, PC_ID, cli_type=self.data.cli_type)
+            lacp_api.create_portchannel(dut1, PC_ID, cli_type=self.data.cli_type)
+            lacp_api.create_portchannel(dut2, PC_ID, cli_type=self.data.cli_type)
 
             # Set MTU to 9216 initially
-            intf_api.interface_config(
-                dut1, interface_name=f"PortChannel{PC_ID}",
-                ip_address=None, mtu=JUMBO_MTU,
+            intf_api.interface_properties_set(
+                dut1, f"PortChannel{PC_ID}",
+                "mtu", JUMBO_MTU,
                 cli_type=self.data.cli_type
             )
-            intf_api.interface_config(
-                dut2, interface_name=f"PortChannel{PC_ID}",
-                ip_address=None, mtu=JUMBO_MTU,
+            intf_api.interface_properties_set(
+                dut2, f"PortChannel{PC_ID}",
+                "mtu", JUMBO_MTU,
                 cli_type=self.data.cli_type
             )
 
             # Add members
             for member in MEMBERS:
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut1, PC_ID, member, cli_type=self.data.cli_type
                 )
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut2, PC_ID, member, cli_type=self.data.cli_type
                 )
 
@@ -559,12 +559,12 @@ class TestLacpCli006MtuConfiguration:
 
             # Configure IPs
             ip_api.config_ip_addr_interface(
-                dut1, f"Vlan{VLAN_ID}", f"{DUT1_IP}/{SUBNET}",
-                family="ipv4", cli_type=self.data.cli_type
+                dut1, f"Vlan{VLAN_ID}", DUT1_IP,
+                subnet=str(SUBNET), family="ipv4", cli_type=self.data.cli_type
             )
             ip_api.config_ip_addr_interface(
-                dut2, f"Vlan{VLAN_ID}", f"{DUT2_IP}/{SUBNET}",
-                family="ipv4", cli_type=self.data.cli_type
+                dut2, f"Vlan{VLAN_ID}", DUT2_IP,
+                subnet=str(SUBNET), family="ipv4", cli_type=self.data.cli_type
             )
 
             intf_api.interface_operation(
@@ -591,14 +591,14 @@ class TestLacpCli006MtuConfiguration:
 
             # Step 4: Change MTU to default while interface is up
             st.log("Step 4: Changing MTU to default (1500)")
-            intf_api.interface_config(
-                dut1, interface_name=f"PortChannel{PC_ID}",
-                ip_address=None, mtu=DEFAULT_MTU,
+            intf_api.interface_properties_set(
+                dut1, f"PortChannel{PC_ID}",
+                "mtu", DEFAULT_MTU,
                 cli_type=self.data.cli_type
             )
-            intf_api.interface_config(
-                dut2, interface_name=f"PortChannel{PC_ID}",
-                ip_address=None, mtu=DEFAULT_MTU,
+            intf_api.interface_properties_set(
+                dut2, f"PortChannel{PC_ID}",
+                "mtu", DEFAULT_MTU,
                 cli_type=self.data.cli_type
             )
 
@@ -612,14 +612,14 @@ class TestLacpCli006MtuConfiguration:
 
             # Step 6: Change MTU back to 9216
             st.log("Step 6: Changing MTU back to 9216")
-            intf_api.interface_config(
-                dut1, interface_name=f"PortChannel{PC_ID}",
-                ip_address=None, mtu=JUMBO_MTU,
+            intf_api.interface_properties_set(
+                dut1, f"PortChannel{PC_ID}",
+                "mtu", JUMBO_MTU,
                 cli_type=self.data.cli_type
             )
-            intf_api.interface_config(
-                dut2, interface_name=f"PortChannel{PC_ID}",
-                ip_address=None, mtu=JUMBO_MTU,
+            intf_api.interface_properties_set(
+                dut2, f"PortChannel{PC_ID}",
+                "mtu", JUMBO_MTU,
                 cli_type=self.data.cli_type
             )
 

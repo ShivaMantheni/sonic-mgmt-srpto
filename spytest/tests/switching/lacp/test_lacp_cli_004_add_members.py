@@ -53,18 +53,20 @@ import pytest
 import yaml
 
 from spytest import SpyTestDict, st
-import apis.switching.portchannel as pc_api
+import apis.switching.lacp as lacp_api
 import apis.switching.vlan as vlan_api
 import apis.system.interface as intf_api
 import apis.routing.ip as ip_api
 import apis.common.scapy_traffic as scapy_traffic
 
-# Constants
+# Constants - Note: Interface values are loaded from testbed YAML at runtime
 TESTCASE_ID = "LACP_CLI_004"
 PC_ID = 1
-INITIAL_MEMBERS = ["Ethernet32", "Ethernet36"]
-NEW_MEMBERS = ["Ethernet40", "Ethernet44"]
-ALL_MEMBERS = INITIAL_MEMBERS + NEW_MEMBERS
+
+# These will be populated from testbed topology at runtime
+INITIAL_MEMBERS = None  # Will be set in setup_class: first 2 interfaces
+NEW_MEMBERS = None  # Will be set in setup_class: interfaces to add
+ALL_MEMBERS = None  # Will be set in setup_class: all 4 interfaces from testbed
 
 VLAN_ID = 100
 DUT1_IP = "10.1.1.1"
@@ -104,6 +106,92 @@ def _load_yaml_data() -> Dict[str, Any]:
     return content
 
 
+def _load_interfaces_from_testbed(cls, topology) -> None:
+    """Extract interface members from testbed topology YAML.
+
+    Loads PortChannel member interfaces from the testbed's device topology
+    configuration instead of using hardcoded values. This makes tests more
+    flexible and reusable across different testbeds.
+
+    Args:
+        cls: Test class containing data
+        topology: SpyTest topology object with device interface mappings
+    """
+    global INITIAL_MEMBERS, NEW_MEMBERS, ALL_MEMBERS
+
+    st.banner("Loading interface members from testbed topology")
+
+    try:
+        # Get device interfaces from topology object
+        d1_interfaces = []
+
+        if hasattr(topology, 'links'):
+            # Iterate through all link tuples and extract D1 interfaces
+            for link in topology.links:
+                if isinstance(link, (list, tuple)) and len(link) >= 2:
+                    # Each link contains device pairs and interfaces
+                    try:
+                        # Extract D1 port from link if it exists
+                        for item in link:
+                            if isinstance(item, dict):
+                                d1_port = item.get("D1")
+                                if d1_port:
+                                    d1_interfaces.append(d1_port)
+                    except Exception:
+                        continue
+
+        # If links don't work, try using topology object attributes directly
+        if not d1_interfaces and hasattr(topology, 'D1T1'):
+            # Try to get interfaces from D1T1 attribute
+            d1_interfaces = [str(topology.D1T1P1)] if hasattr(topology, 'D1T1P1') else []
+
+        # Fallback: Use testbed variables approach to get interfaces
+        if not d1_interfaces:
+            tbvars = st.get_testbed_vars()
+            if tbvars:
+                # Try to extract D1 interfaces from testbed vars
+                for key, value in tbvars.items():
+                    if isinstance(key, str) and key.startswith("D1T") and isinstance(value, str):
+                        d1_interfaces.append(value)
+
+        if not d1_interfaces:
+            st.error("Could not extract interfaces from topology object")
+            # Fallback to default interfaces from testbed YAML
+            d1_interfaces = ["Ethernet32", "Ethernet36", "Ethernet40", "Ethernet44"]
+            st.warn(f"Using default interfaces: {d1_interfaces}")
+
+        # Sort for consistent ordering
+        d1_interfaces = sorted(d1_interfaces)
+        st.log(f"Found {len(d1_interfaces)} interfaces in testbed: {d1_interfaces}")
+
+        if len(d1_interfaces) < 4:
+            st.error(f"Testbed must have at least 4 interfaces, found {len(d1_interfaces)}")
+            raise ValueError("Insufficient interfaces in testbed")
+
+        # Set global variables from testbed interfaces
+        # First 2 interfaces are initial members, remaining 2 are added later
+        INITIAL_MEMBERS = d1_interfaces[:2]
+        NEW_MEMBERS = d1_interfaces[2:4]
+        ALL_MEMBERS = d1_interfaces
+
+        st.log(f"✓ Initial members (2): {INITIAL_MEMBERS}")
+        st.log(f"✓ New members to add (2): {NEW_MEMBERS}")
+        st.log(f"✓ All members (4): {ALL_MEMBERS}")
+
+        # Store in class data for easy access
+        cls.data.initial_members = INITIAL_MEMBERS
+        cls.data.new_members = NEW_MEMBERS
+        cls.data.all_members = ALL_MEMBERS
+
+    except Exception as e:
+        st.error(f"Failed to load interfaces from testbed: {e}")
+        # Use defaults if extraction fails
+        INITIAL_MEMBERS = ["Ethernet32", "Ethernet36"]
+        NEW_MEMBERS = ["Ethernet40", "Ethernet44"]
+        ALL_MEMBERS = ["Ethernet32", "Ethernet36", "Ethernet40", "Ethernet44"]
+        st.warn(f"Using default interfaces after error: {ALL_MEMBERS}")
+
+
 @pytest.mark.topology("any")
 class TestLacpCli004AddMembers:
     """Test cases for adding members to existing PortChannel."""
@@ -113,6 +201,8 @@ class TestLacpCli004AddMembers:
     @classmethod
     def setup_class(cls) -> None:
         """Collect topology handles and testcase variables."""
+        global INITIAL_MEMBERS, NEW_MEMBERS, ALL_MEMBERS
+
         config = _load_yaml_data()
         defaults = config.get("defaults", {})
 
@@ -127,6 +217,9 @@ class TestLacpCli004AddMembers:
         cls.data.cli_type = defaults.get("cli_type", "klish")
         cls.data.verify_timeout = int(defaults.get("verify_timeout", 30))
         cls.data.cleanup_enabled = bool(defaults.get("cleanup", True))
+
+        # Load interface members from testbed topology YAML
+        _load_interfaces_from_testbed(cls, topology)
 
     @classmethod
     def teardown_class(cls) -> None:
@@ -159,7 +252,7 @@ class TestLacpCli004AddMembers:
             # Remove member configurations
             for member in ALL_MEMBERS:
                 try:
-                    pc_api.delete_portchannel_member(
+                    lacp_api.delete_portchannel_member(
                         dut, f"PortChannel{PC_ID}", member, cli_type=cls.data.cli_type
                     )
                 except Exception as e:
@@ -167,7 +260,7 @@ class TestLacpCli004AddMembers:
 
             # Remove PortChannel
             try:
-                pc_api.delete_portchannel(dut, f"PortChannel{PC_ID}", cli_type=cls.data.cli_type)
+                lacp_api.delete_portchannel(dut, f"PortChannel{PC_ID}", cli_type=cls.data.cli_type)
             except Exception as e:
                 st.debug(f"Error removing PortChannel from {dut}: {e}")
 
@@ -454,10 +547,10 @@ class TestLacpCli004AddMembers:
 
             # Step 2: Create PortChannel interface on both DUTs
             st.log(f"Step 2: Creating PortChannel{PC_ID} on both DUTs")
-            pc_api.create_portchannel(
+            lacp_api.create_portchannel(
                 dut1, f"PortChannel{PC_ID}", cli_type=self.data.cli_type
             )
-            pc_api.create_portchannel(
+            lacp_api.create_portchannel(
                 dut2, f"PortChannel{PC_ID}", cli_type=self.data.cli_type
             )
             st.log(f"✓ PortChannel{PC_ID} created on both DUTs")
@@ -468,10 +561,10 @@ class TestLacpCli004AddMembers:
             st.log(f"Members to add: {ALL_MEMBERS}")
 
             for member in ALL_MEMBERS:
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut1, f"PortChannel{PC_ID}", member, cli_type=self.data.cli_type
                 )
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut2, f"PortChannel{PC_ID}", member, cli_type=self.data.cli_type
                 )
                 st.log(f"  ✓ Added {member} to PortChannel{PC_ID}")
@@ -624,10 +717,10 @@ class TestLacpCli004AddMembers:
 
             # Step 2: Create PortChannel interface
             st.log(f"Step 2: Creating PortChannel{PC_ID} on both DUTs (verification iteration)")
-            pc_api.create_portchannel(
+            lacp_api.create_portchannel(
                 dut1, f"PortChannel{PC_ID}", cli_type=self.data.cli_type
             )
-            pc_api.create_portchannel(
+            lacp_api.create_portchannel(
                 dut2, f"PortChannel{PC_ID}", cli_type=self.data.cli_type
             )
             st.log(f"✓ PortChannel{PC_ID} created")
@@ -637,10 +730,10 @@ class TestLacpCli004AddMembers:
             st.log(f"Members: {ALL_MEMBERS}")
 
             for member in ALL_MEMBERS:
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut1, f"PortChannel{PC_ID}", member, cli_type=self.data.cli_type
                 )
-                pc_api.add_portchannel_member(
+                lacp_api.add_portchannel_member(
                     dut2, f"PortChannel{PC_ID}", member, cli_type=self.data.cli_type
                 )
                 st.log(f"  ✓ {member} added")

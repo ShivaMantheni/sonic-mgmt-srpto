@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import pytest
 from spytest import st, SpyTestDict
-import apis.switching.portchannel as pc_api
+import apis.switching.lacp as lacp_api
 import apis.common.scapy_traffic as scapy_api
 import apis.routing.ip as ip_api
 
@@ -123,10 +123,10 @@ def cleanup_portchannel_config():
 
         # Remove member interfaces from PortChannel
         for member in data.members:
-            pc_api.clear_portchannel_member(dut, data.portchannel_id, member, cli_type=data.cli_type)
+            lacp_api.clear_portchannel_member(dut, data.portchannel_id, member, cli_type=data.cli_type)
 
         # Delete PortChannel
-        pc_api.delete_portchannel(dut, data.portchannel_id, cli_type=data.cli_type)
+        lacp_api.delete_portchannel(dut, data.portchannel_id, cli_type=data.cli_type)
 
         # Clear interface counters (use st.config() for action commands)
         st.config(dut, "clear interface counters", type=data.cli_type)
@@ -140,7 +140,7 @@ def test_portchannel_create():
     st.banner(f"{tcid}: Creating PortChannel {data.portchannel_id} on {vars.D1}")
 
     # Create PortChannel on DUT1
-    result = pc_api.create_portchannel(vars.D1, f"PortChannel{data.portchannel_id}", cli_type=data.cli_type)
+    result = lacp_api.create_portchannel(vars.D1, f"PortChannel{data.portchannel_id}", cli_type=data.cli_type)
     if not result:
         st.report_fail("port_channel_creation_failed")
 
@@ -159,7 +159,7 @@ def test_add_portchannel_members():
 
     for member in data.members:
         # Add member to PortChannel
-        result = pc_api.add_portchannel_member(
+        result = lacp_api.add_portchannel_member(
             vars.D1,
             f"PortChannel{data.portchannel_id}",
             member,

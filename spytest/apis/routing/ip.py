@@ -212,18 +212,14 @@ def config_ip_addr_interface(dut, interface_name='', ip_address='', subnet='', f
     :param config: add | remove
     :return:
     """
+    # Ensure subnet is always a string to prevent type errors in downstream processing
+    if subnet:
+        subnet = str(subnet)
     st.log('API_NAME: config_ip_addr_interface, API_ARGS: {}'.format(locals()))
     cli_type = st.get_ui_type(dut, **kwargs)
     is_secondary_ip = kwargs.get('is_secondary_ip', 'no').lower()
     max_time = kwargs.get('max_time', 600)
     gw_addr = kwargs.get('gw_addr', None)
-
-    # Handle CIDR notation in ip_address (e.g., "10.1.1.1/24")
-    if '/' in str(ip_address) and not subnet:
-        ip_parts = str(ip_address).split('/')
-        ip_address = ip_parts[0]
-        subnet = ip_parts[1]
-        st.log('Parsed CIDR notation: ip_address={}, subnet={}'.format(ip_address, subnet))
 
     if cli_type in get_supported_ui_type_list():
         index = get_subinterface_index(dut, interface_name)
@@ -434,13 +430,9 @@ def delete_ip_interface(dut, interface_name, ip_address, subnet="32", family="ip
     :param family: ipv4|ipv6
     :return:
     """
-    # Handle CIDR notation in ip_address (e.g., "10.1.1.1/24")
-    if '/' in str(ip_address) and (subnet == "32" or not subnet):
-        ip_parts = str(ip_address).split('/')
-        ip_address = ip_parts[0]
-        subnet = ip_parts[1]
-        st.log('Parsed CIDR notation: ip_address={}, subnet={}'.format(ip_address, subnet))
-
+    # Ensure subnet is always a string to prevent type errors in downstream processing
+    if subnet:
+        subnet = str(subnet)
     if family == "ipv4":
         if not is_valid_ipv4_address(ip_address):
             st.warn("Invalid IP address.")
