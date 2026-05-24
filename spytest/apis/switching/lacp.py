@@ -88,7 +88,7 @@ def normalize_portchannel_name(portchannel):
     return str(portchannel)
 
 
-def create_lacp_portchannel(dut, portchannel_list=[], fallback=False, min_link="", static=False, cli_type="", **kwargs):
+def create_lacp_portchannel(dut, portchannel_list=[], fallback=False, min_link="", static=None, cli_type="", **kwargs):
     """
     Create PortChannel with automatic ID normalization.
 
@@ -100,7 +100,7 @@ def create_lacp_portchannel(dut, portchannel_list=[], fallback=False, min_link="
         portchannel_list: PortChannel ID(s) - int, str, or list of either
         fallback: Enable fallback mode (bool)
         min_link: Minimum links for PortChannel to be up (str)
-        static: Create static PortChannel (bool)
+        static: Create static PortChannel (bool). Default: None (omit flag, uses LACP)
         cli_type: CLI type (click, klish, rest-patch, rest-put)
         **kwargs: Additional arguments passed to underlying API
 
@@ -111,19 +111,37 @@ def create_lacp_portchannel(dut, portchannel_list=[], fallback=False, min_link="
         >>> create_lacp_portchannel(dut, 1)
         >>> create_lacp_portchannel(dut, [1, 2, 3])
         >>> create_lacp_portchannel(dut, "PortChannel1", min_link="2")
+
+    Note:
+        static parameter defaults to None (not False) to avoid --static flag
+        on SONiC versions that don't support it. Omitting the flag creates
+        LACP (dynamic) PortChannel by default.
     """
     normalized_list = normalize_portchannel_name(utils.make_list(portchannel_list))
     st.log(f"Creating PortChannel(s): {normalized_list}", dut=dut)
 
-    return pc_api.create_portchannel(
-        dut,
-        portchannel_list=normalized_list,
-        fallback=fallback,
-        min_link=min_link,
-        static=static,
-        cli_type=cli_type,
-        **kwargs
-    )
+    # Only pass static parameter if explicitly set to True
+    # Omitting it (None/False) avoids --static flag on unsupported versions
+    if static is True:
+        return pc_api.create_portchannel(
+            dut,
+            portchannel_list=normalized_list,
+            fallback=fallback,
+            min_link=min_link,
+            static=True,
+            cli_type=cli_type,
+            **kwargs
+        )
+    else:
+        # Don't pass static parameter - let API use default (LACP mode)
+        return pc_api.create_portchannel(
+            dut,
+            portchannel_list=normalized_list,
+            fallback=fallback,
+            min_link=min_link,
+            cli_type=cli_type,
+            **kwargs
+        )
 
 
 def delete_lacp_portchannel(dut, portchannel_list, **kwargs):
@@ -150,7 +168,7 @@ def delete_lacp_portchannel(dut, portchannel_list, **kwargs):
     return pc_api.delete_portchannel(dut, normalized_list, **kwargs)
 
 
-def add_lacp_member(dut, portchannel, members, cli_type=""):
+def add_lacp_member(dut, portchannel, members, cli_type="", **kwargs):
     """
     Add member(s) to PortChannel with automatic ID normalization.
 
@@ -159,6 +177,7 @@ def add_lacp_member(dut, portchannel, members, cli_type=""):
         portchannel: PortChannel ID - int, str, or full name
         members: List of member interfaces (e.g., ["Ethernet32", "Ethernet36"])
         cli_type: CLI type
+        **kwargs: Additional arguments (skip_error_check, etc.)
 
     Returns:
         bool: True if successful, False otherwise
@@ -166,6 +185,7 @@ def add_lacp_member(dut, portchannel, members, cli_type=""):
     Examples:
         >>> add_lacp_member(dut, 1, ["Ethernet32", "Ethernet36"])
         >>> add_lacp_member(dut, "PortChannel1", ["Ethernet32"], cli_type="klish")
+        >>> add_lacp_member(dut, 1, ["Ethernet32"], skip_error_check=True)
     """
     normalized_pc = normalize_portchannel_name(portchannel)
     st.log(f"Adding members {members} to {normalized_pc}", dut=dut)
@@ -174,11 +194,12 @@ def add_lacp_member(dut, portchannel, members, cli_type=""):
         dut,
         portchannel=normalized_pc,
         members=members,
-        cli_type=cli_type
+        cli_type=cli_type,
+        **kwargs
     )
 
 
-def delete_lacp_member(dut, portchannel, members, cli_type=""):
+def delete_lacp_member(dut, portchannel, members, cli_type="", **kwargs):
     """
     Remove member(s) from PortChannel with automatic ID normalization.
 
@@ -187,6 +208,7 @@ def delete_lacp_member(dut, portchannel, members, cli_type=""):
         portchannel: PortChannel ID - int, str, or full name
         members: List of member interfaces to remove
         cli_type: CLI type
+        **kwargs: Additional arguments (skip_error_check, etc.)
 
     Returns:
         bool: True if successful, False otherwise
@@ -194,6 +216,7 @@ def delete_lacp_member(dut, portchannel, members, cli_type=""):
     Examples:
         >>> delete_lacp_member(dut, 1, ["Ethernet32"])
         >>> delete_lacp_member(dut, "PortChannel1", ["Ethernet36"], cli_type="klish")
+        >>> delete_lacp_member(dut, 1, ["Ethernet32"], skip_error_check=True)
     """
     normalized_pc = normalize_portchannel_name(portchannel)
     st.log(f"Removing members {members} from {normalized_pc}", dut=dut)
@@ -202,7 +225,8 @@ def delete_lacp_member(dut, portchannel, members, cli_type=""):
         dut,
         portchannel=normalized_pc,
         members=members,
-        cli_type=cli_type
+        cli_type=cli_type,
+        **kwargs
     )
 
 
