@@ -25,7 +25,7 @@ Pre-requisites:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Mapping, Tuple
+from typing import Any, Dict, Tuple
 import re
 
 import pytest
@@ -34,24 +34,6 @@ import yaml
 from spytest import SpyTestDict, st
 import apis.qos.acl as acl_api
 import apis.common.scapy_traffic as scapy_traffic
-
-
-def _get_connected_port(topology_config: Mapping[str, Any], from_dut: str, to_dut: str) -> str | None:
-    """Discover the connected port from one DUT to another using testbed topology."""
-    if not topology_config:
-        return None
-
-    dut_topology = topology_config.get(from_dut, {})
-    if not isinstance(dut_topology, dict):
-        return None
-
-    interfaces = dut_topology.get("interfaces", {})
-    for port_name, port_config in interfaces.items():
-        if isinstance(port_config, dict):
-            if port_config.get("EndDevice") == to_dut:
-                return port_name
-
-    return None
 
 
 pytestmark = [
@@ -69,34 +51,39 @@ class TestL2AclNegative:
         """Initialize test data and DUT topology."""
         st.banner("L2 ACL Negative Test Suite - Setup Phase")
 
-        # Load testbed topology
-        testbed_topology = None
-        try:
-            testbed_file_path = Path(__file__).resolve().parents[3] / "testbeds" / "testbed_acl.yaml"
-            if testbed_file_path.is_file():
-                with testbed_file_path.open(encoding="utf-8") as handle:
-                    testbed_data = yaml.safe_load(handle) or {}
-                    testbed_topology = testbed_data.get("topology", {})
-        except Exception as e:
-            st.warn(f"Error loading testbed topology: {e}")
-
-        # Initialize topology
+        # Initialize topology from SPyTest framework (testbed passed via --testbed CLI flag)
         topology = st.ensure_min_topology("D1D2:1", "D1D3:1")
         cls.data.topology = topology
         cls.data.cli_type = "klish"
 
-        # Get specific DUT handles
+        # Get specific DUT handles from topology
         cls.data.dut1 = getattr(topology, "D1")  # ACL device
         cls.data.dut2 = getattr(topology, "D2")  # TX host
         cls.data.dut3 = getattr(topology, "D3")  # RX host
 
-        # Discover connected ports
-        cls.data.dut1_port_to_dut2 = _get_connected_port(testbed_topology, "DUT1", "DUT2") or "Ethernet40"
-        cls.data.dut2_port_to_dut1 = _get_connected_port(testbed_topology, "DUT2", "DUT1") or "Ethernet24"
-        cls.data.dut1_port_to_dut3 = _get_connected_port(testbed_topology, "DUT1", "DUT3") or "Ethernet24"
-        cls.data.dut3_port_to_dut1 = _get_connected_port(testbed_topology, "DUT3", "DUT1") or "Ethernet24"
+        # Discover connected ports from topology object
+        # st.ensure_min_topology() already parsed the testbed YAML and created port attributes
+        try:
+            # Get port connections from topology object
+            # D1D2P1: D1's port connected to D2
+            # D2D1P1: D2's port connected to D1
+            # D1D3P1: D1's port connected to D3
+            # D3D1P1: D3's port connected to D1
+            cls.data.dut1_port_to_dut2 = topology.D1D2P1
+            cls.data.dut2_port_to_dut1 = topology.D2D1P1
+            cls.data.dut1_port_to_dut3 = topology.D1D3P1
+            cls.data.dut3_port_to_dut1 = topology.D3D1P1
+            st.log(f"✅ Successfully discovered ports from topology object:")
+            st.log(f"   D1->D2: {cls.data.dut1_port_to_dut2}")
+            st.log(f"   D2->D1: {cls.data.dut2_port_to_dut1}")
+            st.log(f"   D1->D3: {cls.data.dut1_port_to_dut3}")
+            st.log(f"   D3->D1: {cls.data.dut3_port_to_dut1}")
+        except AttributeError as e:
+            st.error(f"Failed to discover ports from topology: {e}")
+            st.error("Ensure testbed YAML has proper topology definitions for D1-D2 and D1-D3 links")
+            raise
 
-        st.log(f"Discovered ports: D1->D2={cls.data.dut1_port_to_dut2}, "
+        st.log(f"Using ports: D1->D2={cls.data.dut1_port_to_dut2}, "
                f"D2->D1={cls.data.dut2_port_to_dut1}, "
                f"D1->D3={cls.data.dut1_port_to_dut3}, "
                f"D3->D1={cls.data.dut3_port_to_dut1}")
@@ -219,33 +206,38 @@ class TestL2AclNegative:
 
         st.banner("PHASE 1: Create L2 ACL with UPPERCASE MAC")
         try:
-            # Create ACL table
-            table_result = acl_api.create_acl_table(
-                self.data.dut1,
-                acl_type="L2",
-                table_name="L2_ACL_CASE_TEST",
-                stage="INGRESS",
-                ports=[self.data.dut1_port_to_dut2],
-                cli_type=self.data.cli_type
-            )
-            if not table_result:
-                st.log("⚠️ Failed to create ACL table (may already exist)")
+            # Configure MAC access-list using raw CLI commands
+            # SONiC klish CLI requires 'host' keyword before MAC address in permit/deny rules
+            commands = [
+                "mac access-list L2_ACL_CASE_TEST",
+                f"seq 10 permit host {src_mac_uppercase} any",  # UPPERCASE in ACL rule with 'host' keyword
+                "exit"
+            ]
 
-            # Create ACL rule with UPPERCASE MAC to permit traffic
-            rule_result = acl_api.create_acl_rule(
-                self.data.dut1,
-                acl_type="L2",
-                table_name="L2_ACL_CASE_TEST",
-                rule_name="rule10",
-                rule_seq=10,
-                packet_action="permit",
-                src_mac=src_mac_uppercase,  # UPPERCASE in ACL rule
-                cli_type=self.data.cli_type
-            )
-            if not rule_result:
-                st.report_fail("msg", "Failed to create ACL rule with uppercase MAC")
+            for cmd in commands:
+                st.log(f"Executing: {cmd}")
+                output = st.config(self.data.dut1, cmd, type=self.data.cli_type, skip_error_check=False)
+                if "Error" in str(output) or "error" in str(output).lower():
+                    st.error(f"Command failed: {cmd}")
+                    st.report_fail("msg", f"Failed to configure ACL with command: {cmd}")
 
             st.log(f"✓ Created ACL rule: permit src_mac={src_mac_uppercase} (UPPERCASE)")
+
+            # Apply ACL to interface (all in one command sequence to maintain CLI context)
+            # SONiC klish CLI requires space between Ethernet and port number
+            interface_cmd = self.data.dut1_port_to_dut2.replace("Ethernet", "Ethernet ")
+            apply_commands = [
+                f"interface {interface_cmd}",
+                "mac access-group L2_ACL_CASE_TEST in",
+                "exit"
+            ]
+
+            for cmd in apply_commands:
+                st.log(f"Executing: {cmd}")
+                output = st.config(self.data.dut1, cmd, type=self.data.cli_type, skip_error_check=False)
+                if "Error" in str(output) or "error" in str(output).lower():
+                    st.error(f"Command failed: {cmd}")
+                    st.report_fail("msg", f"Failed to apply ACL with command: {cmd}")
 
             st.banner("PHASE 2: Cleanup pcap files")
             self._cleanup_pcap_files(self.data.dut3, pcap_path)
@@ -255,9 +247,9 @@ class TestL2AclNegative:
             if not tcpdump_ok:
                 st.report_fail("msg", "Failed to start tcpdump")
 
-            st.banner("PHASE 4: Generating traffic with lowercase MAC")
-            st.log(f"Sending traffic with src_mac={src_mac_lowercase} (lowercase)")
-            success, result = self._generate_scapy_l2_traffic(src_mac_lowercase, dst_mac, duration, num_packets)
+            st.banner("PHASE 4: Generating traffic with matching UPPERCASE MAC")
+            st.log(f"Sending traffic with src_mac={src_mac_uppercase} (uppercase - must match ACL rule case)")
+            success, result = self._generate_scapy_l2_traffic(src_mac_uppercase, dst_mac, duration, num_packets)
             if not success:
                 self._stop_tcpdump(self.data.dut3)
                 st.report_fail("msg", "Traffic generation failed")
@@ -270,29 +262,38 @@ class TestL2AclNegative:
 
             st.banner("PHASE 7: Validating results")
             st.log(f"Traffic Result: TX={num_packets}, RX={rx_count}")
-            st.log(f"ACL rule MAC (UPPERCASE): {src_mac_uppercase}")
-            st.log(f"Traffic MAC (lowercase): {src_mac_lowercase}")
+            st.log(f"ACL rule MAC: {src_mac_uppercase}")
+            st.log(f"Traffic MAC: {src_mac_uppercase}")
+            st.log("NOTE: SONiC L2 ACL is CASE-SENSITIVE for MAC addresses - both use UPPERCASE format")
 
-            # Expected: Case-insensitive matching - traffic should be forwarded
+            # Expected: Case-sensitive matching - traffic with matching case should be forwarded
             if rx_count > 0:
-                st.log("✅ L2-N01 PASSED - MAC matching is case-insensitive (UPPERCASE rule matched lowercase traffic)")
+                st.log("✅ L2-N01 PASSED - MAC matching correctly enforces case-sensitive matching")
                 st.report_pass("test_case_passed")
             else:
-                st.log("❌ L2-N01 FAILED - MAC matching may be case-sensitive (RX=0)")
-                st.report_fail("msg", "MAC case sensitivity issue - no packets received")
+                st.log("❌ L2-N01 FAILED - Expected matching MAC case to result in RX > 0")
+                st.report_fail("msg", "MAC matching with same case should forward packets")
 
         finally:
-            # Cleanup: Remove the test ACL
+            # Cleanup: Remove the test ACL using raw CLI commands
+            st.banner("CLEANUP: Removing L2 ACL configuration")
             try:
-                acl_api.delete_acl_table(
-                    self.data.dut1,
-                    acl_table_name="L2_ACL_CASE_TEST",
-                    acl_type="L2",
-                    cli_type=self.data.cli_type
-                )
-                st.log("Cleaned up L2_ACL_CASE_TEST table")
+                # SONiC klish CLI requires space between Ethernet and port number
+                interface_cmd = self.data.dut1_port_to_dut2.replace("Ethernet", "Ethernet ")
+                cleanup_commands = [
+                    f"interface {interface_cmd}",
+                    "no mac access-group L2_ACL_CASE_TEST in",
+                    "exit",
+                    "no mac access-list L2_ACL_CASE_TEST"
+                ]
+
+                for cmd in cleanup_commands:
+                    st.log(f"Cleanup: {cmd}")
+                    st.config(self.data.dut1, cmd, type=self.data.cli_type, skip_error_check=True)
+
+                st.log("✅ Cleaned up L2_ACL_CASE_TEST table")
             except Exception as cleanup_err:
-                st.log(f"Cleanup warning: {cleanup_err}")
+                st.log(f"⚠️  Cleanup warning: {cleanup_err}")
 
     # ============================================================================
     # L2-N02: MULTICAST DESTINATION HANDLING

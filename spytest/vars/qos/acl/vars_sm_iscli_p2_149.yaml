@@ -1,0 +1,216 @@
+###############################################################################
+# SM_ISCLI_P2_149: IPv4 ACL Show Output Formatting - Test Variables
+#
+# This file defines test variables for the ACL output formatting test suite.
+# Supports single-node SONiC topology for CLI output validation.
+#
+# Date: 2026-04-29
+# Version: 1.0
+###############################################################################
+
+defaults:
+  min_topology:
+    - D1          # Single-node topology for ACL CLI testing
+
+  cli_type: klish
+  verify_timeout: 30
+  cleanup: true
+  pagination_safe: true  # Use terminal length 0 or no-more
+
+
+# Test case configurations
+test_cases:
+
+  # TC1: Single Rule ACL Output Formatting
+  tc1_single_rule:
+    acl_name: test_acl_001
+    description: "Single rule ACL output formatting verification"
+    rules:
+      - seq: 10
+        action: "deny"
+        protocol: "ip"
+        src_ip: "host 172.0.0.1"
+        dst_ip: "any"
+
+    expected:
+      header_format: "ip access-list {acl_name}"
+      rule_format: "seq {seq} {action} {protocol} {src_ip} {dst_ip}"
+      rule_indentation: true          # Rules should be indented
+      rule_count: 1
+
+
+  # TC2: Multiple Rules ACL Output Formatting
+  tc2_multiple_rules:
+    acl_name: test_acl_002
+    description: "Multiple rules ACL output formatting"
+    rules:
+      - seq: 10
+        action: "deny"
+        protocol: "ip"
+        src_ip: "host 172.0.0.1"
+        dst_ip: "any"
+      - seq: 20
+        action: "permit"
+        protocol: "ip"
+        src_ip: "172.0.0.0/24"
+        dst_ip: "any"
+      - seq: 30
+        action: "permit"
+        protocol: "ip"
+        src_ip: "any"
+        dst_ip: "any"
+
+    expected:
+      header_format: "ip access-list {acl_name}"
+      rule_format: "seq {seq} {action} {protocol} {src_ip} {dst_ip}"
+      rule_indentation: true
+      rule_ordering: "ascending"      # Rules in sequence order
+      rule_count: 3
+
+
+  # TC3: Show All ACLs with Pagination Handling
+  tc3_show_all_acls:
+    description: "Show all ACLs without pagination issues"
+    acl_names:
+      - test_acl_multi
+
+    rules:
+      - seq: 10
+        action: "deny"
+        protocol: "ip"
+        src_ip: "host 172.0.0.1"
+        dst_ip: "any"
+      - seq: 20
+        action: "permit"
+        protocol: "ip"
+        src_ip: "172.0.0.0/24"
+        dst_ip: "any"
+      - seq: 30
+        action: "permit"
+        protocol: "ip"
+        src_ip: "any"
+        dst_ip: "any"
+
+    expected:
+      pagination_safe: true
+      truncation_safe: true
+      all_rules_visible: true
+
+
+  # TC4: Detailed ACL View Output
+  tc4_detailed_view:
+    acl_name: test_acl_detailed
+    description: "ACL detailed view output formatting"
+    rules:
+      - seq: 10
+        action: "deny"
+        protocol: "ip"
+        src_ip: "host 172.0.0.1"
+        dst_ip: "any"
+
+    expected:
+      detailed_output: true
+      indentation_preserved: true     # Hierarchy: ACL > rule > details
+
+
+  # TC5: Special IP Patterns Formatting
+  tc5_ip_patterns:
+    acl_name: test_acl_patterns
+    description: "Various IP address patterns (host, CIDR, any)"
+    rules:
+      - seq: 5
+        action: "deny"
+        protocol: "ip"
+        src_ip: "host 10.0.0.1"
+        dst_ip: "any"
+      - seq: 10
+        action: "deny"
+        protocol: "ip"
+        src_ip: "172.0.0.0/24"
+        dst_ip: "any"
+      - seq: 15
+        action: "permit"
+        protocol: "ip"
+        src_ip: "192.168.0.0/16"
+        dst_ip: "10.0.0.0/8"
+      - seq: 20
+        action: "permit"
+        protocol: "ip"
+        src_ip: "any"
+        dst_ip: "any"
+
+    expected:
+      pattern_support:
+        - host_keyword: true
+        - cidr_notation: true
+        - any_keyword: true
+      format_consistency: true        # All patterns format correctly
+
+
+  # TC6: ACL Deletion Verification
+  tc6_acl_deletion:
+    acl_name: test_acl_cleanup
+    description: "ACL deletion and cleanup verification"
+    rules:
+      - seq: 10
+        action: "deny"
+        protocol: "ip"
+        src_ip: "host 172.0.0.1"
+        dst_ip: "any"
+
+    expected:
+      deletion_clean: true            # No residual entries
+      show_command_handles_missing: true
+
+
+# CLI Command Configurations
+cli_commands:
+  # Pagination-safe commands
+  show_acls: "show ip access-lists"
+  show_acl_specific: "show ip access-lists {acl_name}"
+  show_acl_detailed: "show ip access-lists {acl_name} detailed"
+
+  # Pagination handling
+  disable_pagination: "terminal length 0"
+  show_with_no_more: "show ip access-lists | no-more"
+
+  # ACL configuration commands
+  configure: "configure terminal"
+  create_acl: "ip access-list {acl_name}"
+  add_rule: "seq {seq} {action} {protocol} {src_ip} {dst_ip}"
+  delete_acl: "no ip access-list {acl_name}"
+  exit_config: "exit"
+
+
+# Validation Criteria
+validation:
+  # Output formatting
+  indentation_chars: 4               # Number of spaces for rule indentation
+  header_no_indent: true             # ACL name should not be indented
+  rules_indented: true               # Rules should be indented
+
+  # Rule content preservation
+  preserve_all_fields: true
+  preserve_sequence_numbers: true
+  preserve_actions: true
+  preserve_protocols: true
+  preserve_ip_addresses: true
+
+  # Ordering and consistency
+  sequence_order_ascending: true
+  no_rule_reordering: true
+  consistent_formatting: true
+
+  # Truncation and pagination
+  no_truncation: true
+  no_more_prompts: false             # Should be false after terminal length 0
+  output_complete: true
+
+
+# Logging configuration
+logging:
+  debug: true
+  capture_raw_output: true
+  compare_with_expected: true
+  generate_report: true
+

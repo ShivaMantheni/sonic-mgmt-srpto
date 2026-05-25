@@ -49,15 +49,24 @@ DEFAULT_SCAPY_SCRIPT_PATH = "/tmp/scapy_traffic_sender.py"
 
 def get_interface_mac(dut: str, interface: str, cli_type: str = "klish") -> Optional[str]:
     """
-    Retrieve MAC address of a specified interface.
+    Retrieve MAC address of a specified interface using click commands.
+
+    Workaround for klish 'show interface' Jinja2 template errors.
+    Uses a two-step approach:
+    1. Extract interface IP from 'show ip route' (click command)
+    2. Extract MAC from 'show arp' for that IP (click command)
+
+    Fallback methods if route-based method fails:
+    - ip link show {interface}
+    - ethtool -P {interface}
 
     Args:
         dut: Device handle
         interface: Interface name (e.g., "Ethernet0", "Ethernet4")
-        cli_type: CLI type to use (default: "klish")
+        cli_type: CLI type parameter (kept for backward compatibility, not used)
 
     Returns:
-        MAC address string (e.g., "aa:bb:cc:dd:ee:ff") or None if not found
+        MAC address string (e.g., "aa:bb:cc:dd:ee:ff") or None if all methods fail
 
     Example:
         >>> mac = get_interface_mac("D1", "Ethernet0")
@@ -66,25 +75,90 @@ def get_interface_mac(dut: str, interface: str, cli_type: str = "klish") -> Opti
     """
     st.log(f"Retrieving MAC address for {interface} on {dut}")
 
+    # Method 1: Use show ip route + show arp (click commands - avoids klish Jinja2 error)
     try:
-        output = st.show(dut, f"show interface {interface} | grep address", type=cli_type, skip_tmpl=True)
+        st.log(f"Method 1: Extracting IP from show ip route, then MAC from show arp")
+
+        # Step 1: Get interface IP from show ip route
+        route_output = st.show(dut, "show ip route", type="click", skip_error_check=False)
+        st.log(f"Route output:\n{route_output}")
+
+        # Parse route output to find IP connected to this interface
+        # Format: "C>*10.0.0.0/24 is directly connected, Ethernet0, 01:34:58"
+        route_pattern = rf'(\d+\.\d+\.\d+\.\d+)/\d+\s+is\s+directly\s+connected,\s+{interface}'
+        route_match = re.search(route_pattern, str(route_output))
+
+        if route_match:
+            interface_ip = route_match.group(1)
+            st.log(f"✅ Found interface IP for {interface}: {interface_ip}")
+
+            # Step 2: Get MAC from ARP table for this IP
+            arp_output = st.show(dut, "show arp", type="click", skip_error_check=False)
+            st.log(f"ARP output:\n{arp_output}")
+
+            # Parse ARP output to find MAC for this IP
+            # Format: "10.1.1.1         22:90:49:6f:a2:e2  Ethernet0   -"
+            arp_pattern = rf'{re.escape(interface_ip)}\s+([0-9a-fA-F]{{2}}:[0-9a-fA-F]{{2}}:[0-9a-fA-F]{{2}}:[0-9a-fA-F]{{2}}:[0-9a-fA-F]{{2}}:[0-9a-fA-F]{{2}})\s+{interface}'
+            arp_match = re.search(arp_pattern, str(arp_output))
+
+            if arp_match:
+                mac = arp_match.group(1).lower()
+                st.log(f"✅ Found MAC address for {interface}: {mac}")
+                st.log(f"   (via: show ip route + show arp method)")
+                return mac
+
+    except Exception as e:
+        st.warn(f"Method 1 (show ip route + show arp) failed: {e}")
+
+    # Method 2: Try using ip link show command
+    try:
+        st.log(f"Method 2: Using ip link show")
+        output = st.show(dut, f"ip link show {interface}", skip_error_check=False)
+
         st.log(f"Interface output:\n{output}")
 
-        # MAC address pattern: XX:XX:XX:XX:XX:XX
-        mac_pattern = r'([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})'
+        # Extract MAC from ip link output
+        # Format: "link/ether XX:XX:XX:XX:XX:XX brd XX:XX:XX:XX:XX:XX"
+        mac_pattern = r'link/ether\s+([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})'
         match = re.search(mac_pattern, str(output))
 
         if match:
             mac = match.group(1).lower()
-            st.log(f"Found MAC address: {mac}")
+            st.log(f"✅ Found MAC address for {interface}: {mac}")
+            st.log(f"   (via: ip link show method)")
             return mac
-        else:
-            st.log(f"Could not extract MAC address for {interface} on {dut}")
-            return None
 
     except Exception as e:
-        st.error(f"Error retrieving MAC address: {e}")
-        return None
+        st.warn(f"Method 2 (ip link show) failed: {e}")
+
+    # Method 3: Try ethtool command
+    try:
+        st.log(f"Method 3: Using ethtool")
+        output = st.show(dut, f"ethtool -P {interface}", skip_error_check=False)
+
+        st.log(f"Interface output:\n{output}")
+
+        # Extract MAC from ethtool output
+        # Format: "Permanent address: XX:XX:XX:XX:XX:XX"
+        mac_pattern = r'Permanent\s+address:\s+([0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2})'
+        match = re.search(mac_pattern, str(output))
+
+        if match:
+            mac = match.group(1).lower()
+            st.log(f"✅ Found MAC address for {interface}: {mac}")
+            st.log(f"   (via: ethtool method)")
+            return mac
+
+    except Exception as e:
+        st.warn(f"Method 3 (ethtool) failed: {e}")
+
+    # If all methods fail, return None and warn
+    st.error(f"❌ Could not extract MAC address for {interface} on {dut}")
+    st.error(f"   All methods failed:")
+    st.error(f"     1. show ip route + show arp (click commands)")
+    st.error(f"     2. ip link show")
+    st.error(f"     3. ethtool -P")
+    return None
 
 
 def get_default_mac(dut_index: int = 1) -> str:
