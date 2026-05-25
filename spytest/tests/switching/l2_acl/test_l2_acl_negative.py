@@ -25,7 +25,7 @@ Pre-requisites:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Mapping, Tuple
+from typing import Any, Dict, Tuple
 import re
 
 import pytest
@@ -34,24 +34,6 @@ import yaml
 from spytest import SpyTestDict, st
 import apis.qos.acl as acl_api
 import apis.common.scapy_traffic as scapy_traffic
-
-
-def _get_connected_port(topology_config: Mapping[str, Any], from_dut: str, to_dut: str) -> str | None:
-    """Discover the connected port from one DUT to another using testbed topology."""
-    if not topology_config:
-        return None
-
-    dut_topology = topology_config.get(from_dut, {})
-    if not isinstance(dut_topology, dict):
-        return None
-
-    interfaces = dut_topology.get("interfaces", {})
-    for port_name, port_config in interfaces.items():
-        if isinstance(port_config, dict):
-            if port_config.get("EndDevice") == to_dut:
-                return port_name
-
-    return None
 
 
 pytestmark = [
@@ -79,36 +61,27 @@ class TestL2AclNegative:
         cls.data.dut2 = getattr(topology, "D2")  # TX host
         cls.data.dut3 = getattr(topology, "D3")  # RX host
 
-        # Get topology dict for port discovery (access topology attribute from framework)
-        testbed_topology = {}
+        # Discover connected ports from topology object
+        # st.ensure_min_topology() already parsed the testbed YAML and created port attributes
         try:
-            # Try to get topology from framework after ensure_min_topology sets it globally
-            testbed_vars = st.get_testbed_vars()
-            if testbed_vars and hasattr(testbed_vars, 'topology'):
-                testbed_topology = testbed_vars.topology or {}
-                if testbed_topology:
-                    st.log(f"✅ Retrieved testbed topology from framework")
-        except Exception as e:
-            st.debug(f"Could not retrieve testbed topology from framework: {e}")
-
-        # Discover connected ports from testbed topology
-        cls.data.dut1_port_to_dut2 = _get_connected_port(testbed_topology, "D1", "D2") or \
-                                     _get_connected_port(testbed_topology, "DUT1", "DUT2")
-        cls.data.dut2_port_to_dut1 = _get_connected_port(testbed_topology, "D2", "D1") or \
-                                     _get_connected_port(testbed_topology, "DUT2", "DUT1")
-        cls.data.dut1_port_to_dut3 = _get_connected_port(testbed_topology, "D1", "D3") or \
-                                     _get_connected_port(testbed_topology, "DUT1", "DUT3")
-        cls.data.dut3_port_to_dut1 = _get_connected_port(testbed_topology, "D3", "D1") or \
-                                     _get_connected_port(testbed_topology, "DUT3", "DUT1")
-
-        # If port discovery from testbed YAML failed, use default Ethernet ports as fallback
-        if not all([cls.data.dut1_port_to_dut2, cls.data.dut2_port_to_dut1,
-                    cls.data.dut1_port_to_dut3, cls.data.dut3_port_to_dut1]):
-            st.warn("⚠️  Could not discover ports from testbed topology, using defaults")
-            cls.data.dut1_port_to_dut2 = cls.data.dut1_port_to_dut2 or "Ethernet0"
-            cls.data.dut2_port_to_dut1 = cls.data.dut2_port_to_dut1 or "Ethernet0"
-            cls.data.dut1_port_to_dut3 = cls.data.dut1_port_to_dut3 or "Ethernet16"
-            cls.data.dut3_port_to_dut1 = cls.data.dut3_port_to_dut1 or "Ethernet0"
+            # Get port connections from topology object
+            # D1D2P1: D1's port connected to D2
+            # D2D1P1: D2's port connected to D1
+            # D1D3P1: D1's port connected to D3
+            # D3D1P1: D3's port connected to D1
+            cls.data.dut1_port_to_dut2 = topology.D1D2P1
+            cls.data.dut2_port_to_dut1 = topology.D2D1P1
+            cls.data.dut1_port_to_dut3 = topology.D1D3P1
+            cls.data.dut3_port_to_dut1 = topology.D3D1P1
+            st.log(f"✅ Successfully discovered ports from topology object:")
+            st.log(f"   D1->D2: {cls.data.dut1_port_to_dut2}")
+            st.log(f"   D2->D1: {cls.data.dut2_port_to_dut1}")
+            st.log(f"   D1->D3: {cls.data.dut1_port_to_dut3}")
+            st.log(f"   D3->D1: {cls.data.dut3_port_to_dut1}")
+        except AttributeError as e:
+            st.error(f"Failed to discover ports from topology: {e}")
+            st.error("Ensure testbed YAML has proper topology definitions for D1-D2 and D1-D3 links")
+            raise
 
         st.log(f"Using ports: D1->D2={cls.data.dut1_port_to_dut2}, "
                f"D2->D1={cls.data.dut2_port_to_dut1}, "

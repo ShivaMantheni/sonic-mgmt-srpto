@@ -211,6 +211,26 @@ class TestL3AclNegative:
         # Store RX port for easy access in test methods
         cls.data.dut3_rx_port = cls.data.dut3_port_to_dut1 or "Ethernet24"
 
+        # CRITICAL FIX: Enable IP forwarding on DUT1 (the router) for inter-subnet traffic routing
+        # Without IP forwarding, DUT1 receives packets but does NOT forward them to other subnets
+        st.banner("Enabling IP forwarding on DUT1 for L3 traffic routing")
+
+        try:
+            # Enable IP forwarding via sysctl
+            st.config(cls.data.dut1, "echo 1 > /proc/sys/net/ipv4/ip_forward")
+            st.log("✅ IP forwarding enabled on DUT1 via sysctl")
+
+            # Verify IP forwarding is enabled
+            result = st.show(cls.data.dut1, "cat /proc/sys/net/ipv4/ip_forward", skip_error_check=True)
+            if result and "1" in str(result):
+                st.log("✅ VERIFIED: IP forwarding is ENABLED on DUT1")
+            else:
+                st.warn(f"⚠️ WARNING: IP forwarding status unclear on DUT1. Result: {result}")
+                st.log("⚠️ Continuing with test - forwarding may not be enabled")
+        except Exception as e:
+            st.warn(f"⚠️ Warning: Could not enable IP forwarding on DUT1: {e}")
+            st.log("⚠️ Continuing with test - if traffic fails, check IP forwarding status")
+
         st.banner("L3 ACL Negative Tests - Setup Complete")
 
     @classmethod
@@ -313,21 +333,41 @@ class TestL3AclNegative:
                 src_ip = rule.get("src_ip", "any")
                 dst_ip = rule.get("dst_ip", "any")
                 protocol = rule.get("protocol", "udp")
+                src_port = rule.get("src_port", None)
+                dst_port = rule.get("dst_port", None)
+                tcp_flags = rule.get("tcp_flags", None)
 
-                st.log(f"  [RULE] {rule_name}: {action} {src_ip} -> {dst_ip} {protocol}")
+                rule_desc = f"{action} {src_ip} -> {dst_ip} {protocol}"
+                if dst_port:
+                    rule_desc += f" dst_port={dst_port}"
+                if tcp_flags:
+                    rule_desc += f" tcp_flags={tcp_flags}"
+
+                st.log(f"  [RULE] {rule_name}: {rule_desc}")
+
+                # Build ACL rule parameters dynamically
+                rule_params = {
+                    "dut": dut,
+                    "acl_type": table_type,
+                    "table_name": table_name,
+                    "rule_name": rule_name,
+                    "packet_action": action,
+                    "src_ip": src_ip,
+                    "dst_ip": dst_ip,
+                    "ip_protocol": protocol,
+                    "cli_type": cli_type,
+                }
+
+                # Add optional port parameters if specified
+                if src_port is not None:
+                    rule_params["src_port"] = src_port
+                if dst_port is not None:
+                    rule_params["dst_port"] = dst_port
+                if tcp_flags is not None:
+                    rule_params["tcp_flags"] = tcp_flags
 
                 # Create ACL rule
-                result = acl_api.create_acl_rule(
-                    dut,
-                    acl_type=table_type,
-                    table_name=table_name,
-                    rule_name=rule_name,
-                    packet_action=action,
-                    src_ip=src_ip,
-                    dst_ip=dst_ip,
-                    ip_protocol=protocol,
-                    cli_type=cli_type
-                )
+                result = acl_api.create_acl_rule(**rule_params)
 
                 if not result:
                     st.error(f"Failed to create ACL rule: {rule_name}")
@@ -433,12 +473,23 @@ class TestL3AclNegative:
         dst_ip: str,
         duration: int = 10,
         total_packets: int = 100,
-        udp_port: int = 54321
+        udp_port: int = 54321,
+        protocol: str = "udp",
+        dst_port: int = None,
+        tcp_flags: str = None
     ) -> Tuple[bool, Dict[str, Any]]:
-        """Generate L3 traffic using Scapy."""
-        st.banner(f"Generating L3 traffic: {src_ip} → {dst_ip}")
+        """Generate L3 traffic using Scapy with protocol support.
+
+        For TCP with custom ports: Uses scapy_traffic_advanced.send_traffic_with_tcp_flags()
+        For UDP: Uses standard scapy_traffic.send_traffic() (hardcoded ports 12345→54321)
+        For other protocols: Uses standard scapy_traffic.send_traffic()
+        """
+        st.banner(f"Generating L3 traffic: {src_ip} → {dst_ip} ({protocol.upper()})")
 
         try:
+            # Import advanced traffic API for TCP with custom ports
+            from apis.common import scapy_traffic_advanced
+
             # Get MAC addresses from dynamically discovered ports
             dut2_tx_port = self.data.dut2_port_to_dut1 or "Ethernet24"
             dut1_rx_port = self.data.dut1_port_to_dut2 or "Ethernet40"
@@ -460,36 +511,116 @@ class TestL3AclNegative:
             pps = total_packets // duration if duration > 0 else 100
             st.log(f"  Rate: {pps} pps, Duration: {duration}s, Total: {total_packets} packets")
 
-            # Send traffic from DUT2
-            st.log(f"  UDP Port: {udp_port}")
+            # Log protocol-specific parameters
+            st.log(f"  Protocol: {protocol.upper()}")
+            if protocol.lower() == "tcp":
+                if dst_port:
+                    st.log(f"  TCP Destination Port: {dst_port}")
+                if tcp_flags:
+                    st.log(f"  TCP Flags: {tcp_flags}")
+            elif protocol.lower() == "udp":
+                # Note: Standard send_traffic() uses hardcoded ports 12345→54321
+                st.log(f"  UDP: Using hardcoded ports (sport=12345, dport=54321)")
             st.log(f"  Payload Size: 22 bytes")
-            st.log(f"  Traffic Type: UDP")
 
-            result = scapy_traffic.send_traffic(
-                dut=self.data.dut2,
-                interface=dut2_tx_port,
-                src_ip=src_ip,
-                dst_ip=dst_ip,
-                src_mac=dut2_mac,
-                dst_mac=dut1_mac,
-                duration=duration,
-                pps=pps,
-                payload_size=22,
-                traffic_type="udp"
-            )
+            # Route to appropriate API based on protocol and port requirements
+            result = None
+
+            if protocol.lower() == "tcp" and dst_port:
+                # Use advanced API for TCP with custom destination port
+                st.log(f"  Using advanced API: send_traffic_with_tcp_flags()")
+                result = scapy_traffic_advanced.send_traffic_with_tcp_flags(
+                    dut=self.data.dut2,
+                    interface=dut2_tx_port,
+                    src_ip=src_ip,
+                    dst_ip=dst_ip,
+                    src_mac=dut2_mac,
+                    dst_mac=dut1_mac,
+                    tcp_flags=tcp_flags or "S",  # Default to SYN if not specified
+                    src_port=12345,              # Standard source port
+                    dst_port=dst_port,           # Custom destination port from YAML
+                    duration=duration,
+                    pps=pps,
+                    payload_size=22
+                )
+            else:
+                # Use standard API for UDP or TCP without custom port
+                # NOTE: Standard send_traffic() has hardcoded ports: sport=12345, dport=54321
+                st.log(f"  Using standard API: send_traffic()")
+                result = scapy_traffic.send_traffic(
+                    dut=self.data.dut2,
+                    interface=dut2_tx_port,
+                    src_ip=src_ip,
+                    dst_ip=dst_ip,
+                    src_mac=dut2_mac,
+                    dst_mac=dut1_mac,
+                    duration=duration,
+                    pps=pps,
+                    payload_size=22,
+                    traffic_type=protocol.lower()
+                )
 
             st.log(f"  Traffic result: {result}")
 
-            if result.get("success"):
-                st.log(f"✅ Traffic generation completed: {total_packets} packets sent")
+            if result and result.get("success"):
+                packets_sent = result.get("packets_sent", total_packets)
+                st.log(f"✅ Traffic generation completed: {packets_sent} packets sent")
                 return True, result
             else:
                 st.error(f"❌ Traffic generation failed: {result}")
-                return False, result
+                return False, result or {"success": False, "error": "No result"}
 
         except Exception as e:
             st.error(f"Error during traffic generation: {e}")
+            import traceback
+            st.debug(traceback.format_exc())
             return False, {"success": False, "error": str(e)}
+
+    @classmethod
+    def _clear_interface_counters(cls, dut: str, interfaces: List[str]) -> bool:
+        """Clear interface counters before traffic generation."""
+        st.banner(f"Clearing interface counters on {dut}")
+        try:
+            # Clear all interface counters (klish command)
+            st.log(f"  Clearing counters on {dut} for interfaces: {', '.join(interfaces)}")
+            cmd = "clear interface counters"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=False)
+            st.log(f"✅ Cleared counters on {dut} for {len(interfaces)} interface(s)")
+            return True
+        except Exception as e:
+            st.warn(f"Error clearing interface counters on {dut}: {e}")
+            return False
+
+    @classmethod
+    def _show_interface_counters(cls, dut: str, interface: str) -> Dict[str, Any]:
+        """Display interface counters after traffic generation."""
+        st.log(f"Showing counters for {dut}:{interface}")
+        try:
+            # Use the correct klish command: "show interface counters"
+            cmd = "show interface counters"
+            output = st.show(dut, cmd, skip_tmpl=True, skip_error_check=False)
+
+            # Parse interface statistics
+            stats = {
+                "interface": interface,
+                "output_raw": output
+            }
+
+            # Extract packet counts (common format: packets, bytes, errors, drops)
+            lines = output.split('\n')
+            for line in lines:
+                # Look for lines containing the interface name or counter stats
+                if interface in line or 'RX_OK' in line or 'TX_OK' in line or 'RX_ERR' in line or 'TX_ERR' in line:
+                    st.log(f"  {line.strip()}")
+                if 'packets' in line.lower() or 'bytes' in line.lower() or 'dropped' in line.lower():
+                    st.log(f"  {line.strip()}")
+
+            st.log(f"✅ Retrieved counters for {interface}")
+            return stats
+
+        except Exception as e:
+            st.error(f"Error showing interface counters on {dut}: {e}")
+            return {"interface": interface, "error": str(e)}
 
     # ========== NEGATIVE TEST CASES (L3-N01 through L3-N09) ==========
 
@@ -534,16 +665,23 @@ class TestL3AclNegative:
 
         # Phase 6: Verify
         rx_count = self._count_packets_in_pcap(self.data.dut3, pcap_path)
-        expected_rx_min = int(num_packets * traffic.get("expected_rx_min_pct", 90) / 100)
 
-        st.log(f"Traffic Result: TX={num_packets}, RX={rx_count}, Expected≥{expected_rx_min}")
+        # Determine platform type to apply appropriate threshold
+        is_virtual = "vsonic" in str(self.data.dut1).lower() or "vs" in str(self.data.testbed_name).lower()
+        min_rx_ratio = 95.0 if is_virtual else 98.0
+        platform_type = "Virtual (SONiC-VS)" if is_virtual else "Hardware"
 
-        if rx_count >= expected_rx_min:
-            st.log(f"✅ L3-N01 PASSED: More specific rule precedence verified")
+        rx_ratio = (rx_count / num_packets * 100) if num_packets > 0 else 0.0
+
+        st.log(f"Traffic Result: TX={num_packets}, RX={rx_count} ({rx_ratio:.1f}%)")
+        st.log(f"Platform: {platform_type}, Threshold: ≥{min_rx_ratio:.0f}%")
+
+        if rx_ratio >= min_rx_ratio:
+            st.log(f"✅ L3-N01 PASSED: More specific rule precedence verified (RX={rx_ratio:.1f}% ≥ {min_rx_ratio:.0f}%)")
             st.report_pass("test_case_passed")
         else:
-            st.error(f"❌ L3-N01 FAILED: Expected RX≥{expected_rx_min}, got RX={rx_count}")
-            st.report_fail("msg", f"Unexpected RX count: {rx_count}")
+            st.error(f"❌ L3-N01 FAILED: RX={rx_ratio:.1f}% < {min_rx_ratio:.0f}% threshold")
+            st.report_fail("msg", f"Unexpected RX ratio: {rx_ratio:.1f}%")
 
     @pytest.mark.inventory(feature="ACL", testcases=["L3_ACL_N02"])
     def test_l3_n02_broadcast_address(self) -> None:
@@ -571,8 +709,13 @@ class TestL3AclNegative:
         dst_ip = traffic.get("dest_ip", "255.255.255.255")
         num_packets = traffic.get("num_packets", 100)
         duration = traffic.get("duration", 10)
+        protocol = traffic.get("protocol", "udp")
+        dst_port = traffic.get("dst_port", None)
 
-        success, _ = self._generate_scapy_traffic(src_ip, dst_ip, duration, num_packets)
+        success, _ = self._generate_scapy_traffic(
+            src_ip, dst_ip, duration, num_packets,
+            protocol=protocol, dst_port=dst_port
+        )
         if not success:
             self._stop_tcpdump(self.data.dut3)
             st.report_fail("msg", "Traffic generation failed")
@@ -584,11 +727,11 @@ class TestL3AclNegative:
 
         expected_rx = traffic.get("expected_rx", 0)
         if rx_count == expected_rx:
-            st.log(f"✅ L3-N02 PASSED: Broadcast handling verified")
+            st.log(f"✅ L3-N02 PASSED: Broadcast handling verified (DENY rule drop)")
             st.report_pass("test_case_passed")
         else:
             st.error(f"❌ L3-N02 FAILED: Expected RX={expected_rx}, got RX={rx_count}")
-            st.report_fail("msg", f"Unexpected RX count: {rx_count}")
+            st.report_fail("msg", f"Unexpected RX count: {rx_count} (expected {expected_rx})")
 
     @pytest.mark.inventory(feature="ACL", testcases=["L3_ACL_N03"])
     def test_l3_n03_protocol_zero(self) -> None:
@@ -698,8 +841,8 @@ class TestL3AclNegative:
 
     @pytest.mark.inventory(feature="ACL", testcases=["L3_ACL_N06"])
     def test_l3_n06_invalid_tcp_flags(self) -> None:
-        """TC L3-N06: Invalid TCP flags (SYN+FIN)."""
-        st.banner("TEST L3-N06: Invalid TCP Flags (SYN+FIN)")
+        """TC L3-N06: Deny TCP destination port range."""
+        st.banner("TEST L3-N06: Deny TCP Destination Port Range")
 
         testcase = self._get_testcase("L3-N06")
         acl = testcase.get("acl")
@@ -712,7 +855,7 @@ class TestL3AclNegative:
         self._cleanup_pcap_files(self.data.dut3, pcap_path)
 
         self._configure_acl(acl)
-        tcpdump_ok = self._start_tcpdump(self.data.dut3, self.data.dut3_rx_port, pcap_path, 54321)
+        tcpdump_ok = self._start_tcpdump(self.data.dut3, self.data.dut3_rx_port, pcap_path, 443)
         if not tcpdump_ok:
             st.report_fail("msg", "Failed to start tcpdump listener")
 
@@ -720,8 +863,13 @@ class TestL3AclNegative:
         dst_ip = traffic.get("dest_ip", "20.0.0.2")
         num_packets = traffic.get("num_packets", 100)
         duration = traffic.get("duration", 10)
+        protocol = traffic.get("protocol", "tcp")
+        dst_port = traffic.get("dst_port", 443)
 
-        success, _ = self._generate_scapy_traffic(src_ip, dst_ip, duration, num_packets)
+        success, _ = self._generate_scapy_traffic(
+            src_ip, dst_ip, duration, num_packets,
+            protocol=protocol, dst_port=dst_port
+        )
         if not success:
             self._stop_tcpdump(self.data.dut3)
             st.report_fail("msg", "Traffic generation failed")
@@ -730,11 +878,14 @@ class TestL3AclNegative:
         rx_count = self._count_packets_in_pcap(self.data.dut3, pcap_path)
         expected_rx = traffic.get("expected_rx", 0)
 
+        st.log(f"Traffic Result: TX={num_packets}, RX={rx_count}, Expected RX={expected_rx}")
+
         if rx_count == expected_rx:
-            st.log(f"✅ L3-N06 PASSED: Invalid TCP flags verified")
+            st.log(f"✅ L3-N06 PASSED: TCP port DENY rule verified")
             st.report_pass("test_case_passed")
         else:
-            st.report_fail("msg", f"Unexpected RX count: {rx_count}")
+            st.error(f"❌ L3-N06 FAILED: Expected RX={expected_rx}, got RX={rx_count}")
+            st.report_fail("msg", f"Unexpected RX count: {rx_count} (expected {expected_rx})")
 
     @pytest.mark.inventory(feature="ACL", testcases=["L3_ACL_N07"])
     def test_l3_n07_ttl_zero(self) -> None:
@@ -828,7 +979,6 @@ class TestL3AclNegative:
         dst_ip = traffic.get("dest_ip", "20.0.0.2")
         num_packets = traffic.get("num_packets", 100)
         duration = traffic.get("duration", 10)
-        expected_rx_min = int(num_packets * traffic.get("expected_rx_min_pct", 90) / 100)
 
         success, _ = self._generate_scapy_traffic(src_ip, dst_ip, duration, num_packets)
         if not success:
@@ -838,10 +988,19 @@ class TestL3AclNegative:
         self._stop_tcpdump(self.data.dut3)
         rx_count = self._count_packets_in_pcap(self.data.dut3, pcap_path)
 
-        st.log(f"Traffic Result: TX={num_packets}, RX={rx_count}, Expected≥{expected_rx_min}")
+        # Determine platform type to apply appropriate threshold
+        is_virtual = "vsonic" in str(self.data.dut1).lower() or "vs" in str(self.data.testbed_name).lower()
+        min_rx_ratio = 95.0 if is_virtual else 98.0
+        platform_type = "Virtual (SONiC-VS)" if is_virtual else "Hardware"
 
-        if rx_count >= expected_rx_min:
-            st.log(f"✅ L3-N09 PASSED: Minimum packet size verified")
+        rx_ratio = (rx_count / num_packets * 100) if num_packets > 0 else 0.0
+
+        st.log(f"Traffic Result: TX={num_packets}, RX={rx_count} ({rx_ratio:.1f}%)")
+        st.log(f"Platform: {platform_type}, Threshold: ≥{min_rx_ratio:.0f}%")
+
+        if rx_ratio >= min_rx_ratio:
+            st.log(f"✅ L3-N09 PASSED: Minimum packet size verified (RX={rx_ratio:.1f}% ≥ {min_rx_ratio:.0f}%)")
             st.report_pass("test_case_passed")
         else:
-            st.report_fail("msg", f"Unexpected RX count: {rx_count}")
+            st.error(f"❌ L3-N09 FAILED: RX={rx_ratio:.1f}% < {min_rx_ratio:.0f}% threshold")
+            st.report_fail("msg", f"Unexpected RX ratio: {rx_ratio:.1f}%")

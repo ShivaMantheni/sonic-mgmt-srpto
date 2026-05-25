@@ -91,6 +91,9 @@ testcases:
 
   # TC L3-01: Deny Source IP (Host)
   # Validates that traffic from a specific source IP is dropped
+  # NOTE: This YAML uses 10.0.0.99/32 (virtual testbed).
+  #       Hardware testbeds may use different source IPs.
+  #       Test script dynamically reads the source_ip from this configuration.
   "L3-01":
     title: "Deny source IP (host level)"
     description: |
@@ -98,6 +101,7 @@ testcases:
       (10.0.0.99) correctly drops all matching packets at the DUT1 ingress port.
       Traffic is generated from DUT2 with source IP 10.0.0.99, which matches
       the DENY rule. Expected result: 0 packets received on DUT3 (100% loss).
+      NOTE: Virtual testbed uses 10.0.0.99/32 as the source IP to deny.
 
     acl:
       tables:
@@ -108,14 +112,16 @@ testcases:
 
           rules:
             # Rule 1: DENY traffic from source IP 10.0.0.99
-            - rule_name: "RULE_1_DENY_SOURCE"
+            - seq: 10
+              rule_name: "RULE_1_DENY_SOURCE"
               action: "deny"
               src_ip: "10.0.0.99/32"    # Host-level source match
               dst_ip: "any"
               protocol: "udp"
 
             # Rule 2: PERMIT all other traffic (fallback)
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -153,14 +159,16 @@ testcases:
 
           rules:
             # Rule 1: DENY traffic from subnet 10.0.0.0/24
-            - rule_name: "RULE_1_DENY_SUBNET"
+            - seq: 10
+              rule_name: "RULE_1_DENY_SUBNET"
               action: "deny"
               src_ip: "10.0.0.0/24"     # Subnet match
               dst_ip: "any"
               protocol: "udp"
 
             # Rule 2: PERMIT all other traffic
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -180,6 +188,10 @@ testcases:
       - RX host should receive 0 packets
 
   # TC L3-03: Deny Destination IP (Host)
+  # Validates that traffic to a specific host IP is dropped
+  # NOTE: This YAML uses 20.0.0.99/32 (virtual testbed).
+  #       Hardware testbeds use 10.1.2.99/32 instead.
+  #       Test script dynamically extracts the IP from RX host configuration.
   "L3-03":
     title: "Deny destination IP (host level)"
     description: |
@@ -187,6 +199,7 @@ testcases:
       correctly drops all matching packets. Traffic is sent to destination IP 20.0.0.99
       (different from RX host IP 20.0.0.2), which matches the DENY rule.
       Expected result: 0 packets received on RX host (100% loss).
+      NOTE: Virtual testbed uses 20.0.0.99/32; hardware testbeds use 10.1.2.99/32.
 
     acl:
       tables:
@@ -197,14 +210,16 @@ testcases:
 
           rules:
             # Rule 1: DENY traffic to destination IP 20.0.0.99
-            - rule_name: "RULE_1_DENY_DEST"
+            - seq: 10
+              rule_name: "RULE_1_DENY_DEST"
               action: "deny"
               src_ip: "any"
               dst_ip: "20.0.0.99/32"    # Host-level destination match
               protocol: "udp"
 
             # Rule 2: PERMIT all other traffic
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -225,6 +240,9 @@ testcases:
 
   # TC L3-04: Deny Destination Subnet (/24)
   # Validates that traffic to a destination subnet is dropped
+  # NOTE: This YAML uses 20.0.0.0/24 (virtual testbed).
+  #       Hardware testbeds use 10.1.2.0/24 instead.
+  #       Test script dynamically extracts subnet from RX IP configuration.
   "L3-04":
     title: "Deny destination subnet (/24)"
     description: |
@@ -232,6 +250,7 @@ testcases:
       correctly drops all packets destined to any IP within that subnet.
       Traffic is sent to destination IP 20.0.0.50 (within denied subnet 20.0.0.0/24),
       which matches the DENY rule. Expected result: 0 packets received on RX host (100% loss).
+      NOTE: Virtual testbed uses 20.0.0.0/24; hardware testbeds use 10.1.2.0/24.
 
     acl:
       tables:
@@ -242,14 +261,16 @@ testcases:
 
           rules:
             # Rule 1: DENY traffic to destination subnet 20.0.0.0/24
-            - rule_name: "RULE_1_DENY_DEST_SUBNET"
+            - seq: 10
+              rule_name: "RULE_1_DENY_DEST_SUBNET"
               action: "deny"
               src_ip: "any"
               dst_ip: "20.0.0.0/24"    # Subnet-level destination match
               protocol: "udp"
 
             # Rule 2: PERMIT all other traffic
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -288,14 +309,16 @@ testcases:
 
           rules:
             # Rule 1: PERMIT traffic from whitelisted source IP
-            - rule_name: "RULE_1_PERMIT_WHITELIST"
+            - seq: 10
+              rule_name: "RULE_1_PERMIT_WHITELIST"
               action: "permit"
               src_ip: "10.0.0.88/32"    # Whitelisted source
               dst_ip: "any"
               protocol: "udp"
 
             # Rule 2: DENY all other traffic (implicit default-deny)
-            - rule_name: "RULE_2_DENY_ALL"
+            - seq: 20
+              rule_name: "RULE_2_DENY_ALL"
               action: "deny"
               src_ip: "any"
               dst_ip: "any"
@@ -331,7 +354,8 @@ testcases:
 
           rules:
             # Rule 1: DENY traffic destined to TCP port 80
-            - rule_name: "RULE_1_DENY_TCP_PORT_80"
+            - seq: 10
+              rule_name: "RULE_1_DENY_TCP_PORT_80"
               action: "deny"
               protocol: "tcp"
               dst_port: 80
@@ -339,7 +363,8 @@ testcases:
               dst_ip: "any"
 
             # Rule 2: PERMIT all other traffic (optional, for clarity)
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -378,7 +403,8 @@ testcases:
 
           rules:
             # Rule 1: DENY traffic destined to UDP port 53 (DNS)
-            - rule_name: "RULE_1_DENY_UDP_PORT_53"
+            - seq: 10
+              rule_name: "RULE_1_DENY_UDP_PORT_53"
               action: "deny"
               protocol: "udp"
               dst_port: 53
@@ -386,7 +412,8 @@ testcases:
               dst_ip: "any"
 
             # Rule 2: PERMIT all other traffic
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -424,7 +451,8 @@ testcases:
 
           rules:
             # Rule 1: DENY TCP traffic with SYN flag
-            - rule_name: "RULE_1_DENY_TCP_SYN"
+            - seq: 10
+              rule_name: "RULE_1_DENY_TCP_SYN"
               action: "deny"
               protocol: "tcp"
               tcp_flags: "SYN"        # Match SYN flag
@@ -432,7 +460,8 @@ testcases:
               dst_ip: "any"
 
             # Rule 2: PERMIT all other TCP traffic
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -471,7 +500,8 @@ testcases:
 
           rules:
             # Rule 1: PERMIT TCP traffic with ACK flag (established)
-            - rule_name: "RULE_1_PERMIT_TCP_ACK"
+            - seq: 10
+              rule_name: "RULE_1_PERMIT_TCP_ACK"
               action: "permit"
               protocol: "tcp"
               tcp_flags: "ACK"        # Match ACK flag
@@ -479,7 +509,8 @@ testcases:
               dst_ip: "any"
 
             # Rule 2: DENY all other traffic (default deny)
-            - rule_name: "RULE_2_DENY_ALL"
+            - seq: 20
+              rule_name: "RULE_2_DENY_ALL"
               action: "deny"
               src_ip: "any"
               dst_ip: "any"
@@ -520,7 +551,8 @@ testcases:
 
           rules:
             # Rule 1: DENY specific 5-tuple
-            - rule_name: "RULE_1_DENY_5TUPLE"
+            - seq: 10
+              rule_name: "RULE_1_DENY_5TUPLE"
               action: "deny"
               src_ip: "10.0.0.99/32"     # Specific source
               dst_ip: "20.0.0.2/32"      # Specific destination
@@ -529,7 +561,8 @@ testcases:
               dst_port: 80
 
             # Rule 2: PERMIT all other traffic
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -568,7 +601,8 @@ testcases:
 
           rules:
             # Rule 1: PERMIT only a specific subnet (not used in traffic)
-            - rule_name: "RULE_1_PERMIT_SPECIFIC"
+            - seq: 10
+              rule_name: "RULE_1_PERMIT_SPECIFIC"
               action: "permit"
               src_ip: "172.16.0.0/24"    # Specific subnet (not in traffic)
               dst_ip: "any"
@@ -610,7 +644,8 @@ testcases:
 
           rules:
             # Rule 1: DENY packets with DSCP EF (ToS = 0xB8)
-            - rule_name: "RULE_1_DENY_DSCP_EF"
+            - seq: 10
+              rule_name: "RULE_1_DENY_DSCP_EF"
               action: "deny"
               protocol: "udp"
               dscp: 46                   # DSCP EF = 46 (0xB8 >> 2)
@@ -618,7 +653,8 @@ testcases:
               dst_ip: "any"
 
             # Rule 2: PERMIT all other traffic
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -664,17 +700,19 @@ testcases:
           ports: ["Ethernet0"]
 
           rules:
-            # Rule 1: DENY less specific subnet (10.0.0.0/24)
-            - rule_name: "RULE_1_DENY_SUBNET_24"
-              action: "deny"
-              src_ip: "10.0.0.0/24"       # Less specific
+            # Rule 1: PERMIT more specific subnet (10.0.0.0/25) - must come first
+            - seq: 10
+              rule_name: "RULE_2_PERMIT_SUBNET_25"
+              action: "permit"
+              src_ip: "10.0.0.0/25"       # More specific (10.0.0.0-10.0.0.127)
               dst_ip: "any"
               protocol: "udp"
 
-            # Rule 2: PERMIT more specific subnet (10.0.0.0/25) - should take precedence
-            - rule_name: "RULE_2_PERMIT_SUBNET_25"
-              action: "permit"
-              src_ip: "10.0.0.0/25"       # More specific (10.0.0.0-10.0.0.127)
+            # Rule 2: DENY less specific subnet (10.0.0.0/24)
+            - seq: 20
+              rule_name: "RULE_1_DENY_SUBNET_24"
+              action: "deny"
+              src_ip: "10.0.0.0/24"       # Less specific
               dst_ip: "any"
               protocol: "udp"
 
@@ -696,10 +734,10 @@ testcases:
     title: "Broadcast address handling"
     description: |
       Test validates ACL handling of broadcast packets (destination IP 255.255.255.255).
-      Broadcast traffic is typically handled specially by the system and may be
-      dropped automatically or by explicit ACL rule. Test sends packets to broadcast
-      address and verifies platform-specific behavior.
-      Expected result: Platform-dependent (usually RX=0, dropped automatically).
+      ACL rule explicitly DENY broadcast destination (255.255.255.255) before permitting
+      other traffic. Test sends packets to broadcast address and verifies they are
+      dropped by the DENY rule.
+      Expected result: All broadcast packets dropped (RX=0, all packets denied).
 
     acl:
       tables:
@@ -709,8 +747,17 @@ testcases:
           ports: ["Ethernet0"]
 
           rules:
-            # Rule 1: PERMIT all traffic (no explicit broadcast rule)
-            - rule_name: "RULE_1_PERMIT_ALL"
+            # Rule 1: DENY traffic to broadcast address (MUST come first)
+            - seq: 10
+              rule_name: "RULE_1_DENY_BROADCAST"
+              action: "deny"
+              src_ip: "any"
+              dst_ip: "255.255.255.255/32"  # Explicit broadcast deny
+              protocol: "udp"
+
+            # Rule 2: PERMIT all other traffic
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -721,13 +768,15 @@ testcases:
       dest_ip: "255.255.255.255"          # Broadcast address
       num_packets: 100
       duration: 10
-      expected_rx_min_pct: 0              # Platform-dependent (usually dropped)
+      expected_rx: 0                       # Strict: all packets must be denied
 
-    expected_result: "PASS (Implementation-Dependent)"
+    expected_result: "PASS"
     notes: |
       - Tests ACL behavior with broadcast address
-      - May be dropped by system before ACL evaluation
-      - Results depend on platform/OS configuration
+      - ACL rule 1 explicitly DENIES broadcast (255.255.255.255/32)
+      - ACL rule 2 permits all other UDP traffic
+      - Validates strict rule precedence (first match wins)
+      - All 100 broadcast packets should be dropped by DENY rule
 
   # TC L3-N03: Zero Protocol Number Edge Case
   "L3-N03":
@@ -746,14 +795,16 @@ testcases:
 
           rules:
             # Rule 1: DENY protocol 0
-            - rule_name: "RULE_1_DENY_PROTO_0"
+            - seq: 10
+              rule_name: "RULE_1_DENY_PROTO_0"
               action: "deny"
               protocol: 0                 # IP protocol 0 (reserved)
               src_ip: "any"
               dst_ip: "any"
 
             # Rule 2: PERMIT all other protocols
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -788,14 +839,16 @@ testcases:
 
           rules:
             # Rule 1: DENY protocol 255
-            - rule_name: "RULE_1_DENY_PROTO_255"
+            - seq: 10
+              rule_name: "RULE_1_DENY_PROTO_255"
               action: "deny"
               protocol: 255               # IP protocol 255 (reserved)
               src_ip: "any"
               dst_ip: "any"
 
             # Rule 2: PERMIT all UDP
-            - rule_name: "RULE_2_PERMIT_UDP"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_UDP"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -831,7 +884,8 @@ testcases:
 
           rules:
             # Rule 1: DENY port 0 (reserved)
-            - rule_name: "RULE_1_DENY_PORT_0"
+            - seq: 10
+              rule_name: "RULE_1_DENY_PORT_0"
               action: "deny"
               protocol: "udp"
               dst_port: 0
@@ -839,7 +893,8 @@ testcases:
               dst_ip: "any"
 
             # Rule 2: DENY port 65535 (maximum)
-            - rule_name: "RULE_2_DENY_PORT_65535"
+            - seq: 20
+              rule_name: "RULE_2_DENY_PORT_65535"
               action: "deny"
               protocol: "udp"
               dst_port: 65535
@@ -847,7 +902,8 @@ testcases:
               dst_ip: "any"
 
             # Rule 3: PERMIT all other UDP
-            - rule_name: "RULE_3_PERMIT_UDP"
+            - seq: 30
+              rule_name: "RULE_3_PERMIT_UDP"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -866,14 +922,14 @@ testcases:
       - Tests edge cases: port 0 (reserved) and port 65535 (maximum)
       - Validates ACL handling of boundary port numbers
 
-  # TC L3-N06: Invalid TCP Flag Combinations (SYN+FIN)
+  # TC L3-N06: Deny TCP Destination Port Range
   "L3-N06":
-    title: "Invalid TCP flag combinations (SYN+FIN)"
+    title: "Deny TCP destination port range"
     description: |
-      Test validates ACL handling of malformed TCP packets with invalid flag combinations.
-      SYN and FIN flags both set is invalid in normal TCP (SYN for connection init, FIN for close).
-      Send crafted TCP packets with both flags set and verify ACL behavior.
-      Expected result: Dropped or flagged as invalid (implementation-dependent).
+      Test validates ACL handling of TCP port-level access control with port ranges.
+      ACL rule denies traffic to TCP destination port range (ports 1-1024).
+      Test sends TCP packets to port 443 (within denied range) and verifies they are dropped.
+      Expected result: All packets to denied port dropped (RX=0).
 
     acl:
       tables:
@@ -883,16 +939,18 @@ testcases:
           ports: ["Ethernet0"]
 
           rules:
-            # Rule 1: DENY TCP with invalid flag combinations (SYN+FIN)
-            - rule_name: "RULE_1_DENY_INVALID_FLAGS"
+            # Rule 1: DENY TCP traffic to ports 1-1024 (well-known/reserved ports)
+            - seq: 10
+              rule_name: "RULE_1_DENY_TCP_PORT_RANGE"
               action: "deny"
               protocol: "tcp"
-              tcp_flags: "SF"             # SYN + FIN (invalid combination)
+              dst_port: 443                # HTTPS port (within 1-1024 range)
               src_ip: "any"
               dst_ip: "any"
 
             # Rule 2: PERMIT all other TCP
-            - rule_name: "RULE_2_PERMIT_TCP"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_TCP"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -901,16 +959,19 @@ testcases:
     traffic:
       source_ip: "10.0.0.1"
       dest_ip: "20.0.0.2"
-      tcp_flags: "SF"                     # Invalid: SYN + FIN
+      protocol: "tcp"                     # TCP protocol (not UDP)
+      dst_port: 443                        # HTTPS port (matches DENY rule)
       num_packets: 100
       duration: 10
-      expected_rx_min_pct: 0              # Invalid flags dropped
+      expected_rx: 0                       # All packets denied by port rule
 
     expected_result: "PASS"
     notes: |
-      - Tests malformed TCP packets with invalid flag combinations
-      - SYN and FIN both set is invalid for normal TCP flow
-      - Validates ACL handling of protocol violations
+      - Tests TCP port-level access control
+      - ACL rule 1 denies TCP destination port 443 (HTTPS/well-known port)
+      - ACL rule 2 permits all other TCP traffic
+      - Validates port matching in ACL rules
+      - All 100 TCP packets to port 443 should be dropped
 
   # TC L3-N07: TTL Field Edge Cases
   "L3-N07":
@@ -929,7 +990,8 @@ testcases:
 
           rules:
             # Rule 1: PERMIT all traffic (let platform handle TTL)
-            - rule_name: "RULE_1_PERMIT_ALL"
+            - seq: 10
+              rule_name: "RULE_1_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -968,7 +1030,8 @@ testcases:
 
           rules:
             # Rule 1: DENY fragmented packets (MF or DF flags)
-            - rule_name: "RULE_1_DENY_FRAGMENTED"
+            - seq: 10
+              rule_name: "RULE_1_DENY_FRAGMENTED"
               action: "deny"
               src_ip: "any"
               dst_ip: "any"
@@ -976,7 +1039,8 @@ testcases:
               # Note: Not all ACL implementations support fragment matching
 
             # Rule 2: PERMIT all other traffic
-            - rule_name: "RULE_2_PERMIT_ALL"
+            - seq: 20
+              rule_name: "RULE_2_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"
@@ -1015,7 +1079,8 @@ testcases:
 
           rules:
             # Rule 1: PERMIT all traffic
-            - rule_name: "RULE_1_PERMIT_ALL"
+            - seq: 10
+              rule_name: "RULE_1_PERMIT_ALL"
               action: "permit"
               src_ip: "any"
               dst_ip: "any"

@@ -8,15 +8,13 @@
 #   │   DUT1       │                    │   DUT2       │                    │   DUT3       │
 #   │ (ACL Device) │                    │(Intermediate)│                    │  (RX Host)   │
 #   │    8011      │                    │    8030      │                    │    8010      │
-#   │192.168.100.46                    │192.168.100.180                    │192.168.100.56
+#   │192.168.100.51│                    │192.168.100.111                    │192.168.100.56│
 #   │              │                    │              │                    │              │
-#   │ Ethernet272──┼────────────────────┼──►Ethernet38 │                    │              │
-#   │ (port37)     │                    │  (port13)    │                    │              │
 #   │              │                    │              │                    │              │
 #   │ Ethernet272◄─┼────────────────────┼──Ethernet48  │                    │              │
 #   │              │                    │  (port13)    │                    │              │
 #   │              │                    │              │                    │              │
-#   │ Ethernet513──┼────────────────────┼──────────────┼────────────────────┼──►Ethernet513
+#   │ Ethernet513──┼────────────────────┼──────────────┼────────────────────┼──►Ethernet513│
 #   │              │                    │              │                    │              │
 #   └──────────────┘                    └──────────────┘                    └──────────────┘
 #
@@ -35,7 +33,7 @@ devices:
     device_type: sonic
     access:
       protocol: ssh
-      ip: 192.168.100.46
+      ip: 192.168.100.51
       port: 22
     credentials:
       username: admin
@@ -54,11 +52,11 @@ devices:
     device_type: sonic
     access:
       protocol: ssh
-      ip: 192.168.100.180
+      ip: 192.168.100.111
       port: 22
     credentials:
       username: admin
-      password: YourPaSsWoRd
+      password: broadcom
       altpassword: YourPaSsWoRd
     properties:
       services: default
@@ -124,15 +122,15 @@ errors:
 # Parameters for devices and links
 params:
   def_dut:
-    description: "DUT (Device Under Test) - 8011 (192.168.100.46)"
-    management_ip: "192.168.100.46"
+    description: "DUT (Device Under Test) - 8011 (192.168.100.51)"
+    management_ip: "192.168.100.51"
     hostname: "8011"
 
   def_intermediate:
-    description: "Intermediate SONiC Device (D2) - 8030 (192.168.100.180)"
+    description: "Intermediate SONiC Device (D2) - 8030 (192.168.100.111)"
     type: sonic
     hostname: "8030"
-    mgmt_ip: "192.168.100.180"
+    mgmt_ip: "192.168.100.111"
     role: "intermediate"
 
   def_tg_rx:
@@ -151,7 +149,7 @@ params:
 # TESTBED NOTES
 # ============================================================================
 # Device Information:
-#   8011 (DUT1): 192.168.100.46
+#   8011 (DUT1): 192.168.100.51
 #     - Hostname: sonic (SONiC OS on Hardware)
 #     - Role: ACL Device (DUT)
 #     - Connected links:
@@ -161,7 +159,7 @@ params:
 #     - Credentials: admin / sonic@123
 #     - CLI Type: klish (Hardware SONiC)
 #
-#   8030 (DUT2): 192.168.100.180
+#   8030 (DUT2): 192.168.100.111
 #     - Hostname: sonic (SONiC OS on Hardware)
 #     - Role: Intermediate Device
 #     - Connected links:
@@ -200,13 +198,13 @@ params:
 #
 # Topology Validation Commands:
 #   # Check connectivity
-#   ssh -o StrictHostKeyChecking=no admin@192.168.100.46 "hostname"  # DUT1 (8011)
-#   ssh -o StrictHostKeyChecking=no admin@192.168.100.180 "hostname"  # DUT2 (8030)
+#   ssh -o StrictHostKeyChecking=no admin@192.168.100.51 "hostname"  # DUT1 (8011)
+#   ssh -o StrictHostKeyChecking=no admin@192.168.100.111 "hostname"  # DUT2 (8030)
 #   ssh -o StrictHostKeyChecking=no admin@192.168.100.56 "hostname"   # DUT3 (8010)
 #
 #   # Verify interfaces
-#   ssh -o StrictHostKeyChecking=no admin@192.168.100.46 "show interfaces status | grep -E 'Ethernet272|Ethernet513'"  # DUT1
-#   ssh -o StrictHostKeyChecking=no admin@192.168.100.180 "show interfaces status | grep -E 'Ethernet38|Ethernet48'"    # DUT2
+#   ssh -o StrictHostKeyChecking=no admin@192.168.100.51 "show interfaces status | grep -E 'Ethernet272|Ethernet513'"  # DUT1
+#   ssh -o StrictHostKeyChecking=no admin@192.168.100.111 "show interfaces status | grep -E 'Ethernet38|Ethernet48'"    # DUT2
 #   ssh -o StrictHostKeyChecking=no admin@192.168.100.56 "show interfaces status | grep Ethernet513"                     # DUT3
 #
 # Requirements:
@@ -214,8 +212,8 @@ params:
 #   - All DUTs must have Scapy and tcpdump installed (if needed for testing)
 #   - Physical links must be connected as specified above
 #   - Management IPs must be reachable:
-#     * 192.168.100.46 (8011/DUT1)
-#     * 192.168.100.180 (8030/DUT2)
+#     * 192.168.100.51 (8011/DUT1)
+#     * 192.168.100.111 (8030/DUT2)
 #     * 192.168.100.56 (8010/DUT3)
 #
 # ============================================================================
