@@ -1,7 +1,7 @@
 # LACP Test Development - Critical Learnings & Context
 
-**Last Updated**: 2026-05-22
-**Status**: CLI Tests 001-008 ✅ | POS Tests 009-015 ✅
+**Last Updated**: 2026-05-26
+**Status**: CLI Tests 001-008 + CLI-003 ✅ | POS Tests 009-015 ✅ | FEAT Tests 006-007 ✅
 
 ---
 
@@ -183,14 +183,195 @@ lacp_api.delete_portchannel(dut, PC_NAME, cli_type=cli_type, skip_error_check=Tr
 - Pre-requisites (topology, configuration)
 - SONiC-specific behaviors and constraints
 
+### 21. Traffic Counter Collection and Validation
+**Pattern**: Use interface counters to validate load balancing and traffic flow
+**Implementation**:
+```python
+# Always clear counters before traffic tests
+def clear_interface_counters(dut: str) -> None:
+    st.config(dut, "terminal length 0", type=cli_type, skip_error_check=True)
+    st.config(dut, "clear counters interface all", type=cli_type, skip_error_check=True)
+    st.wait(2, "Wait for counters to clear")
+
+# Get counters from show interface counters all
+output = intf_api.show_interface_counters_all(dut)
+for entry in output:
+    if entry.get("iface") == interface_name:
+        tx_packets = int(str(entry.get("tx_ok", "0")).replace(",", ""))
+```
+**Impact**: FEAT-006 load balancing validation
+
+### 22. Topology Link Discovery - Use vars Attributes
+**Issue**: Hardcoding interfaces breaks portability across testbeds
+**Fix**: Access interface names directly from vars object returned by `st.ensure_min_topology()`
+```python
+# After st.ensure_min_topology("D1D2:2")
+# Framework provides: vars.D1D2P1, vars.D1D2P2 (D1 interfaces)
+#                     vars.D2D1P1, vars.D2D1P2 (D2 interfaces)
+data.d1_interfaces = [vars.D1D2P1, vars.D1D2P2]
+data.d2_interfaces = [vars.D2D1P1, vars.D2D1P2]
+```
+**Wrong Approach**: `st.get_tg_links()` is for Traffic Generator links, not DUT-to-DUT links
+**Best Practice**: Use vars attributes (D1D2P1, D1D2P2, etc.) for DUT-to-DUT connections
+**Impact**: Makes tests portable across different testbed configurations
+**Note**: Naming convention = `{Source}{Dest}P{Number}` (e.g., D1D2P1 = D1's first port to D2)
+
+### 23. ICMP Traffic Generation for Connectivity Tests
+**Pattern**: Use ping via CLI for basic traffic tests when TGen not available
+**Implementation**:
+```python
+def send_icmp_traffic(source_dut: str, dest_ip: str, count: int = 100) -> int:
+    cmd = f"ping {dest_ip} count {count} timeout {timeout}"
+    output = st.show(source_dut, cmd, type=cli_type, skip_error_check=True)
+    # Parse output for "X packets transmitted, Y received"
+    return received_count
+```
+**Note**: VS platforms may show different traffic patterns than HW
+**Impact**: FEAT-006, FEAT-007 traffic validation
+
+### 24. Load Balance Variance Calculation
+**Concept**: Verify traffic distribution across LAG members
+**Calculation**:
+```python
+total_rx = member1_rx + member2_rx
+member1_percent = (member1_rx / total_rx) * 100
+variance = abs(member1_percent - 50.0)  # Deviation from ideal 50/50
+```
+**Threshold**: Accept 20% variance for small packet counts due to hash distribution
+**Warning**: Small sample sizes may show higher variance due to flow hashing
+**Impact**: FEAT-006 pass/fail criteria
+
+### 25. Function-Level vs Module-Level Fixtures
+**Pattern**: Use separate fixture scopes for setup/teardown
+**Function-level fixture** (`function_hooks_with_portchannel`):
+- Creates PortChannel for each test
+- Configures IPs and waits for convergence
+- Used with `@pytest.mark.usefixtures()` or as parameter
+**Module-level fixture** (`module_hooks`):
+- Loads configuration, discovers topology
+- Cleanup only (to avoid state conflicts between tests)
+**Best Practice**: Module fixture for discovery, function fixture for per-test setup
+
+### 26. PortChannel Member Addition - No Interface Range Support
+**Issue**: `interface range Ethernet32,36` command not supported in SONiC Klish
+**Error**: `% Error: Invalid input detected at "^" marker`
+**Root Cause**: LACP API tries to use interface range when list is passed
+**Fix**: Add members one by one in a loop
+```python
+# ❌ WRONG: Passing list triggers interface range (not supported)
+lacp_api.add_portchannel_member(dut, "PortChannel1", ["Ethernet32", "Ethernet36"], cli_type="klish")
+
+# ✅ CORRECT: Add members one by one
+for member in ["Ethernet32", "Ethernet36"]:
+    lacp_api.add_portchannel_member(dut, "PortChannel1", member, cli_type="klish")
+```
+**Impact**: FEAT-006, FEAT-007 PortChannel setup
+**Same for Deletion**: Also apply to `delete_portchannel_member()` - delete one at a time
+**Note**: This limitation is specific to SONiC Klish CLI, may differ in other CLI types
+
+### 27. PortChannel Graceful Shutdown
+**Feature**: Graceful shutdown ensures PortChannels terminate properly during system restarts
+**Purpose**: Minimizes traffic loss and maintains LACP state during reboot/reload operations
+**API**: `pc_api.config_portchannel_gshut()` (alias: `config_po_graceful_shutdown()`)
+
+**CLI Commands**:
+```python
+# Klish CLI - Global level
+# Enable graceful shutdown globally
+pc_api.config_portchannel_gshut(dut, config='add', config_level='global', cli_type='klish')
+# Generated: portchannel graceful-shutdown
+
+# Disable graceful shutdown globally
+pc_api.config_portchannel_gshut(dut, config='del', config_level='global', cli_type='klish')
+# Generated: no portchannel graceful-shutdown
+
+# Click CLI - Global level
+# Enable graceful shutdown
+pc_api.config_portchannel_gshut(dut, config='add', config_level='global', cli_type='click')
+# Generated: config portchannel graceful-shutdown enable
+
+# Disable graceful shutdown
+pc_api.config_portchannel_gshut(dut, config='del', config_level='global', cli_type='click')
+# Generated: config portchannel graceful-shutdown disable
+```
+
+**Interface-Level Configuration**:
+```python
+# Enable graceful shutdown on specific PortChannel (overrides global)
+# Note: config='del' at interface level ENABLES graceful shutdown (negates global disable)
+pc_api.config_portchannel_gshut(
+    dut,
+    config='del',
+    config_level='interface',
+    exception_po_list=['PortChannel1'],
+    cli_type='klish'
+)
+# Generated: interface PortChannel 1; graceful-shutdown; exit
+
+# Exception list - enable globally except for specific PortChannels
+pc_api.config_portchannel_gshut(
+    dut,
+    config='add',
+    exception_po_list=['PortChannel1'],
+    cli_type='klish'
+)
+# Generated: interface PortChannel 1; no graceful-shutdown; exit
+#           portchannel graceful-shutdown
+```
+
+**Syslog Verification**:
+```python
+# After reboot/reload, verify graceful termination messages
+# Expected syslogs (severity=NOTICE):
+# 1. "teamd#teammgrd: :- sig_handler: --- Received SIGTERM. Terminating PortChannels gracefully"
+# 2. "teamd#teammgrd: :- sig_handler: --- PortChannels terminated gracefully"
+
+count_msg1 = slog_api.get_logging_count(
+    dut,
+    severity="NOTICE",
+    filter_list=["Received SIGTERM. Terminating PortChannels gracefully"]
+)
+count_msg2 = slog_api.get_logging_count(
+    dut,
+    severity="NOTICE",
+    filter_list=["PortChannels terminated gracefully"]
+)
+```
+
+**Key Concepts**:
+- **Global vs Interface Level**: Interface-level config overrides global setting
+- **Config Mode Logic**: At interface level, `config='del'` enables graceful shutdown (negates global disable)
+- **Exception List**: Exclude specific PortChannels from global graceful shutdown
+- **REST API**: Uses `openconfig-interfaces-ext:graceful-shutdown-mode` (ENABLE/DISABLE)
+- **Reboot Safety**: Always save config before testing graceful restart with reboot
+
+**Use Cases**:
+1. **Cold Reboot**: Enable graceful shutdown → Save config → Reboot → Verify syslogs
+2. **Config Reload**: Enable graceful shutdown → Save → Reload → Verify recovery
+3. **Selective Exclusion**: Enable globally with exception list for critical PortChannels
+
+**Test Implementation**: `test_lacp_cli_003_graceful_shutdown.py`
+- 10 test cases covering global, interface, and reboot scenarios
+- Both Klish and Click CLI validation
+- Syslog verification for graceful termination
+- Exception list functionality
+
+**Important Notes**:
+- Graceful shutdown requires SONiC version with teamd support
+- Reboot tests may take 3-5 minutes to complete
+- Clear syslog before testing to avoid false positives
+- Verify command availability with `show help` before testing
+
 ---
 
 ## 📋 Test Suite Overview
 
-### CLI Tests (001-008)
-**Purpose**: Basic PortChannel CLI operations
-**Files**: `test_lacp_cli_001_create.py` through `test_lacp_cli_008_running_config.py`
-**Status**: ✅ All API fixes applied (inet_pton, interface_config)
+### CLI Tests (001-008 + 003)
+**Purpose**: Basic PortChannel CLI operations and graceful shutdown
+**Files**:
+- `test_lacp_cli_001_create.py` through `test_lacp_cli_008_running_config.py`
+- `test_lacp_cli_003_graceful_shutdown.py` (NEW)
+**Status**: ✅ All API fixes applied (inet_pton, interface_config, graceful shutdown added)
 
 ### POS Tests (009-015)
 **Purpose**: Positive functional validation with traffic, VLAN, L3, MTU
@@ -202,6 +383,35 @@ lacp_api.delete_portchannel(dut, PC_NAME, cli_type=cli_type, skip_error_check=Tr
 - **POS-013**: VLAN on PortChannel ✅ (klish CLI, L2 switchport, TFSM parsing)
 - **POS-014**: IP on VLAN SVI ✅
 - **POS-015**: MTU Configuration ✅ (PortChannel MTU, API params, function names)
+
+### FEAT Tests (006-007)
+**Purpose**: Basic feature validation - load balancing and bandwidth aggregation
+**Files**: `test_lacp_feat_006_007_load_balance_bandwidth.py`
+**Status**: ✅ All implemented with dynamic topology discovery
+
+- **FEAT-006**: Load Balancing Across Members ✅
+  - Verifies traffic distribution across PortChannel members
+  - Uses interface counters to measure per-member traffic
+  - Validates load balance variance within 20% threshold
+  - Key learnings: Counter collection, variance calculation, dynamic link discovery
+
+- **FEAT-007**: Bandwidth Aggregation ✅
+  - Validates cumulative bandwidth across LAG members
+  - Confirms both members actively transmitting traffic
+  - Measures effective utilization ratio
+  - Key learnings: Sustained traffic tests, multi-member verification
+
+**Implementation Highlights**:
+- Dynamic interface discovery via vars attributes (D1D2P1, D2D1P1, etc.)
+- Function-level fixture for per-test PortChannel setup
+- Module-level cleanup to prevent state leakage
+- ICMP-based traffic generation for VS/HW portability
+- Proper counter clearing and collection patterns
+
+**Critical Fix**:
+- Initial implementation incorrectly used `st.get_tg_links()` (for TGen)
+- Corrected to use vars.D1D2P1, vars.D1D2P2 (for DUT-to-DUT links)
+- Naming convention: `{Source}{Dest}P{Number}` (D1D2P1 = D1's port 1 to D2)
 
 ---
 

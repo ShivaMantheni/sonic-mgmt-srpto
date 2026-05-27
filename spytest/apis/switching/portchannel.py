@@ -1117,8 +1117,9 @@ def config_portchannel_gshut(dut, **kwargs):
         return
     else:
         st.error("UNSUPPORTED cli_type")
-        return
+        return False
     st.config(dut, cmd, type=cli_type)
+    return True
 
 
 def verify_lacp_fallback(dut, **kwargs):

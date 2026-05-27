@@ -1,0 +1,95 @@
+# LACP Graceful Shutdown Test Configuration
+# ==========================================
+# Variable file for test_lacp_cli_003_graceful_shutdown.py
+#
+# This file contains configuration parameters for PortChannel graceful shutdown testing.
+# Graceful shutdown ensures that PortChannels are terminated properly during system
+# restarts, preventing traffic loss and maintaining LACP state.
+
+---
+# Topology Requirements
+defaults:
+  min_topology: ["D1D2:2"]  # Minimum 2 links between D1 and D2
+
+# PortChannel Configuration
+portchannel:
+  name1: "PortChannel1"
+  name2: "PortChannel2"
+  lacp_mode: "active"
+
+# CLI Configuration
+cli:
+  primary_type: "klish"    # Primary CLI for testing
+  secondary_type: "click"   # Secondary CLI for validation
+
+# Test Timeouts and Waits
+timers:
+  lacp_convergence: 5       # Wait time for LACP to converge (seconds)
+  config_apply: 2           # Wait time for config to apply (seconds)
+  pre_reboot: 2             # Wait before reboot (seconds)
+  post_reboot: 60           # Wait for device to come back after reboot (seconds)
+  syslog_check: 60          # Timeout for syslog verification (seconds)
+
+# Syslog Messages to Verify
+syslog_patterns:
+  sigterm: "teamd#teammgrd: :- sig_handler: --- Received SIGTERM. Terminating PortChannels gracefully"
+  termination: "teamd#teammgrd: :- sig_handler: --- PortChannels terminated gracefully"
+
+# Test Flags
+test_flags:
+  enable_reboot_tests: false    # Set to true to enable actual reboot tests
+  enable_reload_tests: false    # Set to true to enable actual config reload tests
+  skip_syslog_check: false      # Set to true to skip syslog verification
+  cleanup_on_failure: true      # Cleanup configuration even if tests fail
+
+# Expected CLI Commands (for reference and validation)
+expected_commands:
+  klish:
+    global_enable: "portchannel graceful-shutdown"
+    global_disable: "no portchannel graceful-shutdown"
+    interface_enable: "interface PortChannel X\n  graceful-shutdown\n  exit"
+    interface_disable: "interface PortChannel X\n  no graceful-shutdown\n  exit"
+
+  click:
+    global_enable: "config portchannel graceful-shutdown enable"
+    global_disable: "config portchannel graceful-shutdown disable"
+    interface_enable: "config portchannel graceful-shutdown enable PortChannel10"
+    interface_disable: "config portchannel graceful-shutdown disable PortChannel10"
+
+# Show Commands
+show_commands:
+  running_config: "show running-configuration"
+  portchannel_summary: "show portchannel summary"
+  lacp_status: "show lacp portchannel"
+  interface_status: "show interface PortChannel 1"
+  syslog: "show logging"
+
+# Notes and Warnings
+notes: |
+  IMPORTANT NOTES:
+
+  1. Reboot Tests:
+     - Cold reboot tests are disabled by default (set enable_reboot_tests: true to enable)
+     - Reboot tests may take 3-5 minutes to complete
+     - Ensure testbed supports reboot operations
+
+  2. Syslog Verification:
+     - Graceful restart generates specific syslog messages
+     - Syslog severity: NOTICE
+     - Messages contain teamd graceful termination indicators
+
+  3. Interface-Level Configuration:
+     - Interface-level graceful shutdown overrides global setting
+     - Use exception_po_list to exclude specific PortChannels
+
+  4. CLI Mode Differences:
+     - Click CLI uses "enable/disable" keywords
+     - Klish CLI uses presence/absence of command (with "no" for removal)
+
+  5. SONiC Version Requirements:
+     - Graceful shutdown requires SONiC version with teamd support
+     - Verify command availability with "show help" before testing
+
+  6. Traffic Impact:
+     - Graceful shutdown minimizes traffic loss during restarts
+     - Without graceful shutdown, abrupt termination may cause packet drops

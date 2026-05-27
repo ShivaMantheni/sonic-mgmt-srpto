@@ -1,0 +1,74 @@
+# Variables for LACP Feature Tests 006-007
+# Load Balancing and Bandwidth Aggregation
+
+defaults:
+  # Minimum topology requirement: 2 DUTs with at least 2 links between them
+  min_topology:
+    - "D1D2:2"
+
+  # CLI type - force klish for SONiC CLI testing
+  cli_type: "klish"
+
+  # PortChannel configuration
+  portchannel_name: "PortChannel1"
+
+  # IP addressing for PortChannel interfaces
+  d1_ip: "10.0.1.1"
+  d1_prefix: "24"
+  d2_ip: "10.0.1.2"
+  d2_prefix: "24"
+
+  # Traffic test parameters
+  ping_count: 100  # Number of ping packets for load balance test
+  load_balance_threshold: 20  # Acceptable variance from ideal 50/50 split (%)
+
+  # Timeouts and waits
+  lacp_convergence_wait: 10  # Seconds to wait for LACP convergence
+  cleanup_wait: 2  # Seconds to wait during cleanup
+
+testcases:
+  LACP_FEAT_006:
+    title: "Load Balancing Across PortChannel Members"
+    description: |
+      Verify traffic is distributed across PortChannel members using
+      different source/destination combinations. Load balance variance
+      should be within acceptable threshold.
+
+    # Traffic parameters for load balance test
+    ping_count: 100  # Number of ICMP packets to send
+    load_balance_threshold: 20  # Max allowed variance from 50/50 (%)
+
+    # Expected results
+    expected:
+      - Both members should receive traffic
+      - Load distribution within 20% of ideal 50/50 split
+      - Minimal packet loss (< 5%)
+
+  LACP_FEAT_007:
+    title: "Bandwidth Aggregation"
+    description: |
+      Verify cumulative PortChannel bandwidth equals sum of member
+      link bandwidths. Traffic should utilize multiple members for
+      increased throughput.
+
+    # Traffic parameters for bandwidth test
+    bandwidth_ping_count: 200  # Larger packet count for bandwidth test
+
+    # Expected results
+    expected:
+      - Both members should transmit packets
+      - Combined throughput across members
+      - No single member saturation
+      - Minimal packet loss (< 5%)
+
+# Platform-specific notes
+platform_notes:
+  vs:
+    - Virtual switches may show different load balance behavior
+    - Exact throughput measurement not possible without traffic generator
+    - Tests validate logical aggregation and distribution
+
+  hw:
+    - Hardware platforms should show consistent hash-based load balancing
+    - Actual throughput can be measured with iperf or traffic generators
+    - ASIC-specific hash algorithms may affect distribution patterns

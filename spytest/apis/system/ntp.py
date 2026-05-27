@@ -8,7 +8,8 @@ from utilities.utils import ensure_service_params, get_interface_number_from_nam
 from utilities.common import make_list
 from apis.system.rest import config_rest, get_rest, delete_rest
 import apis.system.system_server as sys_server_api
-from pkg_resources import parse_version
+#from pkg_resources import parse_version
+from packaging.version import parse as parse_version
 errors_list = ['error', 'invalid', 'usage', 'illegal', 'unrecognized']
 
 
