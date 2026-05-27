@@ -1,0 +1,153 @@
+# SM_ISCLI_52: LLDP CLI Output Validation
+# Test variables for LLDP show commands in IS-CLI (Klish) mode
+
+defaults:
+  # CLI type: Must use Klish (IS-CLI) for this test
+  cli_type: klish
+
+  # Minimum topology required: 2 nodes for LLDP neighbor discovery
+  min_topology:
+    - "D1D2:1"
+
+  # LLDP neighbor discovery timeout (seconds)
+  lldp_wait_time: 30
+
+  # General verification timeout
+  verify_timeout: 60
+
+  # Skip initial configuration
+  skip_init_config: true
+
+# Test case definitions
+testcases:
+  SM_ISCLI_52-001:
+    title: "Verify 'show lldp neighbors' returns data in IS-CLI"
+    description: |
+      Tests that the 'show lldp neighbors' command returns actual neighbor
+      information instead of empty output in IS-CLI (Klish) mode.
+      This addresses the bug where IS-CLI showed empty output while Click CLI
+      displayed data correctly.
+
+    # Command to execute
+    command: "show lldp neighbors"
+
+    # Expected keywords that should be present in output
+    expected_keywords:
+      - "Interface"
+      - "ChassisID"
+      - "PortID"
+
+    # Expected behavior
+    expected_behavior: "Should return neighbor information with Interface, ChassisID, and PortID fields"
+
+    # Bug reference
+    bug_ref: "SM_ISCLI_52"
+
+  SM_ISCLI_52-002:
+    title: "Verify 'show lldp table' returns data in IS-CLI"
+    description: |
+      Tests that the 'show lldp table' command displays neighbor information
+      in tabular format instead of empty output in IS-CLI mode.
+
+    command: "show lldp table"
+
+    expected_keywords:
+      - "LocalPort"
+      - "RemoteDevice"
+      - "RemotePortID"
+
+    expected_behavior: "Should return table format with LocalPort, RemoteDevice, and RemotePortID columns"
+
+    bug_ref: "SM_ISCLI_52"
+
+  SM_ISCLI_52-003:
+    title: "Verify 'show lldp statistics' returns data in IS-CLI"
+    description: |
+      Tests that the 'show lldp statistics | no-more' command displays protocol statistics
+      instead of empty output in IS-CLI mode. The '| no-more' pipe disables pagination
+      to get complete output.
+
+    command: "show lldp statistics | no-more"
+
+    # Statistics should have reasonable content
+    min_output_length: 50  # Minimum characters expected
+
+    expected_behavior: "Should return statistics including transmitted, received, and discarded counters"
+
+    # Note: no-more pipe is required in IS-CLI to get full output without pagination
+    cli_notes: "Use '| no-more' pipe to disable pagination in IS-CLI"
+
+    bug_ref: "SM_ISCLI_52"
+
+  SM_ISCLI_52-004:
+    title: "Verify 'show lldp' displays subcommand help in IS-CLI"
+    description: |
+      Tests that bare 'show lldp' command displays available subcommands
+      or provides meaningful output instead of being empty.
+
+    command: "show lldp"
+
+    expected_subcommands:
+      - "neighbor"
+      - "statistics"
+      - "table"
+
+    expected_behavior: "Should display subcommand help or actual LLDP data"
+
+    bug_ref: "SM_ISCLI_52"
+
+  SM_ISCLI_52-005:
+    title: "Compare LLDP commands between Klish and Click CLI"
+    description: |
+      Comprehensive test comparing LLDP command output between Klish (IS-CLI)
+      and Click CLI to ensure parity. Validates that all key commands work
+      correctly in Klish mode as they do in Click CLI.
+
+    commands:
+      - "show lldp neighbors"
+      - "show lldp table"
+      - "show lldp statistics"
+      - "show lldp local-device"
+
+    expected_behavior: "All commands should return meaningful output in Klish mode"
+
+    bug_ref: "SM_ISCLI_52"
+
+# LLDP configuration for test setup
+lldp_config:
+  # Enable LLDP on DUT (if not already enabled)
+  lldp_enabled: true
+
+  # LLDP send interval (seconds)
+  send_interval: 30
+
+  # LLDP TTL (Time To Live)
+  ttl: 120
+
+  # Interfaces where LLDP should be active
+  # These are discovered from topology, but can be overridden
+  interfaces:
+    - null  # Will be populated from topology
+
+# Expected Click CLI output sample for reference
+click_cli_sample:
+  show_lldp_table: |
+    Capability codes: (R) Router, (B) Bridge, (O) Other
+    LocalPort RemoteDevice RemotePortID Capability RemotePortDescr
+    ----------- -------------- -------------- ------------ --------------------------------
+    Ethernet440 sonic Eth63 BR Ethernet496
+    Ethernet496 sonic Eth56 BR Ethernet440
+    eth0 00:25:90:40:12:df B Ethernet Port on unit 1, port 15
+    --------------------------------------------------
+    Total entries displayed: 3
+
+  show_lldp_neighbors: |
+    -------------------------------------------------------------------------------
+    LLDP neighbors:
+    -------------------------------------------------------------------------------
+    Interface: eth0, via: LLDP, RID: 2, Time: 0 day, 00:01:21
+    Chassis:
+    ChassisID: mac 00:25:90:40:12:d0
+    SysDescr: SSE-G2252 Managed GE Switch
+    MgmtIP: 172.30.141.45
+    [... additional details ...]

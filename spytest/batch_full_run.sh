@@ -13,8 +13,8 @@
 #
 # Statistics:
 #   Total Batches: 104 (A-CZ and variants)
-#   Total Test Scripts: 349
-#   Last Updated: 2026-04-16
+#   Total Test Scripts: 350
+#   Last Updated: 2026-05-11
 # ==========================================================
 
 DATE_DIR=$(date +%Y%m%d)
@@ -1143,8 +1143,8 @@ fi
 # ==========================================================
 
 if should_run_batch "BA"; then
-    run_batch "SM_ISCLI_52_LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_1node.yaml" \
-    system/lldp/test_lldp_cli_validation.py
+    run_batch "SM_ISCLI_52_LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_2d.yaml" \
+    system/lldp/test_sm_iscli_52_lldp_cli_output.py
 else
     echo "Skipping Batch BA (SM_ISCLI_52_LLDP_CLI_VALIDATION) - not selected"
 fi
