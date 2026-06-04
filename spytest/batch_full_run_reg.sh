@@ -1140,6 +1140,7 @@ fi
 if should_run_batch "BA"; then
     run_batch "SM_ISCLI_52_LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_1node_reg.yaml" \
     system/lldp/test_lldp_cli_validation.py
+    system/lldp/test_sm_iscli_52_lldp_cli_output.py
 else
     echo "Skipping Batch BA (SM_ISCLI_52_LLDP_CLI_VALIDATION) - not selected"
 fi
@@ -1757,7 +1758,7 @@ if should_run_batch "CT"; then
     system/ISCLI_LLDP/test_lldp_07_vlan_specific_tlvs.py \
     system/ISCLI_LLDP/test_lldp_08_rapid_enable_disable.py \
     system/ISCLI_LLDP/test_lldp_09_clear_statistics.py \
-    #system/ISCLI_LLDP/test_lldp_10_save_reboot_persistence.py \
+    system/ISCLI_LLDP/test_lldp_10_save_reboot_persistence.py \
     system/ISCLI_LLDP/test_lldp_11_neighbor_detail_tlvs.py \
     system/ISCLI_LLDP/test_lldp_12_port_description_tlv.py \
     system/ISCLI_LLDP/test_lldp_13_system_capabilities_tlv.py \
