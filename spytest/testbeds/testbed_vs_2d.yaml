@@ -3,13 +3,13 @@ devices:
   spine02:
     device_type: sonic
     access: {protocol: ssh, ip: 192.168.100.39, port: 22}
-    credentials: {username: admin, password: root@323, altpassword: broadcom}
+    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
     properties: {services: default, build: default, config: default, errors: default}
 
   leaf01:
     device_type: sonic
     access: {protocol: ssh, ip: 192.168.100.40, port: 22}
-    credentials: {username: admin, password: root@323, altpassword: broadcom}
+    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
     properties: {services: default, build: default, config: default, errors: default}
 
 topology:
@@ -17,12 +17,12 @@ topology:
     interfaces:
       Ethernet32: {EndDevice: leaf01, EndPort: Ethernet32}
       Ethernet36: {EndDevice: leaf01, EndPort: Ethernet36}
-      Ethernet40: {EndDevice: leaf01, EndPort: Ethernet4}
+      Ethernet40: {EndDevice: leaf01, EndPort: Ethernet40}
   leaf01:
     interfaces:
       Ethernet32: {EndDevice: spine02, EndPort: Ethernet32}
       Ethernet36: {EndDevice: spine02, EndPort: Ethernet36}
-      Ethernet40: {EndDevice: spine02, EndPort: Ethernet4}
+      Ethernet40: {EndDevice: spine02, EndPort: Ethernet40}
 
 services: {default: {}}
 builds:   {default: {}}

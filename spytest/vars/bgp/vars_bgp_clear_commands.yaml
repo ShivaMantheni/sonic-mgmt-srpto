@@ -1,0 +1,131 @@
+defaults:
+  cli_type: klish
+  verify_timeout: 30
+  cleanup: true
+  min_topology:
+    - "D1D2:1"
+
+  # BGP Configuration
+  local_asn: 65001
+  remote_asn: 65002
+  d1_ip: "192.168.100.39"
+  d2_ip: "192.168.100.40"
+  d1_ipv6: "2001:db8::1"
+  d2_ipv6: "2001:db8::2"
+  peer_group_name: "test-pg"
+
+testcases:
+  "001":
+    title: "Clear specific IPv4 BGP neighbor"
+    command: "clear bgp ipv4 unicast {neighbor_ip}"
+    expected_behavior: "hard_reset"
+    verification:
+      - session_reset: true
+      - re_establish: true
+      - uptime_reset: true
+
+  "002":
+    title: "Clear all IPv4 BGP neighbors"
+    command: "clear bgp ipv4 unicast *"
+    expected_behavior: "hard_reset"
+    verification:
+      - session_reset: true
+      - re_establish: true
+
+  "003":
+    title: "Global clear all BGP sessions"
+    command: "clear bgp all"
+    expected_behavior: "hard_reset"
+    verification:
+      - session_reset: true
+      - re_establish: true
+      - all_af: true
+
+  "004":
+    title: "Clear external eBGP neighbors"
+    command: "clear bgp ipv4 unicast external"
+    expected_behavior: "hard_reset"
+    verification:
+      - session_reset: true
+      - ebgp_only: true
+
+  "005":
+    title: "Clear by interface"
+    command: "clear bgp ipv4 unicast interface {interface}"
+    expected_behavior: "cli_accepted"
+
+  "006":
+    title: "Clear by peer-group"
+    command: "clear bgp ipv4 unicast peer-group {peer_group}"
+    expected_behavior: "hard_reset"
+
+  "007":
+    title: "Soft reconfiguration (both directions)"
+    command: "clear bgp ipv4 unicast soft"
+    expected_behavior: "soft_reconfig"
+    verification:
+      - session_maintained: true
+      - uptime_maintained: true
+      - non_disruptive: true
+
+  "008":
+    title: "Soft reconfiguration inbound"
+    command: "clear bgp ipv4 unicast in"
+    expected_behavior: "soft_reconfig"
+    verification:
+      - session_maintained: true
+      - uptime_maintained: true
+
+  "009":
+    title: "Soft reconfiguration outbound"
+    command: "clear bgp ipv4 unicast out"
+    expected_behavior: "soft_reconfig"
+    verification:
+      - session_maintained: true
+      - uptime_maintained: true
+
+  "010":
+    title: "Clear specific IPv6 neighbor"
+    command: "clear bgp ipv6 unicast {neighbor_ipv6}"
+    expected_behavior: "hard_reset"
+
+  "011":
+    title: "Clear IPv6 external eBGP"
+    command: "clear bgp ipv6 unicast external"
+    expected_behavior: "hard_reset"
+
+  "012":
+    title: "Clear BGP in VRF"
+    command: "clear bgp ipv4 unicast vrf {vrf_name} *"
+    expected_behavior: "hard_reset"
+
+  "013":
+    title: "Specific neighbor soft reconfiguration"
+    command: "clear bgp ipv4 unicast {neighbor_ip} soft"
+    expected_behavior: "soft_reconfig"
+    verification:
+      - session_maintained: true
+
+  "014":
+    title: "IPv6 specific neighbor soft"
+    command: "clear bgp ipv6 unicast {neighbor_ipv6} soft"
+    expected_behavior: "soft_reconfig"
+
+  "050":
+    title: "Invalid neighbor (negative test)"
+    command: "clear bgp ipv4 unicast 10.255.255.255"
+    expected_behavior: "error_handling"
+    test_type: "negative"
+    verification:
+      - error_detected: true
+      - neighbor_not_found: true
+
+  "052":
+    title: "Final validation - soft reconfig maintains uptime"
+    command: "clear bgp ipv4 unicast soft"
+    expected_behavior: "soft_reconfig"
+    final_validation: true
+    verification:
+      - session_maintained: true
+      - uptime_maintained: true
+      - non_disruptive: true
