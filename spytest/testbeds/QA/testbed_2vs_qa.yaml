@@ -1,0 +1,41 @@
+version: 2.0
+devices:
+  # D1 - 192.168.100.39 (Primary device)
+  D1:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.39, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
+    properties: {services: default, build: default, config: default, errors: default}
+
+  # D2 - 192.168.100.40 (Secondary device)
+  D2:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.40, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
+    properties: {services: default, build: default, config: default, errors: default}
+
+topology:
+  # D1 connections to D2
+  D1:
+    interfaces:
+      # Group 1: D1 ↔ D2 connection (4 links)
+      Ethernet32: {EndDevice: D2, EndPort: Ethernet32}
+      Ethernet36: {EndDevice: D2, EndPort: Ethernet36}
+      Ethernet40: {EndDevice: D2, EndPort: Ethernet40}
+      Ethernet44: {EndDevice: D2, EndPort: Ethernet44}
+
+  # D2 connections to D1
+  D2:
+    interfaces:
+      # Group 1: D2 ↔ D1 connection (4 links)
+      Ethernet32: {EndDevice: D2, EndPort: Ethernet32}
+      Ethernet36: {EndDevice: D2, EndPort: Ethernet36}
+      Ethernet40: {EndDevice: D2, EndPort: Ethernet40}
+      Ethernet44: {EndDevice: D2, EndPort: Ethernet44}
+
+
+services: {default: {}}
+builds:   {default: {}}
+configs:  {default: {}}
+errors:   {default: {}}
+params:   {}

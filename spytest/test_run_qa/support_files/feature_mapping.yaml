@@ -1,0 +1,222 @@
+# Feature Mapping Configuration
+# Maps batch names to feature categories for log consolidation
+# Generated: 2026-06-05
+
+features:
+  BGP:
+    display_name: "BGP (Border Gateway Protocol)"
+    batches:
+      - BGP_NEG_FLAP_RR
+      - BGP_IPV4_FEATURES
+      - BGP_IPV4_FEATURES_3RR
+      - BGP_ISCLI_BESTPATH
+      - BGP_ISCLI_CAPABILITY
+      - BGP_ISCLI_EVPN
+      - BGP_ISCLI_PG_ADV
+      - SM_ISCLI_4_EBGP_MULTIHOP
+      - SM_ISCLI_5_BGP_L2VPN_EVPN
+      - SM_ISCLI_6_BGP_TIMERS
+      - SM_ISCLI_11_BGP_GRACEFUL_RESTART
+      - SM_ISCLI_10_UPDATE_SOURCE
+      - SM_ISCLI_13_IBGP_MULTIPATH
+      - SM_ISCLI_15_BGP_NETWORK_CONFLICT
+      - SM_ISCLI_41_BGP_REMOTE_AS_INTERNAL_EXTERNAL
+      - SM_ISCLI_82_BGP_VRF_VALIDATION
+      - SM_ISCLI_82_BGP_VRF_UNCONFIG
+      - SM_ISCLI_27_BGP_PEERGROUP_ACTIVATE
+      - SM_ISCLI_70_BGP_IPV6_CLI_VALIDATION
+      - SM_ISCLI_28_BGP_SHOW_CONFIG
+      - SM_ISCLI_P2_32_BGP_VRF_INSTANCE
+      - SM_ISCLI_40_BGP_EBGP_REQUIRES_POLICY
+
+  OSPF:
+    display_name: "OSPF (Open Shortest Path First)"
+    batches:
+      - OSPF_ISCLI_MASTER
+      - SM_ISCLI_20_OSPF_LOOPBACK_NO_IP
+      - SM_ISCLI_21_OSPF_NETWORK_REMOVAL
+      - OSPFV2_COMPREHENSIVE
+      - OSPFV2_BASIC_ADJACENCY
+      - OSPFV2_LSA_LSDB
+      - OSPFV2_AREA_TYPES
+      - OSPFV2_ROUTES_SPF
+
+  VLAN:
+    display_name: "VLAN (Virtual LAN)"
+    batches:
+      - VLAN_ISCLI
+      - SM_ISCLI_42_SM_ISCLI_68_VLAN_BASIC_CONFIG
+      - SM_ISCLI_60_VLAN_INTERFACE_LIFECYCLE
+      - SM_ISCLI_60_REMOVE_VLAN_INTERFACE
+      - SM_ISCLI_69_VLAN_NEGATIVE_MEMBER
+      - SM_ISCLI_P2_42_VLAN_SVI_REMOVAL
+      - SM_ISCLI_P2_39_SWITCHPORT_TRUNK_VLAN
+      - VLAN_SVI_L3_TRAFFIC
+      - VLAN_COMPREHENSIVE
+      - VLAN_COMPREHENSIVE_STANDALONE
+      - VLAN_DELETE_TESTS
+
+  PORTCHANNEL:
+    display_name: "PortChannel (Link Aggregation)"
+    batches:
+      - PORTCHANNEL_ISCLI
+      - SM_ISCLI_P2_78_LACP_FAST_RATE
+
+  LLDP:
+    display_name: "LLDP (Link Layer Discovery Protocol)"
+    batches:
+      - SM_ISCLI_52_LLDP_CLI_VALIDATION
+      - LLDP_COMPREHENSIVE
+      - SM_ISCLI_P2_161_162_LLDP_CLI_FIX
+
+  ACL:
+    display_name: "ACL (Access Control List)"
+    batches:
+      - SM_ISCLI_48_SM_ISCLI_49_SM_ISCLI_51_IPV4_ACL_CLI
+      - SM_ISCLI_MAC_ACL_COMPREHENSIVE
+      - L3_ACL_COMPREHENSIVE
+      - L2_ACL_COMPREHENSIVE
+
+  QOS:
+    display_name: "QoS (Quality of Service)"
+    batches:
+      - QOS_PFC_PRIORITY_PG_MAP
+      - QOS_PFC_PG_MAP_NEGATIVE
+      - QOS_PFC_PG_MAP_CONFIG
+      - QOS_PFC_PG_MAP_PERSISTENCE
+      - QOS_DELETE_ACTIVE_PFC
+
+  VRF:
+    display_name: "VRF (Virtual Routing and Forwarding)"
+    batches:
+      - SM_ISCLI_VRF_BASIC
+      - SM_ISCLI_VRF_INTERFACE_NEGATIVE
+      - SM_ISCLI_VRF_LOOPBACK_PORTCHANNEL_NEGATIVE
+      - SM_ISCLI_VRF_PING
+      - SM_ISCLI_VRF_IP_INTERFACE
+      - SM_ISCLI_77_VRF_CLI_NEGATIVE
+      - SM_ISCLI_73_VRF_INTERFACE_VALIDATION
+      - SM_ISCLI_13_VRF_BINDING
+      - SM_ISCLI_VRF_ROUTE_MAP_VALIDATION
+
+  STATIC_ROUTE:
+    display_name: "Static Routing"
+    batches:
+      - STATIC_ROUTING
+      - SM_ISCLI_7_STATIC_ROUTES
+      - STATIC_ROUTE_OC_COMPREHENSIVE
+
+  INTERFACE:
+    display_name: "Interface Management"
+    batches:
+      - HW_INTERFACE_EVENTS
+      - SYS_INTERFACE_EVENTS
+      - SM_ISCLI_16_IP_NOOP
+      - SM_ISCLI_34_SM_ISCLI_32_SM_ISCLI_31_INTERFACE_IP_CONFIG
+      - SM_ISCLI_25_INTERFACE_DESC_QUOTES
+      - SM_ISCLI_78_LOOPBACK_INTERFACE_CONFIG
+      - SM_ISCLI_26_PLATFORM_INTERFACE_CLI
+      - SM_ISCLI_INTERFACE_CLI_VERIFICATION
+      - SM_ISCLI_72_IPV6_INTERFACE_ENABLE_DISABLE
+      - SM_ISCLI_IPV6_INTERFACE_REDIS_VALIDATION
+      - SM_ISCLI_MGMT_INTERFACE_IPV6_NEIGHBOR
+      - SM_ISCLI_43_SM_ISCLI_61_MGMT_INTERFACE_CONFIG
+
+  ARP:
+    display_name: "ARP (Address Resolution Protocol)"
+    batches:
+      - SM_ISCLI_ARP_TABLE_VERIFICATION
+      - ARP_COMPREHENSIVE
+      - ARP_EXTENDED_TESTS
+
+  ND:
+    display_name: "ND (Neighbor Discovery)"
+    batches:
+      - ND_NEIGHBOR_DISCOVERY
+
+  NTP:
+    display_name: "NTP (Network Time Protocol)"
+    batches:
+      - SYS_NTP
+      - NTP_EXTENDED_TESTS
+
+  PORT_BREAKOUT:
+    display_name: "Port Breakout"
+    batches:
+      - SM_ISCLI_46_PORT_BREAKOUT
+      - PORT_BREAKOUT_COMPREHENSIVE
+      - PORT_BREAKOUT_ISCLI_EXTENDED
+      - PORT_BREAKOUT_ISCLI_COMPREHENSIVE
+
+  ROUTE_MAP:
+    display_name: "Route Map"
+    batches:
+      - SM_ISCLI_23_ROUTE_MAP_SHOW_RUN
+      - SM_ISCLI_ROUTE_MAP_DEPENDENCY
+
+  PREFIX_LIST:
+    display_name: "IP Prefix List"
+    batches:
+      - SM_ISCLI_IP_PREFIX_LIST
+
+  IP_ROUTE:
+    display_name: "IP Route Management"
+    batches:
+      - SM_ISCLI_59_MGMT_IP_ROUTE
+      - SM_ISCLI_29_IP_ROUTE_SVI
+      - SM_ISCLI_76_SHOW_IP_ROUTE_FILTERING
+      - SM_ISCLI_76_IP_ROUTE_SHOW_COMMANDS
+
+  SYSTEM:
+    display_name: "System Management"
+    batches:
+      - SYS_AAA
+      - SM_ISCLI_66_SWITCHING_MODE
+      - SM_ISCLI_12_MGMT_PORT_VISIBLE
+      - SM_ISCLI_74_HOSTNAME_VALIDATION
+      - SM_ISCLI_53_HOSTNAME_CONFIG_VERIFICATION
+      - SM_ISCLI_24_SONIC_CLI_C_FLAG
+      - SM_ISCLI_44_COPY_COMMAND
+      - SM_ISCLI_45_WRITE_ERASE_COMMAND
+      - SM_ISCLI_8_MGMT_STATIC_IP
+      - SM_ISCLI_9_L2VPN_EVPN_ORDER
+
+  CLI:
+    display_name: "CLI (Command Line Interface)"
+    batches:
+      - SM_ISCLI_19_GREP_FILTER
+      - SM_ISCLI_12_SHOW_IP_INTERFACE
+      - SM_ISCLI_33_SHOW_RUN_INTERFACE
+      - SM_ISCLI_54_SHOW_RUNNING_CONFIG
+
+# Batch name patterns for auto-detection
+# If a batch name contains these keywords, it will be auto-mapped to the feature
+auto_mapping_patterns:
+  BGP:
+    - "BGP"
+    - "EBGP"
+    - "IBGP"
+  OSPF:
+    - "OSPF"
+  VLAN:
+    - "VLAN"
+    - "SVI"
+  LLDP:
+    - "LLDP"
+  QOS:
+    - "QOS"
+    - "PFC"
+  VRF:
+    - "VRF"
+  ACL:
+    - "ACL"
+  PORTCHANNEL:
+    - "PORTCHANNEL"
+    - "LACP"
+  ARP:
+    - "ARP"
+  NTP:
+    - "NTP"
+  INTERFACE:
+    - "INTERFACE"
+    - "LOOPBACK"
