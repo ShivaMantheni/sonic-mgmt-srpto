@@ -1,0 +1,75 @@
+# 3-node testbed with full mesh connections
+# Uses D1, D2, D3 from 6-node regression topology
+
+version: 2.0
+
+devices:
+  # D1 - 192.168.100.41 (Primary core router)
+  D1:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.41, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
+    properties: {services: default, build: default, config: default, errors: default}
+
+  # D2 - 192.168.100.42 (Secondary core router)
+  D2:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.42, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
+    properties: {services: default, build: default, config: default, errors: default}
+
+  # D3 - 192.168.100.43 (Tertiary core router)
+  D3:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.43, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
+    properties: {services: default, build: default, config: default, errors: default}
+
+topology:
+  # D1 connections
+  D1:
+    interfaces:
+      # D1 ↔ D2 connections (Group 1)
+      Ethernet0: {EndDevice: D2, EndPort: Ethernet0}
+      Ethernet4: {EndDevice: D2, EndPort: Ethernet4}
+      Ethernet8: {EndDevice: D2, EndPort: Ethernet8}
+      Ethernet12: {EndDevice: D2, EndPort: Ethernet12}
+      # D1 ↔ D3 connections (Group 2)
+      Ethernet16: {EndDevice: D3, EndPort: Ethernet0}
+      Ethernet20: {EndDevice: D3, EndPort: Ethernet4}
+      Ethernet24: {EndDevice: D3, EndPort: Ethernet8}
+      Ethernet28: {EndDevice: D3, EndPort: Ethernet12}
+
+  # D2 connections
+  D2:
+    interfaces:
+      # D2 ↔ D1 connections (Group 1)
+      Ethernet0: {EndDevice: D1, EndPort: Ethernet0}
+      Ethernet4: {EndDevice: D1, EndPort: Ethernet4}
+      Ethernet8: {EndDevice: D1, EndPort: Ethernet8}
+      Ethernet12: {EndDevice: D1, EndPort: Ethernet12}
+      # D2 ↔ D3 connections (Group 3)
+      Ethernet32: {EndDevice: D3, EndPort: Ethernet16}
+      Ethernet36: {EndDevice: D3, EndPort: Ethernet20}
+      Ethernet40: {EndDevice: D3, EndPort: Ethernet24}
+      Ethernet44: {EndDevice: D3, EndPort: Ethernet28}
+
+  # D3 connections
+  D3:
+    interfaces:
+      # D3 ↔ D1 connections (Group 1)
+      Ethernet0: {EndDevice: D1, EndPort: Ethernet16}
+      Ethernet4: {EndDevice: D1, EndPort: Ethernet20}
+      Ethernet8: {EndDevice: D1, EndPort: Ethernet24}
+      Ethernet12: {EndDevice: D1, EndPort: Ethernet28}
+      # D3 ↔ D2 connections (Group 2)
+      Ethernet16: {EndDevice: D2, EndPort: Ethernet32}
+      Ethernet20: {EndDevice: D2, EndPort: Ethernet36}
+      Ethernet24: {EndDevice: D2, EndPort: Ethernet40}
+      Ethernet28: {EndDevice: D2, EndPort: Ethernet44}
+
+services: {default: {}}
+builds:   {default: {}}
+configs:  {default: {}}
+errors:   {default: {}}
+params:   {}

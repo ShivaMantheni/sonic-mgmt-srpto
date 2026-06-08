@@ -1933,21 +1933,48 @@ mkdir -p "${DASHBOARD_DIR}"
 
 DASHBOARD_FILE="${DASHBOARD_DIR}/full_regression_dashboard_${DATE_DIR}_${TIME_STAMP}.html"
 
+echo "Dashboard script: dashboard/scripts/generate_graphical_dashboard.py"
+echo "Log root: ${BASE_LOG}"
+echo "Output file: ${DASHBOARD_FILE}"
+echo ""
+
+# Generate dashboard with updated script (uses results_*_functions.csv)
 python3 dashboard/scripts/generate_graphical_dashboard.py \
     --log-root ${BASE_LOG} \
     --out ${DASHBOARD_FILE} \
     --name "Full Regression - ${DATE_DIR}"
 
-echo "=============================================="
-echo " Dashboard Generation Complete"
-echo "=============================================="
-echo "Dashboard available at:"
-echo "file://$(pwd)/${DASHBOARD_FILE}"
+DASHBOARD_RC=$?
 
-# Copy dashboard to user directory
-USER_DASHBOARD_DIR="${HOME}/Dashboard/FULL_REGRESSION"
-mkdir -p "${USER_DASHBOARD_DIR}"
-cp "${DASHBOARD_FILE}" "${USER_DASHBOARD_DIR}/"
+if [ ${DASHBOARD_RC} -eq 0 ] && [ -f "${DASHBOARD_FILE}" ]; then
+    echo "=============================================="
+    echo " Dashboard Generation Complete"
+    echo "=============================================="
+    echo "Dashboard available at:"
+    echo "file://$(pwd)/${DASHBOARD_FILE}"
+    echo ""
 
-echo "Dashboard copy saved to:"
-echo "file://${USER_DASHBOARD_DIR}/full_regression_dashboard_${DATE_DIR}_${TIME_STAMP}.html"
+    # Copy dashboard to user directory
+    USER_DASHBOARD_DIR="${HOME}/Dashboard/FULL_REGRESSION"
+    mkdir -p "${USER_DASHBOARD_DIR}"
+    cp "${DASHBOARD_FILE}" "${USER_DASHBOARD_DIR}/" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        echo "Dashboard copy saved to:"
+        echo "file://${USER_DASHBOARD_DIR}/full_regression_dashboard_${DATE_DIR}_${TIME_STAMP}.html"
+    else
+        echo "Warning: Failed to copy dashboard to user directory"
+        echo "Dashboard is still available at: ${DASHBOARD_FILE}"
+    fi
+else
+    echo "=============================================="
+    echo " Dashboard Generation Failed (RC=${DASHBOARD_RC})"
+    echo "=============================================="
+    echo "Warning: Dashboard generation failed. Check logs above for errors."
+    echo "Test results are still available in: ${BASE_LOG}"
+fi
+
+echo ""
+echo "=============================================="
+echo " All Operations Complete"
+echo "=============================================="
