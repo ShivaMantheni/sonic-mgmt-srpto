@@ -51,5 +51,6 @@ Thumbs.db
 # Test results and reports
 results/
 reports/
+spytest/tests/automation/lldp/reports/
 test_execution.log
 test_final.log
