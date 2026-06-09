@@ -128,7 +128,9 @@ run_lldp_test "LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_2d_reg.yaml" \
 # LLDP CLI Fix Tests (1 test)
 # ==========================================================
 echo "Batch 3/3: LLDP CLI Fix"
-run_lldp_test "SM_ISCLI_P2_161_162_LLDP_CLI_FIX" "./testbeds/testbed_vs_1node_reg.yaml" \
+# Requires two connected DUTs (ensure_min_topology "D1D2:1") for LLDP neighbor
+# discovery, so it runs on the 2-node testbed (a 1-node testbed -> TopoFail).
+run_lldp_test "SM_ISCLI_P2_161_162_LLDP_CLI_FIX" "./testbeds/testbed_vs_2d_reg.yaml" \
     automation/lldp/test_sm_iscli_p2_161_162_lldp_cli_fix.py
 
 # ==========================================================

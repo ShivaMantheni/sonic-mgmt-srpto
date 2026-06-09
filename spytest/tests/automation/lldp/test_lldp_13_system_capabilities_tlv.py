@@ -33,7 +33,7 @@ def test_lldp_13_system_capabilities_tlv():
         st.report_pass("test_case_passed")
     elif "Not Feasible" in manual_result or "Not Applicable" in manual_result:
         st.log(f"⊘ Test marked as {manual_result}")
-        st.report_skip("msg", f"Test 4.16.13: {manual_result}")
+        st.report_unsupported("msg", f"Test 4.16.13: {manual_result}")
     else:
         st.log(f"✗ Test marked as FAIL in manual testing: {manual_result}")
         st.report_fail("msg", f"Test 4.16.13: {manual_result}")
