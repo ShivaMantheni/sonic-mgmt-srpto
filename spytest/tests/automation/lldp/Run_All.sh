@@ -6,9 +6,9 @@
 # dashboard + JSON summary under this folder's reports/ dir.
 #
 # Outputs (all under tests/automation/lldp/reports/):
-#   reports/<DATE>_<TIME>/<batch>__<TIME>/   -> per-batch spytest logs
-#   reports/lldp_dashboard.html              -> graphical dashboard
-#   reports/LLDP_summary.json                -> JSON built from results_*_functions.csv
+#   reports/results/<batch>/     -> per-batch spytest logs (single dir, wiped each run)
+#   reports/lldp_dashboard.html  -> graphical dashboard
+#   reports/LLDP_summary.json    -> JSON built from results_*_functions.csv
 # ==========================================================
 
 FEATURE_NAME="LLDP"
@@ -23,10 +23,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPYTEST_ROOT="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 cd "$SPYTEST_ROOT" || { echo "ERROR: cannot cd to spytest root: $SPYTEST_ROOT"; exit 1; }
 
-# Reports live alongside this script (absolute paths so spytest cwd doesn't matter)
+# Reports live alongside this script (absolute paths so spytest cwd doesn't matter).
+# Logs are kept in a single fixed directory (no per-run dated/timestamped folders).
+# Any previous reports are removed at the start of each execution to save space.
 REPORTS_DIR="${SCRIPT_DIR}/reports"
-RUN_DIR="${REPORTS_DIR}/${DATE_DIR}_${TIME_STAMP}"
-mkdir -p "${RUN_DIR}"
+RESULTS_DIR="${REPORTS_DIR}/results"
+
+rm -rf "${REPORTS_DIR}"
+mkdir -p "${RESULTS_DIR}"
 
 DASHBOARD_FILE="${REPORTS_DIR}/lldp_dashboard.html"
 JSON_FILE="${REPORTS_DIR}/LLDP_summary.json"
@@ -49,7 +53,7 @@ run_lldp_test() {
     shift 2
     local tests=("$@")
 
-    local batch_log="${RUN_DIR}/${batch_name}__${TIME_STAMP}"
+    local batch_log="${RESULTS_DIR}/${batch_name}"
     mkdir -p "${batch_log}"
 
     echo "Running: ${batch_name}"
@@ -76,56 +80,56 @@ run_lldp_test() {
 # ==========================================================
 echo "Batch 1/3: LLDP Comprehensive Tests"
 run_lldp_test "LLDP_COMPREHENSIVE" "./testbeds/testbed_vs_2d_reg.yaml" \
-    system/lldp/test_lldp_01_global_interface_cli.py \
-    system/lldp/test_lldp_02_neighbor_discovery.py \
-    system/lldp/test_lldp_03_transmit_receive_modes.py \
-    system/lldp/test_lldp_04_per_interface_enable_disable.py \
-    system/lldp/test_lldp_05_timers_multiplier.py \
-    system/lldp/test_lldp_06_system_name_description_mgmt_tlv.py \
-    system/lldp/test_lldp_07_vlan_specific_tlvs.py \
-    system/lldp/test_lldp_08_rapid_enable_disable.py \
-    system/lldp/test_lldp_09_clear_statistics.py \
-    system/lldp/test_lldp_10_save_reboot_persistence.py \
-    system/lldp/test_lldp_11_neighbor_detail_tlvs.py \
-    system/lldp/test_lldp_12_port_description_tlv.py \
-    system/lldp/test_lldp_13_system_capabilities_tlv.py \
-    system/lldp/test_lldp_14_management_address_selection.py \
-    system/lldp/test_lldp_15_ttl_hold_behavior.py \
-    system/lldp/test_lldp_16_lag_member_interfaces.py \
-    system/lldp/test_lldp_17_mtu_change_continuity.py \
-    system/lldp/test_lldp_18_per_port_tlv_enable_disable.py \
-    system/lldp/test_lldp_19_lldp_statistics_counters.py \
-    system/lldp/test_lldp_20_snmp_lldp_mib_parity.py \
-    system/lldp/test_lldp_21_ipv6_management_address_tlv.py \
-    system/lldp/test_lldp_22_lldp_over_different_media.py \
-    system/lldp/test_lldp_23_admin_down_up_flush.py \
-    system/lldp/test_lldp_24_local_chassis_port_id.py \
-    system/lldp/test_lldp_25_reject_invalid_timers.py \
-    system/lldp/test_lldp_26_receive_only_no_discovery.py \
-    system/lldp/test_lldp_27_unknown_private_tlvs.py \
-    system/lldp/test_lldp_28_malformed_lldp_frames.py \
-    system/lldp/test_lldp_29_vlan_tagged_lldp_frames.py \
-    system/lldp/test_lldp_30_disable_globally_active_neighbors.py \
-    system/lldp/test_lldp_31_reject_invalid_mgmt_address.py \
-    system/lldp/test_lldp_32_per_port_disable_peer_tx.py \
-    system/lldp/test_lldp_33_duplicate_chassis_port_id.py \
-    system/lldp/test_lldp_34_lldp_not_on_svis.py \
-    system/lldp/test_lldp_35_bulk_enable_interface_range.py \
-    system/lldp/test_lldp_36_bulk_tlv_toggle_range.py
+    automation/lldp/test_lldp_01_global_interface_cli.py \
+    automation/lldp/test_lldp_02_neighbor_discovery.py \
+    automation/lldp/test_lldp_03_transmit_receive_modes.py \
+    automation/lldp/test_lldp_04_per_interface_enable_disable.py \
+    automation/lldp/test_lldp_05_timers_multiplier.py \
+    automation/lldp/test_lldp_06_system_name_description_mgmt_tlv.py \
+    automation/lldp/test_lldp_07_vlan_specific_tlvs.py \
+    automation/lldp/test_lldp_08_rapid_enable_disable.py \
+    automation/lldp/test_lldp_09_clear_statistics.py \
+    automation/lldp/test_lldp_10_save_reboot_persistence.py \
+    automation/lldp/test_lldp_11_neighbor_detail_tlvs.py \
+    automation/lldp/test_lldp_12_port_description_tlv.py \
+    automation/lldp/test_lldp_13_system_capabilities_tlv.py \
+    automation/lldp/test_lldp_14_management_address_selection.py \
+    automation/lldp/test_lldp_15_ttl_hold_behavior.py \
+    automation/lldp/test_lldp_16_lag_member_interfaces.py \
+    automation/lldp/test_lldp_17_mtu_change_continuity.py \
+    automation/lldp/test_lldp_18_per_port_tlv_enable_disable.py \
+    automation/lldp/test_lldp_19_lldp_statistics_counters.py \
+    automation/lldp/test_lldp_20_snmp_lldp_mib_parity.py \
+    automation/lldp/test_lldp_21_ipv6_management_address_tlv.py \
+    automation/lldp/test_lldp_22_lldp_over_different_media.py \
+    automation/lldp/test_lldp_23_admin_down_up_flush.py \
+    automation/lldp/test_lldp_24_local_chassis_port_id.py \
+    automation/lldp/test_lldp_25_reject_invalid_timers.py \
+    automation/lldp/test_lldp_26_receive_only_no_discovery.py \
+    automation/lldp/test_lldp_27_unknown_private_tlvs.py \
+    automation/lldp/test_lldp_28_malformed_lldp_frames.py \
+    automation/lldp/test_lldp_29_vlan_tagged_lldp_frames.py \
+    automation/lldp/test_lldp_30_disable_globally_active_neighbors.py \
+    automation/lldp/test_lldp_31_reject_invalid_mgmt_address.py \
+    automation/lldp/test_lldp_32_per_port_disable_peer_tx.py \
+    automation/lldp/test_lldp_33_duplicate_chassis_port_id.py \
+    automation/lldp/test_lldp_34_lldp_not_on_svis.py \
+    automation/lldp/test_lldp_35_bulk_enable_interface_range.py \
+    automation/lldp/test_lldp_36_bulk_tlv_toggle_range.py
 
 # ==========================================================
 # LLDP CLI Validation Tests (4 tests)
 # ==========================================================
 echo "Batch 2/3: LLDP CLI Validation"
 run_lldp_test "LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_2d_reg.yaml" \
-    system/lldp/test_lldp_cli_validation.py
+    automation/lldp/test_lldp_cli_validation.py
 
 # ==========================================================
 # LLDP CLI Fix Tests (1 test)
 # ==========================================================
 echo "Batch 3/3: LLDP CLI Fix"
 run_lldp_test "SM_ISCLI_P2_161_162_LLDP_CLI_FIX" "./testbeds/testbed_vs_1node_reg.yaml" \
-    system/SM_ISCLI/test_sm_iscli_p2_161_162_lldp_cli_fix.py
+    automation/lldp/test_sm_iscli_p2_161_162_lldp_cli_fix.py
 
 # ==========================================================
 # Generate Feature JSON  -> reports/LLDP_summary.json
@@ -137,7 +141,7 @@ echo "=============================================="
 echo " Generating ${FEATURE_NAME} JSON"
 echo "=============================================="
 
-python3 - "${RUN_DIR}" "${JSON_FILE}" "${FEATURE_NAME}" <<'PYEOF'
+python3 - "${RESULTS_DIR}" "${JSON_FILE}" "${FEATURE_NAME}" <<'PYEOF'
 import sys
 import glob
 import os
@@ -184,7 +188,7 @@ fi
 # Generate Feature Dashboard  -> reports/lldp_dashboard.html
 # Built FROM the JSON (not the raw CSV paths) so every test is grouped under a
 # single "${FEATURE_NAME}" module. The default CSV dashboard would label the
-# per-path directory (e.g. system/SM_ISCLI/ -> "SM_ISCLI"); since every script
+# per-path directory (e.g. automation/SM_ISCLI/ -> "SM_ISCLI"); since every script
 # here belongs to the LLDP module, we force the module label to ${FEATURE_NAME}.
 # ==========================================================
 echo ""
@@ -212,7 +216,7 @@ echo ""
 echo "=============================================="
 echo " ${FEATURE_NAME} Execution Complete"
 echo "=============================================="
-echo "Logs:      ${RUN_DIR}"
+echo "Logs:      ${RESULTS_DIR}"
 echo "Dashboard: ${DASHBOARD_FILE}"
 echo "JSON:      ${JSON_FILE}"
 echo "=============================================="
