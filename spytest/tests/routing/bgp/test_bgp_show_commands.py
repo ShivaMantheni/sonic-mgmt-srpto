@@ -1,5 +1,5 @@
 """
-BGP SHOW COMMANDS COMPREHENSIVE TEST SUITE
+BGP SHOW COMMANDS TEST SUITE (klish)
 Author: Athira
 2026
 
@@ -12,38 +12,38 @@ How to run:
   --get-tech-support none --syslog-check none
 
 Description:
-  Comprehensive validation of BGP show commands covering all 91 test cases from
-  TC_BGP_SHOW_COMMANDS_COMPREHENSIVE.md. Tests cover BGP summary, neighbor details,
-  route tables, configuration display, statistics, VRF support, and filtering
-  capabilities across IPv4/IPv6 address families. Both positive and negative test
-  scenarios are included to validate CLI syntax, output format, and error handling.
+  Validation of the BGP "show" commands that are supported by the SONiC klish
+  CLI. The suite is restricted to the klish-supported command set defined in
+  TC_BGP_SHOW_COMMANDS_COMPREHENSIVE.md (31 commands / TC-001..TC-031); FRR-only
+  vtysh commands (cidr-only, regexp, paths, dampening, advertised/received
+  routes, statistics counters, etc.) are intentionally excluded.
 
-  Test Coverage (91 test cases):
-  - BGP Summary Commands (TC-001 to TC-010)
-  - BGP Neighbor Commands (TC-011 to TC-025)
-  - BGP Route Display (TC-026 to TC-040)
-  - BGP Configuration Display (TC-041 to TC-050)
-  - BGP Statistics (TC-051 to TC-060)
-  - VRF Support (TC-061 to TC-070)
-  - Advanced Filtering (TC-071 to TC-080)
-  - Negative Tests (TC-081 to TC-091)
+  Test Coverage (31 klish commands):
+  - Summary commands           (TC-001 to TC-008)
+  - Route table commands       (TC-009 to TC-012)
+  - Community filters          (TC-013 to TC-014)
+  - Neighbor commands          (TC-015 to TC-021)
+  - Route-map / statistics     (TC-022 to TC-025)
+  - VRF / peer-group / all     (TC-026 to TC-029)
+  - L2VPN EVPN                 (TC-030)
+  - Running configuration      (TC-031)
 
 Pre-requisites:
-  - Topology: 2-node eBGP/iBGP | Supported: HW and Virtual
+  - Topology: 2-node eBGP | Supported: HW and Virtual
   - Topology Diagram:
         # +----------------------+                       +----------------------+
         # |   DUT1 (AS 65001)    |                       |   DUT2 (AS 65002)    |
         # | Eth32 10.0.24.1/24   |=======================| Eth32 10.0.24.2/24   |
-        # | BGP neighbor config  |<-- BGP Session -->    | Routes advertised    |
+        # | 2001:db8::1/64       |<-- v4 + v6 sessions-->| 2001:db8::2/64       |
         # +----------------------+                       +----------------------+
 
-  - Feature flags: BGP must be enabled and configured
-  - Min SONiC version: Any version with FRR BGP support
+  - The setup brings up both the IPv4 and IPv6 eBGP sessions (klish) so the
+    IPv4 and IPv6 show commands have a real session to display.
   - Required test variables (YAML): vars/bgp/vars_bgp_show_commands.yaml
-    - defaults.cli_type (klish, vtysh, click)
+    - defaults.cli_type (klish)
     - defaults.local_asn, remote_asn
-    - defaults.d1_bgp_neighbor, d2_bgp_neighbor
-    - testcases.* definitions for all 91 test cases
+    - defaults.d1_bgp_neighbor, d2_bgp_neighbor, d1_ipv6, d2_ipv6
+    - testcases.<TC-ID>.command optional per-TC command override
 """
 
 from __future__ import annotations
@@ -88,18 +88,13 @@ def _load_yaml_data() -> Dict[str, Any]:
 
 @pytest.mark.topology("D1D2:1")
 class TestBgpShowCommands:
-    """
-    Comprehensive test suite for BGP show command validation.
-
-    Validates CLI syntax, output format, field presence, and error handling
-    for all BGP show commands across IPv4/IPv6 address families.
-    """
+    """klish BGP show command validation suite (31 commands)."""
 
     data = SpyTestDict()
 
     @classmethod
     def setup_class(cls) -> None:
-        """Initialize topology, test variables, and verify BGP session."""
+        """Initialize topology, test variables, and bring up v4/v6 sessions."""
         st.banner("BGP SHOW COMMANDS - CLASS SETUP")
 
         config = _load_yaml_data()
@@ -126,15 +121,122 @@ class TestBgpShowCommands:
         cls.data.d2_bgp_neighbor = defaults.get("d2_bgp_neighbor", "10.0.24.1")
         cls.data.d1_ipv6 = defaults.get("d1_ipv6", "2001:db8::1")
         cls.data.d2_ipv6 = defaults.get("d2_ipv6", "2001:db8::2")
+        cls.data.ipv6_prefix_len = int(defaults.get("ipv6_prefix_len", 64))
+        # On D1 the IPv6 BGP neighbor is D2's link address and vice-versa
+        cls.data.d1_ipv6_neighbor = defaults.get("d1_ipv6_neighbor", cls.data.d2_ipv6)
+        cls.data.d2_ipv6_neighbor = defaults.get("d2_ipv6_neighbor", cls.data.d1_ipv6)
+        cls.data.test_network = defaults.get("test_network", "10.10.10.0/24")
+        cls.data.test_network_v6 = defaults.get("test_network_v6", "2001:db8:20::/64")
+        cls.data.test_route_map = defaults.get("test_route_map", "SET_COMMUNITY")
+        cls.data.test_vrf = defaults.get("test_vrf", "default")
+        # interface that carries the eBGP session (native ifname)
+        cls.data.link_intf = defaults.get("link_intf", cls.data.D1D2P1)
 
         st.log(f"Topology: D1={cls.data.D1}, D2={cls.data.D2}")
         st.log(f"CLI Type: {cls.data.cli_type}")
         st.log(f"BGP: AS{cls.data.local_asn} ↔ AS{cls.data.remote_asn}")
-        st.log(f"D1 BGP Neighbor: {cls.data.d1_bgp_neighbor}")
-        st.log(f"D2 BGP Neighbor: {cls.data.d2_bgp_neighbor}")
+        st.log(f"D1 BGP Neighbor: {cls.data.d1_bgp_neighbor} (v6 {cls.data.d1_ipv6_neighbor})")
+
+        # Ensure the eBGP session is actually up before verifying. Configure
+        # both ends idempotently and clear to recover from a stale Idle peer.
+        cls._ensure_base_bgp_session()
+
+        # Bring up the IPv6 eBGP session so the IPv6 show-command testcases
+        # have a real session to display - the IPv6 link and address-family
+        # are not part of the device base config.
+        cls._ensure_ipv6_bgp_session()
 
         # Verify BGP session is established
         cls._verify_bgp_session_established()
+
+    @classmethod
+    def _ensure_base_bgp_session(cls) -> None:
+        """Make the D1<->D2 eBGP session Established (idempotent, recovers Idle).
+
+        The suite validates show output against a known eBGP session
+        (D1 AS{local_asn} <-> D2 AS{remote_asn}). It does not own device
+        config, so a session stuck in Idle from a previous run cannot
+        recover on its own. Configure the neighbor on both ends (harmless
+        if already present) and issue a clear to force re-negotiation.
+        """
+        st.banner("Ensuring base eBGP session (D1 <-> D2)")
+
+        # D1: neighbor towards D2
+        bgp_api.config_bgp(
+            dut=cls.data.D1,
+            local_as=cls.data.local_asn,
+            neighbor=cls.data.d1_bgp_neighbor,
+            remote_as=cls.data.remote_asn,
+            config="yes",
+            config_type_list=["neighbor"],
+            cli_type=cls.data.cli_type,
+        )
+
+        # D2: neighbor towards D1
+        bgp_api.config_bgp(
+            dut=cls.data.D2,
+            local_as=cls.data.remote_asn,
+            neighbor=cls.data.d2_bgp_neighbor,
+            remote_as=cls.data.local_asn,
+            config="yes",
+            config_type_list=["neighbor"],
+            cli_type=cls.data.cli_type,
+        )
+
+        # Advertise the IPv4 test network from D2 so D1 reliably has a learned
+        # route to display (TC-011), independent of any pre-existing config.
+        bgp_api.advertise_bgp_network(
+            cls.data.D2, cls.data.remote_asn, cls.data.test_network,
+            family="ipv4", config="yes", cli_type=cls.data.cli_type,
+        )
+
+        # Kick the FSM out of a stale Idle state and let it re-converge.
+        bgp_api.clear_ip_bgp_vtysh(cls.data.D1, cli_type=cls.data.cli_type)
+        st.wait(BGP_CONVERGENCE_WAIT, "Waiting for eBGP session to re-establish")
+
+    @classmethod
+    def _ensure_ipv6_bgp_session(cls) -> None:
+        """Configure and establish the D1<->D2 IPv6 eBGP session (idempotent).
+
+        The device base config only carries an IPv4 session, so the IPv6
+        show-command testcases had nothing to display. Assign IPv6 addresses
+        on the inter-DUT link, configure + activate the IPv6 neighbor on both
+        ends, advertise a test network from D2, then clear to converge.
+        All commands run via klish.
+        """
+        st.banner("Ensuring IPv6 eBGP session (D1 <-> D2)")
+
+        # IPv6 addressing on the inter-DUT link
+        ip_api.config_ip_addr_interface(
+            cls.data.D1, cls.data.D1D2P1, cls.data.d1_ipv6,
+            cls.data.ipv6_prefix_len, family="ipv6", config="add",
+            cli_type=cls.data.cli_type,
+        )
+        ip_api.config_ip_addr_interface(
+            cls.data.D2, cls.data.D2D1P1, cls.data.d2_ipv6,
+            cls.data.ipv6_prefix_len, family="ipv6", config="add",
+            cli_type=cls.data.cli_type,
+        )
+
+        # IPv6 neighbor + activate under address-family ipv6 unicast (both ends)
+        bgp_api.config_bgp_neighbor(
+            cls.data.D1, cls.data.local_asn, cls.data.d1_ipv6_neighbor,
+            cls.data.remote_asn, family="ipv6", cli_type=cls.data.cli_type,
+        )
+        bgp_api.config_bgp_neighbor(
+            cls.data.D2, cls.data.remote_asn, cls.data.d2_ipv6_neighbor,
+            cls.data.local_asn, family="ipv6", cli_type=cls.data.cli_type,
+        )
+
+        # Advertise an IPv6 network from D2 so D1 has a route to display
+        bgp_api.advertise_bgp_network(
+            cls.data.D2, cls.data.remote_asn, cls.data.test_network_v6,
+            family="ipv6", config="yes", cli_type=cls.data.cli_type,
+        )
+
+        # Clear and let the IPv6 session converge
+        bgp_api.clear_ipv6_bgp_vtysh(cls.data.D1, cli_type=cls.data.cli_type)
+        st.wait(BGP_CONVERGENCE_WAIT, "Waiting for IPv6 eBGP session to establish")
 
     @classmethod
     def _verify_bgp_session_established(cls) -> None:
@@ -176,26 +278,60 @@ class TestBgpShowCommands:
     # ==========================================================================
 
     def _get_testcase(self, tcid: str) -> Mapping[str, Any]:
-        """Fetch testcase definition from YAML."""
-        testcase = self.data.testcases.get(tcid)
-        if not testcase:
-            st.log(f"No testcase definition found for {tcid}, using defaults")
-            return {}
-        return testcase
+        """Per-TC command overrides are intentionally disabled.
+
+        The legacy vars file (vars_bgp_show_commands.yaml) still carries the
+        OLD 91-TC command map (with literal <neighbor_ip> placeholders and
+        FRR-only commands) which would silently override and break the
+        device-verified command defaults baked into each test. The suite uses
+        those verified defaults as the single source of truth.
+        """
+        return {}
 
     def _execute_show_command(self, dut: str, command: str,
                               cli_type: str = None) -> Optional[str]:
-        """Execute a show command and return output."""
+        """Execute a show command and return output (None if CLI rejects it)."""
         if cli_type is None:
             cli_type = self.data.cli_type
 
         try:
             st.log(f"Executing: {command}")
-            output = st.show(dut, command, type=cli_type, skip_tmpl=False)
-            return output
+            # skip_tmpl=True -> raw text. With a template, a rejected command's
+            # error output gets parsed into an empty list ([]), which is not
+            # None and silently passes "supported" checks. Raw text lets us
+            # detect the CLI error reliably and validate by substring.
+            output = st.show(dut, command, type=cli_type, skip_tmpl=True)
         except Exception as e:
             st.log(f"Command execution error: {e}")
             return None
+
+        # A command rejected by klish (e.g. FRR-only / incomplete syntax) comes
+        # back as raw error text. Treat it as no output so callers' supported /
+        # None handling triggers correctly.
+        if isinstance(output, str) and any(
+            marker in output
+            for marker in ("% Error", "Invalid input", "Syntax error",
+                           "Unknown command", "not completed")
+        ):
+            st.log(f"Command not supported on this CLI: {command}")
+            return None
+
+        return output
+
+    def _assert_command_supported(self, output: Any, command: str) -> None:
+        """Fail only if the command was rejected by the CLI (output is None).
+
+        A valid command that simply returns no data (empty list / "no routes"
+        message) still counts as supported and passes.
+        """
+        if output is None:
+            st.report_fail("msg", f"Command rejected/unsupported in klish: {command}")
+
+    def _assert_contains(self, output: Any, needle: str, command: str) -> None:
+        """Assert the command is supported and its output contains `needle`."""
+        self._assert_command_supported(output, command)
+        if needle not in str(output):
+            st.report_fail("msg", f"'{needle}' not found in output of '{command}'")
 
     def _validate_output_contains(self, output: Any, expected_fields: List[str],
                                   field_type: str = "keyword") -> bool:
@@ -223,1387 +359,500 @@ class TestBgpShowCommands:
         return True
 
     def _validate_bgp_summary_output(self, output: Any, expected_neighbor: str = None) -> bool:
-        """Validate BGP summary output structure."""
+        """Validate BGP summary output.
+
+        klish show via TextFSM returns a list of parsed dicts (keys like
+        'neighbor', 'asn', 'peers'), so checking for human-readable header
+        labels ("router identifier", "Neighbor") never matches. Validate the
+        parsed structure instead, with a raw-text fallback for skip_tmpl use.
+        """
         if not output:
+            st.error("BGP summary output is empty")
             return False
 
-        # Expected fields in BGP summary
-        expected_fields = ["router identifier", "local AS number", "Neighbor"]
+        # Parsed (TextFSM) output: list of dicts
+        if isinstance(output, list):
+            rows = [r for r in output if isinstance(r, dict)]
+            neighbors = [str(r.get("neighbor", "")).strip() for r in rows]
+            neighbors = [n for n in neighbors if n]
+            # A valid summary carries neighbor rows and/or AS/peer metadata
+            has_summary = any(
+                str(r.get("asn", "")).strip() or str(r.get("peers", "")).strip()
+                for r in rows
+            )
+            if not neighbors and not has_summary:
+                st.error("BGP summary parsed but contains no neighbor/AS data")
+                return False
+            if expected_neighbor and expected_neighbor not in neighbors:
+                st.error(f"Neighbor {expected_neighbor} not found in summary (parsed: {neighbors})")
+                return False
+            st.log(f"✓ BGP summary validated (neighbors={neighbors or 'none'})")
+            return True
 
+        # Raw-text fallback (skip_tmpl or untemplated output)
+        expected_fields = ["router identifier", "local AS number", "Neighbor"]
         if expected_neighbor:
             expected_fields.append(expected_neighbor)
-
         return self._validate_output_contains(output, expected_fields, "field")
 
     # ==========================================================================
-    # Test Cases - BGP Summary Commands (TC-001 to TC-010)
+    # Group A - BGP Summary Commands (TC-001 to TC-008)
     # ==========================================================================
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC001"])
     def test_bgp_show_tc001_global_summary(self) -> None:
-        """TC-001: Display global BGP summary (all address families)."""
-        st.banner("TC-001: Show BGP Summary (Global)")
-
-        testcase = self._get_testcase("TC-001")
-        command = testcase.get("command", "show bgp summary")
-
+        """TC-001: show bgp summary."""
+        st.banner("TC-001: show bgp summary")
+        command = self._get_testcase("TC-001").get("command", "show bgp summary")
         output = self._execute_show_command(self.data.D1, command)
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        # Validate output contains expected fields
-        if not self._validate_bgp_summary_output(output):
-            st.report_fail("msg", "BGP summary output missing expected fields")
-
-        st.log("✓ Global BGP summary displayed successfully")
+        self._assert_command_supported(output, command)
+        if not self._validate_bgp_summary_output(output, self.data.d1_bgp_neighbor):
+            st.report_fail("msg", f"Summary missing neighbor {self.data.d1_bgp_neighbor}")
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC002"])
-    def test_bgp_show_tc002_ipv4_unicast_summary(self) -> None:
-        """TC-002: Display IPv4 unicast BGP summary."""
-        st.banner("TC-002: Show BGP IPv4 Unicast Summary")
-
-        testcase = self._get_testcase("TC-002")
-        command = testcase.get("command", "show bgp ipv4 unicast summary")
-
+    def test_bgp_show_tc002_summary_established(self) -> None:
+        """TC-002: show bgp summary established."""
+        st.banner("TC-002: show bgp summary established")
+        command = self._get_testcase("TC-002").get("command", "show bgp summary established")
         output = self._execute_show_command(self.data.D1, command)
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        # Validate IPv4 neighbor is shown
+        self._assert_command_supported(output, command)
         if not self._validate_bgp_summary_output(output, self.data.d1_bgp_neighbor):
-            st.report_fail("msg", "IPv4 unicast summary missing neighbor")
-
-        st.log("✓ IPv4 unicast BGP summary displayed successfully")
+            st.report_fail("msg", "Established neighbor not shown in summary")
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC003"])
-    def test_bgp_show_tc003_ipv6_unicast_summary(self) -> None:
-        """TC-003: Display IPv6 unicast BGP summary."""
-        st.banner("TC-003: Show BGP IPv6 Unicast Summary")
-
-        testcase = self._get_testcase("TC-003")
-        command = testcase.get("command", "show bgp ipv6 unicast summary")
-
+    def test_bgp_show_tc003_summary_failed(self) -> None:
+        """TC-003: show bgp summary failed (no failed neighbors expected)."""
+        st.banner("TC-003: show bgp summary failed")
+        command = self._get_testcase("TC-003").get("command", "show bgp summary failed")
         output = self._execute_show_command(self.data.D1, command)
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        # IPv6 may not be configured - check for valid output or "no neighbors"
-        output_str = str(output)
-        if "No BGP neighbors" in output_str or "Total number of neighbors 0" in output_str:
-            st.log("IPv6 neighbors not configured (expected)")
-        else:
-            st.log("✓ IPv6 unicast summary displayed")
-
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC004"])
-    def test_bgp_show_tc004_ipv4_summary_vrf_all(self) -> None:
-        """TC-004: Display BGP summary for all VRFs."""
-        st.banner("TC-004: Show BGP IPv4 Summary VRF All")
-
-        testcase = self._get_testcase("TC-004")
-        command = testcase.get("command", "show bgp ipv4 unicast vrf all summary")
-
+    def test_bgp_show_tc004_summary_neighbor(self) -> None:
+        """TC-004: show bgp summary neighbor <ip>."""
+        st.banner("TC-004: show bgp summary neighbor <ip>")
+        command = self._get_testcase("TC-004").get(
+            "command", f"show bgp summary neighbor {self.data.d1_bgp_neighbor}")
         output = self._execute_show_command(self.data.D1, command)
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        # Should show default VRF at minimum
-        if not self._validate_output_contains(output, ["Neighbor"], "field"):
-            st.report_fail("msg", "VRF all summary missing neighbor info")
-
-        st.log("✓ BGP summary for all VRFs displayed")
+        if not self._validate_bgp_summary_output(output, self.data.d1_bgp_neighbor):
+            st.report_fail("msg", f"Neighbor {self.data.d1_bgp_neighbor} not in summary")
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC005"])
-    def test_bgp_show_tc005_ipv4_summary_json(self) -> None:
-        """TC-005: Display BGP IPv4 summary in JSON format."""
-        st.banner("TC-005: Show BGP IPv4 Summary JSON")
-
-        testcase = self._get_testcase("TC-005")
-        command = testcase.get("command", "show bgp ipv4 unicast summary json")
-
-        # Note: JSON output requires vtysh CLI type
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.log("JSON format may not be supported, trying without json keyword")
-            output = self._execute_show_command(
-                self.data.D1,
-                "show bgp ipv4 unicast summary",
-                cli_type="vtysh"
-            )
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve BGP summary")
-
-        st.log("✓ BGP IPv4 summary retrieved")
+    def test_bgp_show_tc005_summary_remote_as(self) -> None:
+        """TC-005: show bgp summary remote-as <asn>."""
+        st.banner("TC-005: show bgp summary remote-as <asn>")
+        command = self._get_testcase("TC-005").get(
+            "command", f"show bgp summary remote-as {self.data.remote_asn}")
+        output = self._execute_show_command(self.data.D1, command)
+        if not self._validate_bgp_summary_output(output, self.data.d1_bgp_neighbor):
+            st.report_fail("msg", f"remote-as {self.data.remote_asn} neighbor not shown")
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC006"])
-    def test_bgp_show_tc006_ipv4_summary_wide(self) -> None:
-        """TC-006: Display BGP IPv4 summary in wide format."""
-        st.banner("TC-006: Show BGP IPv4 Summary Wide")
-
-        testcase = self._get_testcase("TC-006")
-        command = testcase.get("command", "show bgp ipv4 unicast summary wide")
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.log("Wide format may not be supported")
-            # Fallback to standard format
-            output = self._execute_show_command(
-                self.data.D1,
-                "show bgp ipv4 unicast summary"
-            )
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve BGP summary")
-
-        st.log("✓ BGP IPv4 summary displayed")
+    def test_bgp_show_tc006_summary_vrf(self) -> None:
+        """TC-006: show bgp summary vrf <vrf>."""
+        st.banner("TC-006: show bgp summary vrf <vrf>")
+        command = self._get_testcase("TC-006").get(
+            "command", f"show bgp summary vrf {self.data.test_vrf}")
+        output = self._execute_show_command(self.data.D1, command)
+        if not self._validate_bgp_summary_output(output, self.data.d1_bgp_neighbor):
+            st.report_fail("msg", f"vrf {self.data.test_vrf} summary missing neighbor")
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC007"])
-    def test_bgp_show_tc007_ipv4_summary_established(self) -> None:
-        """TC-007: Display only established BGP IPv4 neighbors."""
-        st.banner("TC-007: Show BGP IPv4 Summary Established")
-
-        testcase = self._get_testcase("TC-007")
-        command = testcase.get("command", "show bgp ipv4 unicast summary established")
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.log("Established filter may not be supported")
-            output = self._execute_show_command(
-                self.data.D1,
-                "show bgp ipv4 unicast summary"
-            )
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve BGP summary")
-
-        st.log("✓ BGP summary retrieved")
+    def test_bgp_show_tc007_ipv4_unicast_summary(self) -> None:
+        """TC-007: show bgp ipv4 unicast summary."""
+        st.banner("TC-007: show bgp ipv4 unicast summary")
+        command = self._get_testcase("TC-007").get("command", "show bgp ipv4 unicast summary")
+        output = self._execute_show_command(self.data.D1, command)
+        if not self._validate_bgp_summary_output(output, self.data.d1_bgp_neighbor):
+            st.report_fail("msg", "IPv4 unicast summary missing neighbor")
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC008"])
-    def test_bgp_show_tc008_ipv4_summary_failed(self) -> None:
-        """TC-008: Display only failed/non-established BGP IPv4 neighbors."""
-        st.banner("TC-008: Show BGP IPv4 Summary Failed")
-
-        testcase = self._get_testcase("TC-008")
-        command = testcase.get("command", "show bgp ipv4 unicast summary failed")
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.log("Failed filter may not be supported, checking standard summary")
-            output = self._execute_show_command(
-                self.data.D1,
-                "show bgp ipv4 unicast summary"
-            )
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve BGP summary")
-
-        # If all neighbors are established, should show "No failed neighbors" or empty
-        st.log("✓ BGP failed summary retrieved")
+    def test_bgp_show_tc008_ipv6_unicast_summary(self) -> None:
+        """TC-008: show bgp ipv6 unicast summary."""
+        st.banner("TC-008: show bgp ipv6 unicast summary")
+        command = self._get_testcase("TC-008").get("command", "show bgp ipv6 unicast summary")
+        output = self._execute_show_command(self.data.D1, command)
+        if not self._validate_bgp_summary_output(output, self.data.d1_ipv6_neighbor):
+            st.report_fail("msg", f"IPv6 summary missing neighbor {self.data.d1_ipv6_neighbor}")
         st.report_pass("test_case_passed")
 
+    # ==========================================================================
+    # Group B - BGP Route Table Commands (TC-009 to TC-012)
+    # ==========================================================================
+
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC009"])
-    def test_bgp_show_tc009_ipv6_summary_json(self) -> None:
-        """TC-009: Display BGP IPv6 summary in JSON format."""
-        st.banner("TC-009: Show BGP IPv6 Summary JSON")
-
-        testcase = self._get_testcase("TC-009")
-        command = testcase.get("command", "show bgp ipv6 unicast summary json")
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.log("JSON format may not be supported for IPv6")
-            output = self._execute_show_command(
-                self.data.D1,
-                "show bgp ipv6 unicast summary",
-                cli_type="vtysh"
-            )
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve BGP IPv6 summary")
-
-        st.log("✓ BGP IPv6 summary retrieved")
+    def test_bgp_show_tc009_ipv4_vrf(self) -> None:
+        """TC-009: show bgp ipv4 unicast vrf <name>."""
+        st.banner("TC-009: show bgp ipv4 unicast vrf <name>")
+        command = self._get_testcase("TC-009").get(
+            "command", f"show bgp ipv4 unicast vrf {self.data.test_vrf}")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC010"])
-    def test_bgp_show_tc010_l2vpn_evpn_summary(self) -> None:
-        """TC-010: Display BGP L2VPN EVPN summary."""
-        st.banner("TC-010: Show BGP L2VPN EVPN Summary")
-
-        testcase = self._get_testcase("TC-010")
-        command = testcase.get("command", "show bgp l2vpn evpn summary")
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.log("L2VPN EVPN may not be configured")
-
-        # L2VPN EVPN is optional - test is successful if command executes
-        st.log("✓ L2VPN EVPN summary command executed")
+    def test_bgp_show_tc010_bgp_route(self) -> None:
+        """TC-010: show bgp route."""
+        st.banner("TC-010: show bgp route")
+        command = self._get_testcase("TC-010").get("command", "show bgp route")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
-    # ==========================================================================
-    # Test Cases - BGP Neighbor Commands (TC-011 to TC-025)
-    # ==========================================================================
-
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC011"])
-    def test_bgp_show_tc011_ipv4_neighbors(self) -> None:
-        """TC-011: Display all IPv4 BGP neighbors."""
-        st.banner("TC-011: Show BGP IPv4 Neighbors")
-
-        testcase = self._get_testcase("TC-011")
-        command = testcase.get("command", "show bgp ipv4 unicast neighbors")
-
+    def test_bgp_show_tc011_ipv4_unicast(self) -> None:
+        """TC-011: show bgp ipv4 unicast (route table)."""
+        st.banner("TC-011: show bgp ipv4 unicast")
+        command = self._get_testcase("TC-011").get("command", "show bgp ipv4 unicast")
         output = self._execute_show_command(self.data.D1, command)
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        # Validate neighbor IP is shown
-        if not self._validate_output_contains(output, [self.data.d1_bgp_neighbor], "neighbor"):
-            st.report_fail("msg", "Neighbor not found in output")
-
-        st.log("✓ IPv4 BGP neighbors displayed")
+        # Validate the IPv4 BGP route table is displayed. Use a stable marker
+        # rather than a specific learned prefix so the test is robust to
+        # cross-DUT route-propagation drift.
+        self._assert_contains(output, "BGP table version", command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC012"])
-    def test_bgp_show_tc012_specific_ipv4_neighbor(self) -> None:
-        """TC-012: Display specific IPv4 BGP neighbor details."""
-        st.banner("TC-012: Show Specific BGP IPv4 Neighbor")
-
-        testcase = self._get_testcase("TC-012")
-        command = f"show bgp ipv4 unicast neighbors {self.data.d1_bgp_neighbor}"
-
+    def test_bgp_show_tc012_ipv6_unicast(self) -> None:
+        """TC-012: show bgp ipv6 unicast (route table)."""
+        st.banner("TC-012: show bgp ipv6 unicast")
+        command = self._get_testcase("TC-012").get("command", "show bgp ipv6 unicast")
         output = self._execute_show_command(self.data.D1, command)
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        # Validate detailed neighbor info
-        expected_fields = [
-            self.data.d1_bgp_neighbor,
-            "remote AS",
-            "BGP version",
-            "BGP state"
-        ]
-        if not self._validate_output_contains(output, expected_fields, "field"):
-            st.report_fail("msg", "Neighbor details missing expected fields")
-
-        st.log("✓ Specific IPv4 neighbor details displayed")
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
+    # ==========================================================================
+    # Group C - Community Filters (TC-013 to TC-014)
+    # ==========================================================================
+
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC013"])
-    def test_bgp_show_tc013_neighbor_advertised_routes(self) -> None:
-        """TC-013: Display routes advertised to a specific neighbor."""
-        st.banner("TC-013: Show BGP Neighbor Advertised Routes")
-
-        testcase = self._get_testcase("TC-013")
-        command = f"show bgp ipv4 unicast neighbors {self.data.d1_bgp_neighbor} advertised-routes"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        st.log("✓ Advertised routes retrieved")
+    def test_bgp_show_tc013_ipv4_community(self) -> None:
+        """TC-013: show bgp ipv4 unicast community."""
+        st.banner("TC-013: show bgp ipv4 unicast community")
+        command = self._get_testcase("TC-013").get("command", "show bgp ipv4 unicast community no-export")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC014"])
-    def test_bgp_show_tc014_neighbor_received_routes(self) -> None:
-        """TC-014: Display routes received from a specific neighbor."""
-        st.banner("TC-014: Show BGP Neighbor Received Routes")
-
-        testcase = self._get_testcase("TC-014")
-        command = f"show bgp ipv4 unicast neighbors {self.data.d1_bgp_neighbor} received-routes"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.log("Received-routes may require soft-reconfiguration inbound")
-            # Try routes command as fallback
-            command = f"show bgp ipv4 unicast neighbors {self.data.d1_bgp_neighbor} routes"
-            output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve neighbor routes")
-
-        st.log("✓ Neighbor routes retrieved")
+    def test_bgp_show_tc014_ipv6_community(self) -> None:
+        """TC-014: show bgp ipv6 unicast community."""
+        st.banner("TC-014: show bgp ipv6 unicast community")
+        command = self._get_testcase("TC-014").get("command", "show bgp ipv6 unicast community no-export")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
+    # ==========================================================================
+    # Group D - Neighbor Commands (TC-015 to TC-021)
+    # ==========================================================================
+
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC015"])
-    def test_bgp_show_tc015_neighbor_routes(self) -> None:
-        """TC-015: Display all routes from a specific neighbor."""
-        st.banner("TC-015: Show BGP Neighbor Routes")
-
-        testcase = self._get_testcase("TC-015")
-        command = f"show bgp ipv4 unicast neighbors {self.data.d1_bgp_neighbor} routes"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        st.log("✓ Neighbor routes displayed")
+    def test_bgp_show_tc015_ipv4_neighbors(self) -> None:
+        """TC-015: show bgp ipv4 unicast neighbors."""
+        st.banner("TC-015: show bgp ipv4 unicast neighbors")
+        command = self._get_testcase("TC-015").get("command", "show bgp ipv4 unicast neighbors")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_contains(output, self.data.d1_bgp_neighbor, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC016"])
-    def test_bgp_show_tc016_neighbor_dampened_routes(self) -> None:
-        """TC-016: Display neighbor dampened routes."""
-        st.banner("TC-016: Show BGP Neighbor Dampened Routes")
-
-        testcase = self._get_testcase("TC-016")
-        command = f"show bgp ipv4 unicast neighbors {self.data.d1_bgp_neighbor} dampened-routes"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Dampened routes are optional - command execution is success
-        st.log("✓ Dampened routes command executed")
+    def test_bgp_show_tc016_ipv4_neighbor_specific(self) -> None:
+        """TC-016: show bgp ipv4 unicast neighbors <ip>."""
+        st.banner("TC-016: show bgp ipv4 unicast neighbors <ip>")
+        command = self._get_testcase("TC-016").get(
+            "command", f"show bgp ipv4 unicast neighbors {self.data.d1_bgp_neighbor}")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_contains(output, self.data.d1_bgp_neighbor, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC017"])
-    def test_bgp_show_tc017_neighbor_flap_statistics(self) -> None:
-        """TC-017: Display neighbor flap statistics."""
-        st.banner("TC-017: Show BGP Neighbor Flap Statistics")
-
-        testcase = self._get_testcase("TC-017")
-        command = f"show bgp ipv4 unicast neighbors {self.data.d1_bgp_neighbor} flap-statistics"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Flap statistics may not be available
-        st.log("✓ Flap statistics command executed")
+    def test_bgp_show_tc017_ipv4_neighbors_interface(self) -> None:
+        """TC-017: show bgp ipv4 unicast neighbors interface."""
+        st.banner("TC-017: show bgp ipv4 unicast neighbors interface")
+        command = self._get_testcase("TC-017").get(
+            "command", f"show bgp ipv4 unicast neighbors interface {self.data.link_intf}")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC018"])
     def test_bgp_show_tc018_ipv6_neighbors(self) -> None:
-        """TC-018: Display IPv6 BGP neighbors."""
-        st.banner("TC-018: Show BGP IPv6 Neighbors")
-
-        testcase = self._get_testcase("TC-018")
-        command = testcase.get("command", "show bgp ipv6 unicast neighbors")
-
+        """TC-018: show bgp ipv6 unicast neighbors."""
+        st.banner("TC-018: show bgp ipv6 unicast neighbors")
+        command = self._get_testcase("TC-018").get("command", "show bgp ipv6 unicast neighbors")
         output = self._execute_show_command(self.data.D1, command)
-        # IPv6 neighbors may not be configured
-        st.log("✓ IPv6 neighbors command executed")
+        self._assert_contains(output, self.data.d1_ipv6_neighbor, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC019"])
-    def test_bgp_show_tc019_specific_ipv6_neighbor(self) -> None:
-        """TC-019: Display specific IPv6 neighbor details."""
-        st.banner("TC-019: Show Specific BGP IPv6 Neighbor")
-
-        testcase = self._get_testcase("TC-019")
-        # Use IPv6 neighbor if configured
-        command = f"show bgp ipv6 unicast neighbors {self.data.d1_ipv6}"
-
+    def test_bgp_show_tc019_ipv6_neighbor_specific(self) -> None:
+        """TC-019: show bgp ipv6 unicast neighbors <ipv6>."""
+        st.banner("TC-019: show bgp ipv6 unicast neighbors <ipv6>")
+        command = self._get_testcase("TC-019").get(
+            "command", f"show bgp ipv6 unicast neighbors {self.data.d1_ipv6_neighbor}")
         output = self._execute_show_command(self.data.D1, command)
-        # IPv6 neighbor may not be configured
-        st.log("✓ IPv6 neighbor details command executed")
+        self._assert_contains(output, self.data.d1_ipv6_neighbor, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC020"])
-    def test_bgp_show_tc020_neighbor_capabilities(self) -> None:
-        """TC-020: Display neighbor capabilities."""
-        st.banner("TC-020: Show BGP Neighbor Capabilities")
-
-        testcase = self._get_testcase("TC-020")
-        command = f"show bgp neighbors {self.data.d1_bgp_neighbor} capabilities"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        st.log("✓ Neighbor capabilities displayed")
+    def test_bgp_show_tc020_ipv6_neighbors_interface(self) -> None:
+        """TC-020: show bgp ipv6 unicast neighbors interface."""
+        st.banner("TC-020: show bgp ipv6 unicast neighbors interface")
+        command = self._get_testcase("TC-020").get(
+            "command", f"show bgp ipv6 unicast neighbors interface {self.data.link_intf}")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC021"])
-    def test_bgp_show_tc021_neighbor_timers(self) -> None:
-        """TC-021: Display neighbor timers."""
-        st.banner("TC-021: Show BGP Neighbor Timers")
-
-        testcase = self._get_testcase("TC-021")
-        command = f"show bgp neighbors {self.data.d1_bgp_neighbor} timers"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            # Try alternative - show full neighbor details
-            command = f"show bgp neighbors {self.data.d1_bgp_neighbor}"
-            output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve neighbor timers")
-
-        st.log("✓ Neighbor timers displayed")
+    def test_bgp_show_tc021_all_neighbors(self) -> None:
+        """TC-021: show bgp all neighbors."""
+        st.banner("TC-021: show bgp all neighbors")
+        command = self._get_testcase("TC-021").get("command", "show bgp all neighbors")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_contains(output, self.data.d1_bgp_neighbor, command)
         st.report_pass("test_case_passed")
 
+    # ==========================================================================
+    # Group E - Route-map / Statistics (TC-022 to TC-025)
+    # ==========================================================================
+
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC022"])
-    def test_bgp_show_tc022_neighbor_route_refresh_capability(self) -> None:
-        """TC-022: Display neighbor route-refresh capability."""
-        st.banner("TC-022: Show BGP Neighbor Route-Refresh Capability")
-
-        testcase = self._get_testcase("TC-022")
-        command = f"show bgp neighbors {self.data.d1_bgp_neighbor} route-refresh-capability"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # May need to check capabilities instead
-        st.log("✓ Route-refresh capability command executed")
+    def test_bgp_show_tc022_ipv4_route_map(self) -> None:
+        """TC-022: show bgp ipv4 unicast route-map <name>."""
+        st.banner("TC-022: show bgp ipv4 unicast route-map <name>")
+        command = self._get_testcase("TC-022").get(
+            "command", f"show bgp ipv4 unicast route-map {self.data.test_route_map}")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC023"])
-    def test_bgp_show_tc023_neighbor_prefix_counts(self) -> None:
-        """TC-023: Display neighbor prefix-counts."""
-        st.banner("TC-023: Show BGP Neighbor Prefix Counts")
-
-        testcase = self._get_testcase("TC-023")
-        command = f"show bgp neighbors {self.data.d1_bgp_neighbor} prefix-counts"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # May not be supported separately - info in summary
-        st.log("✓ Prefix counts command executed")
+    def test_bgp_show_tc023_ipv4_statistics(self) -> None:
+        """TC-023: show bgp ipv4 unicast statistics."""
+        st.banner("TC-023: show bgp ipv4 unicast statistics")
+        command = self._get_testcase("TC-023").get("command", "show bgp ipv4 unicast statistics")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC024"])
-    def test_bgp_show_tc024_neighbor_connection(self) -> None:
-        """TC-024: Display neighbor connection details."""
-        st.banner("TC-024: Show BGP Neighbor Connection Details")
-
-        testcase = self._get_testcase("TC-024")
-        command = f"show bgp neighbors {self.data.d1_bgp_neighbor} connection"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # May not be supported - info in neighbor details
-        st.log("✓ Connection details command executed")
+    def test_bgp_show_tc024_ipv6_route_map(self) -> None:
+        """TC-024: show bgp ipv6 unicast route-map <name>."""
+        st.banner("TC-024: show bgp ipv6 unicast route-map <name>")
+        command = self._get_testcase("TC-024").get(
+            "command", f"show bgp ipv6 unicast route-map {self.data.test_route_map}")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC025"])
-    def test_bgp_show_tc025_neighbors_json(self) -> None:
-        """TC-025: Display all neighbors in JSON format."""
-        st.banner("TC-025: Show BGP Neighbors JSON")
-
-        testcase = self._get_testcase("TC-025")
-        command = "show bgp ipv4 unicast neighbors json"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.log("JSON format may not be supported")
-            output = self._execute_show_command(
-                self.data.D1,
-                "show bgp ipv4 unicast neighbors",
-                cli_type="vtysh"
-            )
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve neighbor information")
-
-        st.log("✓ Neighbor information retrieved")
+    def test_bgp_show_tc025_ipv6_statistics(self) -> None:
+        """TC-025: show bgp ipv6 unicast statistics."""
+        st.banner("TC-025: show bgp ipv6 unicast statistics")
+        command = self._get_testcase("TC-025").get("command", "show bgp ipv6 unicast statistics")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     # ==========================================================================
-    # Test Cases - BGP Route Display (TC-026 to TC-040)
+    # Group F - VRF / Peer-group / All (TC-026 to TC-029)
     # ==========================================================================
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC026"])
-    def test_bgp_show_tc026_ipv4_routes(self) -> None:
-        """TC-026: Display all IPv4 BGP routes."""
-        st.banner("TC-026: Show BGP IPv4 Routes")
-
-        command = "show bgp ipv4 unicast"
-
+    def test_bgp_show_tc026_ipv4_vrf_all(self) -> None:
+        """TC-026: show bgp ipv4 unicast vrf all."""
+        st.banner("TC-026: show bgp ipv4 unicast vrf all")
+        command = self._get_testcase("TC-026").get("command", "show bgp ipv4 unicast vrf all")
         output = self._execute_show_command(self.data.D1, command)
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        st.log("✓ IPv4 BGP routes displayed")
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC027"])
-    def test_bgp_show_tc027_specific_ipv4_route(self) -> None:
-        """TC-027: Display specific IPv4 route."""
-        st.banner("TC-027: Show Specific BGP IPv4 Route")
-
-        testcase = self._get_testcase("TC-027")
-        # Use a sample prefix - should be configurable
-        prefix = "10.10.10.0/24"
-        command = f"show bgp ipv4 unicast {prefix}"
-
+    def test_bgp_show_tc027_ipv6_vrf_all(self) -> None:
+        """TC-027: show bgp ipv6 unicast vrf all."""
+        st.banner("TC-027: show bgp ipv6 unicast vrf all")
+        command = self._get_testcase("TC-027").get("command", "show bgp ipv6 unicast vrf all")
         output = self._execute_show_command(self.data.D1, command)
-        # Route may or may not exist
-        st.log("✓ Specific route command executed")
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC028"])
-    def test_bgp_show_tc028_ipv4_routes_cidr_only(self) -> None:
-        """TC-028: Display IPv4 routes in CIDR notation."""
-        st.banner("TC-028: Show BGP IPv4 Routes CIDR Only")
-
-        testcase = self._get_testcase("TC-028")
-        command = "show bgp ipv4 unicast cidr-only"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ CIDR-only routes command executed")
+    def test_bgp_show_tc028_ipv6_vrf(self) -> None:
+        """TC-028: show bgp ipv6 unicast vrf <name>."""
+        st.banner("TC-028: show bgp ipv6 unicast vrf <name>")
+        command = self._get_testcase("TC-028").get(
+            "command", f"show bgp ipv6 unicast vrf {self.data.test_vrf}")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC029"])
-    def test_bgp_show_tc029_routes_with_community(self) -> None:
-        """TC-029: Display IPv4 routes with communities."""
-        st.banner("TC-029: Show BGP Routes with Community")
-
-        testcase = self._get_testcase("TC-029")
-        command = "show bgp ipv4 unicast community"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Routes with community command executed")
+    def test_bgp_show_tc029_all_peer_group(self) -> None:
+        """TC-029: show bgp all peer-group."""
+        st.banner("TC-029: show bgp all peer-group")
+        command = self._get_testcase("TC-029").get("command", "show bgp all peer-group")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
+
+    # ==========================================================================
+    # Group G - L2VPN EVPN (TC-030)
+    # ==========================================================================
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC030"])
-    def test_bgp_show_tc030_routes_specific_community(self) -> None:
-        """TC-030: Display IPv4 routes with specific community."""
-        st.banner("TC-030: Show BGP Routes with Specific Community")
-
-        testcase = self._get_testcase("TC-030")
-        community = "65001:100"
-        command = f"show bgp ipv4 unicast community {community}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Specific community routes command executed")
+    def test_bgp_show_tc030_l2vpn_evpn(self) -> None:
+        """TC-030: show bgp l2vpn evpn."""
+        st.banner("TC-030: show bgp l2vpn evpn")
+        command = self._get_testcase("TC-030").get("command", "show bgp l2vpn evpn")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
+
+    # ==========================================================================
+    # Group H - Running Configuration (TC-031)
+    # ==========================================================================
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC031"])
-    def test_bgp_show_tc031_routes_as_path_filter(self) -> None:
-        """TC-031: Display IPv4 routes with AS-path filter."""
-        st.banner("TC-031: Show BGP Routes with AS-Path Regex")
-
-        testcase = self._get_testcase("TC-031")
-        as_path_regex = "_65002$"
-        command = f"show bgp ipv4 unicast regexp {as_path_regex}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ AS-path filter command executed")
+    def test_bgp_show_tc031_running_config(self) -> None:
+        """TC-031: show running-configuration bgp."""
+        st.banner("TC-031: show running-configuration bgp")
+        command = self._get_testcase("TC-031").get("command", "show running-configuration bgp")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_contains(output, str(self.data.local_asn), command)
         st.report_pass("test_case_passed")
 
+    # ==========================================================================
+    # Group I - Community Filter Variants (TC-032 to TC-037)
+    # ==========================================================================
+
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC032"])
-    def test_bgp_show_tc032_routes_longer_prefixes(self) -> None:
-        """TC-032: Display IPv4 routes longer than prefix."""
-        st.banner("TC-032: Show BGP Routes Longer Prefixes")
-
-        testcase = self._get_testcase("TC-032")
-        prefix = "10.0.0.0/8"
-        command = f"show bgp ipv4 unicast {prefix} longer-prefixes"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Longer prefixes command executed")
+    def test_bgp_show_tc032_ipv4_community_local_as(self) -> None:
+        """TC-032: show bgp ipv4 unicast community local-as."""
+        st.banner("TC-032: show bgp ipv4 unicast community local-as")
+        command = self._get_testcase("TC-032").get(
+            "command", "show bgp ipv4 unicast community local-as")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC033"])
-    def test_bgp_show_tc033_routes_bestpath(self) -> None:
-        """TC-033: Display IPv4 routes with bestpath."""
-        st.banner("TC-033: Show BGP Routes Bestpath")
-
-        testcase = self._get_testcase("TC-033")
-        command = "show bgp ipv4 unicast bestpath"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # May not be supported as separate command
-        st.log("✓ Bestpath command executed")
+    def test_bgp_show_tc033_ipv4_community_no_advertise(self) -> None:
+        """TC-033: show bgp ipv4 unicast community no-advertise."""
+        st.banner("TC-033: show bgp ipv4 unicast community no-advertise")
+        command = self._get_testcase("TC-033").get(
+            "command", "show bgp ipv4 unicast community no-advertise")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC034"])
-    def test_bgp_show_tc034_ipv6_routes(self) -> None:
-        """TC-034: Display all IPv6 BGP routes."""
-        st.banner("TC-034: Show BGP IPv6 Routes")
-
-        testcase = self._get_testcase("TC-034")
-        command = "show bgp ipv6 unicast"
-
+    def test_bgp_show_tc034_ipv4_community_no_peer(self) -> None:
+        """TC-034: show bgp ipv4 unicast community no-peer."""
+        st.banner("TC-034: show bgp ipv4 unicast community no-peer")
+        command = self._get_testcase("TC-034").get(
+            "command", "show bgp ipv4 unicast community no-peer")
         output = self._execute_show_command(self.data.D1, command)
-        # IPv6 may not be configured
-        st.log("✓ IPv6 routes command executed")
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC035"])
-    def test_bgp_show_tc035_specific_ipv6_route(self) -> None:
-        """TC-035: Display specific IPv6 route."""
-        st.banner("TC-035: Show Specific BGP IPv6 Route")
-
-        testcase = self._get_testcase("TC-035")
-        ipv6_prefix = "2001:db8::/32"
-        command = f"show bgp ipv6 unicast {ipv6_prefix}"
-
+    def test_bgp_show_tc035_ipv6_community_local_as(self) -> None:
+        """TC-035: show bgp ipv6 unicast community local-as."""
+        st.banner("TC-035: show bgp ipv6 unicast community local-as")
+        command = self._get_testcase("TC-035").get(
+            "command", "show bgp ipv6 unicast community local-as")
         output = self._execute_show_command(self.data.D1, command)
-        st.log("✓ Specific IPv6 route command executed")
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC036"])
-    def test_bgp_show_tc036_bgp_routing_table(self) -> None:
-        """TC-036: Display BGP routing table."""
-        st.banner("TC-036: Show IP BGP")
-
-        testcase = self._get_testcase("TC-036")
-        command = "show ip bgp"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        st.log("✓ BGP routing table displayed")
+    def test_bgp_show_tc036_ipv6_community_no_advertise(self) -> None:
+        """TC-036: show bgp ipv6 unicast community no-advertise."""
+        st.banner("TC-036: show bgp ipv6 unicast community no-advertise")
+        command = self._get_testcase("TC-036").get(
+            "command", "show bgp ipv6 unicast community no-advertise")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC037"])
-    def test_bgp_show_tc037_routes_json(self) -> None:
-        """TC-037: Display BGP routes in JSON format."""
-        st.banner("TC-037: Show BGP Routes JSON")
-
-        testcase = self._get_testcase("TC-037")
-        command = "show bgp ipv4 unicast json"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Routes JSON command executed")
+    def test_bgp_show_tc037_ipv6_community_no_peer(self) -> None:
+        """TC-037: show bgp ipv6 unicast community no-peer."""
+        st.banner("TC-037: show bgp ipv6 unicast community no-peer")
+        command = self._get_testcase("TC-037").get(
+            "command", "show bgp ipv6 unicast community no-peer")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
+    # ==========================================================================
+    # Group J - Running Configuration Sub-options (TC-038 to TC-043)
+    # ==========================================================================
+
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC038"])
-    def test_bgp_show_tc038_routes_route_map_filter(self) -> None:
-        """TC-038: Display BGP routes with route-map filter."""
-        st.banner("TC-038: Show BGP Routes with Route-Map Filter")
-
-        testcase = self._get_testcase("TC-038")
-        route_map = "TEST_MAP"
-        command = f"show bgp ipv4 unicast route-map {route_map}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Route-map filter command executed")
+    def test_bgp_show_tc038_running_config_as_path_list(self) -> None:
+        """TC-038: show running-configuration bgp as-path-list."""
+        st.banner("TC-038: show running-configuration bgp as-path-list")
+        command = self._get_testcase("TC-038").get(
+            "command", "show running-configuration bgp as-path-list")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC039"])
-    def test_bgp_show_tc039_routes_prefix_list_filter(self) -> None:
-        """TC-039: Display BGP routes with prefix-list filter."""
-        st.banner("TC-039: Show BGP Routes with Prefix-List Filter")
-
-        testcase = self._get_testcase("TC-039")
-        prefix_list = "TEST_PREFIX_LIST"
-        command = f"show bgp ipv4 unicast prefix-list {prefix_list}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Prefix-list filter command executed")
+    def test_bgp_show_tc039_running_config_community_list(self) -> None:
+        """TC-039: show running-configuration bgp community-list."""
+        st.banner("TC-039: show running-configuration bgp community-list")
+        command = self._get_testcase("TC-039").get(
+            "command", "show running-configuration bgp community-list")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC040"])
-    def test_bgp_show_tc040_routes_summary_only(self) -> None:
-        """TC-040: Display BGP routes summary."""
-        st.banner("TC-040: Show BGP Routes Summary Only")
-
-        testcase = self._get_testcase("TC-040")
-        command = "show bgp ipv4 unicast summary-only"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Routes summary command executed")
+    def test_bgp_show_tc040_running_config_extcommunity_list(self) -> None:
+        """TC-040: show running-configuration bgp extcommunity-list."""
+        st.banner("TC-040: show running-configuration bgp extcommunity-list")
+        command = self._get_testcase("TC-040").get(
+            "command", "show running-configuration bgp extcommunity-list")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
-    # ==========================================================================
-    # Test Cases - BGP Configuration Display (TC-041 to TC-050)
-    # ==========================================================================
-
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC041"])
-    def test_bgp_show_tc041_running_config(self) -> None:
-        """TC-041: Display BGP running configuration."""
-        st.banner("TC-041: Show BGP Running Configuration")
-
-        command = "show running-config bgp"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            # Try alternative command
-            command = "show running-config | include bgp"
-            output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve BGP configuration")
-
-        # Validate AS number is shown
-        if not self._validate_output_contains(output, [str(self.data.local_asn)], "AS number"):
-            st.log("AS number not found, but config retrieved")
-
-        st.log("✓ BGP running configuration displayed")
+    def test_bgp_show_tc041_running_config_vrf(self) -> None:
+        """TC-041: show running-configuration bgp vrf <name>."""
+        st.banner("TC-041: show running-configuration bgp vrf <name>")
+        command = self._get_testcase("TC-041").get(
+            "command", f"show running-configuration bgp vrf {self.data.test_vrf}")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC042"])
-    def test_bgp_show_tc042_running_config_include_bgp(self) -> None:
-        """TC-042: Display BGP configuration via show run."""
-        st.banner("TC-042: Show Running Config Include BGP")
-
-        testcase = self._get_testcase("TC-042")
-        command = "show running-config | include bgp"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        st.log("✓ BGP configuration with include filter displayed")
+    def test_bgp_show_tc042_running_config_neighbor_vrf(self) -> None:
+        """TC-042: show running-configuration bgp neighbor vrf <name>."""
+        st.banner("TC-042: show running-configuration bgp neighbor vrf <name>")
+        command = self._get_testcase("TC-042").get(
+            "command", f"show running-configuration bgp neighbor vrf {self.data.test_vrf}")
+        output = self._execute_show_command(self.data.D1, command)
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
 
     @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC043"])
-    def test_bgp_show_tc043_neighbor_configuration(self) -> None:
-        """TC-043: Display BGP neighbor configuration."""
-        st.banner("TC-043: Show BGP Neighbor Configuration")
-
-        testcase = self._get_testcase("TC-043")
-        command = f"show running-config bgp neighbor {self.data.d1_bgp_neighbor}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # May need to use alternative
-        st.log("✓ Neighbor configuration command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC044"])
-    def test_bgp_show_tc044_address_family_configuration(self) -> None:
-        """TC-044: Display BGP address-family configuration."""
-        st.banner("TC-044: Show BGP Address-Family Configuration")
-
-        testcase = self._get_testcase("TC-044")
-        command = "show running-config bgp address-family"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Address-family configuration command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC045"])
-    def test_bgp_show_tc045_peer_group_configuration(self) -> None:
-        """TC-045: Display BGP peer-group configuration."""
-        st.banner("TC-045: Show BGP Peer-Group Configuration")
-
-        testcase = self._get_testcase("TC-045")
-        command = "show running-config bgp peer-group"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Peer-groups are optional
-        st.log("✓ Peer-group configuration command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC046"])
-    def test_bgp_show_tc046_network_configuration(self) -> None:
-        """TC-046: Display BGP network configuration."""
-        st.banner("TC-046: Show BGP Network Configuration")
-
-        testcase = self._get_testcase("TC-046")
-        command = "show running-config bgp network"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Network configuration command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC047"])
-    def test_bgp_show_tc047_redistribute_configuration(self) -> None:
-        """TC-047: Display BGP redistribute configuration."""
-        st.banner("TC-047: Show BGP Redistribute Configuration")
-
-        testcase = self._get_testcase("TC-047")
-        command = "show running-config bgp redistribute"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Redistribute configuration command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC048"])
-    def test_bgp_show_tc048_route_map_configuration(self) -> None:
-        """TC-048: Display BGP route-map configuration."""
-        st.banner("TC-048: Show Route-Map Configuration")
-
-        testcase = self._get_testcase("TC-048")
-        command = "show running-config route-map"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Route-map configuration command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC049"])
-    def test_bgp_show_tc049_prefix_list_configuration(self) -> None:
-        """TC-049: Display BGP prefix-list configuration."""
-        st.banner("TC-049: Show Prefix-List Configuration")
-
-        testcase = self._get_testcase("TC-049")
-        command = "show running-config ip prefix-list"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Prefix-list configuration command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC050"])
-    def test_bgp_show_tc050_community_list_configuration(self) -> None:
-        """TC-050: Display BGP community-list configuration."""
-        st.banner("TC-050: Show Community-List Configuration")
-
-        testcase = self._get_testcase("TC-050")
-        command = "show running-config bgp community-list"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ Community-list configuration command executed")
-        st.report_pass("test_case_passed")
-
-    # ==========================================================================
-    # Test Cases - BGP Statistics (TC-051 to TC-060)
-    # ==========================================================================
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC051"])
-    def test_bgp_show_tc051_statistics(self) -> None:
-        """TC-051: Display BGP statistics."""
-        st.banner("TC-051: Show BGP Statistics")
-
-        command = "show bgp statistics"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        if output is None:
-            # Statistics command may not be available
-            st.log("BGP statistics command not supported")
-            st.report_pass("test_case_passed")
-            return
-
-        st.log("✓ BGP statistics displayed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC052"])
-    def test_bgp_show_tc052_bgp_memory(self) -> None:
-        """TC-052: Display BGP memory usage."""
-        st.banner("TC-052: Show BGP Memory")
-
-        testcase = self._get_testcase("TC-052")
-        command = "show bgp memory"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP memory command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC053"])
-    def test_bgp_show_tc053_bgp_performance(self) -> None:
-        """TC-053: Display BGP performance statistics."""
-        st.banner("TC-053: Show BGP Performance")
-
-        testcase = self._get_testcase("TC-053")
-        command = "show bgp performance-statistics"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP performance command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC054"])
-    def test_bgp_show_tc054_bgp_update_groups(self) -> None:
-        """TC-054: Display BGP update groups."""
-        st.banner("TC-054: Show BGP Update Groups")
-
-        testcase = self._get_testcase("TC-054")
-        command = "show bgp update-groups"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP update-groups command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC055"])
-    def test_bgp_show_tc055_bgp_queue_lengths(self) -> None:
-        """TC-055: Display BGP queue lengths."""
-        st.banner("TC-055: Show BGP Queue Lengths")
-
-        testcase = self._get_testcase("TC-055")
-        command = "show bgp ipv4 unicast summary"
-
+    def test_bgp_show_tc043_running_config_peer_group_vrf(self) -> None:
+        """TC-043: show running-configuration bgp peer-group vrf <name>."""
+        st.banner("TC-043: show running-configuration bgp peer-group vrf <name>")
+        command = self._get_testcase("TC-043").get(
+            "command", f"show running-configuration bgp peer-group vrf {self.data.test_vrf}")
         output = self._execute_show_command(self.data.D1, command)
-        # Queue info may be in summary
-        st.log("✓ BGP queue information retrieved")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC056"])
-    def test_bgp_show_tc056_bgp_martian_next_hops(self) -> None:
-        """TC-056: Display BGP martian next-hops."""
-        st.banner("TC-056: Show BGP Martian Next-Hops")
-
-        testcase = self._get_testcase("TC-056")
-        command = "show bgp martian next-hop"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP martian next-hops command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC057"])
-    def test_bgp_show_tc057_bgp_nexthop(self) -> None:
-        """TC-057: Display BGP next-hop table."""
-        st.banner("TC-057: Show BGP Next-Hop")
-
-        testcase = self._get_testcase("TC-057")
-        command = "show bgp nexthop"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP next-hop command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC058"])
-    def test_bgp_show_tc058_bgp_community_info(self) -> None:
-        """TC-058: Display BGP community information."""
-        st.banner("TC-058: Show BGP Community Info")
-
-        testcase = self._get_testcase("TC-058")
-        command = "show bgp community-info"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP community-info command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC059"])
-    def test_bgp_show_tc059_bgp_as_path_access_list(self) -> None:
-        """TC-059: Display BGP AS-path access lists."""
-        st.banner("TC-059: Show BGP AS-Path Access List")
-
-        testcase = self._get_testcase("TC-059")
-        command = "show bgp as-path-access-list"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP AS-path access-list command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC060"])
-    def test_bgp_show_tc060_bgp_dampening_info(self) -> None:
-        """TC-060: Display BGP dampening information."""
-        st.banner("TC-060: Show BGP Dampening Info")
-
-        testcase = self._get_testcase("TC-060")
-        command = "show bgp ipv4 unicast dampening parameters"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP dampening command executed")
-        st.report_pass("test_case_passed")
-
-    # ==========================================================================
-    # Test Cases - VRF Support (TC-061 to TC-070)
-    # ==========================================================================
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC061"])
-    def test_bgp_show_tc061_vrf_default_summary(self) -> None:
-        """TC-061: Display BGP VRF default summary."""
-        st.banner("TC-061: Show BGP VRF Default Summary")
-
-        testcase = self._get_testcase("TC-061")
-        command = "show bgp vrf default ipv4 unicast summary"
-
-        output = self._execute_show_command(self.data.D1, command)
-        if output is None:
-            st.report_fail("msg", f"Command '{command}' failed")
-
-        st.log("✓ BGP VRF default summary displayed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC062"])
-    def test_bgp_show_tc062_vrf_specific_summary(self) -> None:
-        """TC-062: Display BGP specific VRF summary."""
-        st.banner("TC-062: Show BGP VRF Specific Summary")
-
-        testcase = self._get_testcase("TC-062")
-        vrf_name = "VrfTest"
-        command = f"show bgp vrf {vrf_name} ipv4 unicast summary"
-
-        output = self._execute_show_command(self.data.D1, command)
-        # VRF may not exist
-        st.log("✓ BGP VRF specific summary command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC063"])
-    def test_bgp_show_tc063_vrf_neighbors(self) -> None:
-        """TC-063: Display BGP VRF neighbors."""
-        st.banner("TC-063: Show BGP VRF Neighbors")
-
-        testcase = self._get_testcase("TC-063")
-        vrf_name = "default"
-        command = f"show bgp vrf {vrf_name} ipv4 unicast neighbors"
-
-        output = self._execute_show_command(self.data.D1, command)
-        st.log("✓ BGP VRF neighbors command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC064"])
-    def test_bgp_show_tc064_vrf_routes(self) -> None:
-        """TC-064: Display BGP VRF routes."""
-        st.banner("TC-064: Show BGP VRF Routes")
-
-        testcase = self._get_testcase("TC-064")
-        vrf_name = "default"
-        command = f"show bgp vrf {vrf_name} ipv4 unicast"
-
-        output = self._execute_show_command(self.data.D1, command)
-        st.log("✓ BGP VRF routes command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC065"])
-    def test_bgp_show_tc065_vrf_all_summary(self) -> None:
-        """TC-065: Display BGP summary for all VRFs."""
-        st.banner("TC-065: Show BGP VRF All Summary")
-
-        testcase = self._get_testcase("TC-065")
-        command = "show bgp vrf all ipv4 unicast summary"
-
-        output = self._execute_show_command(self.data.D1, command)
-        if output is None:
-            # Try alternative
-            command = "show bgp ipv4 unicast vrf all summary"
-            output = self._execute_show_command(self.data.D1, command)
-
-        if output is None:
-            st.report_fail("msg", "Failed to retrieve VRF all summary")
-
-        st.log("✓ BGP VRF all summary displayed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC066"])
-    def test_bgp_show_tc066_vrf_ipv6_summary(self) -> None:
-        """TC-066: Display BGP VRF IPv6 summary."""
-        st.banner("TC-066: Show BGP VRF IPv6 Summary")
-
-        testcase = self._get_testcase("TC-066")
-        command = "show bgp vrf default ipv6 unicast summary"
-
-        output = self._execute_show_command(self.data.D1, command)
-        st.log("✓ BGP VRF IPv6 summary command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC067"])
-    def test_bgp_show_tc067_vrf_route_distinguisher(self) -> None:
-        """TC-067: Display BGP routes with route-distinguisher."""
-        st.banner("TC-067: Show BGP VRF Route Distinguisher")
-
-        testcase = self._get_testcase("TC-067")
-        command = "show bgp l3vpn"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP L3VPN/RD command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC068"])
-    def test_bgp_show_tc068_vrf_labels(self) -> None:
-        """TC-068: Display BGP VRF MPLS labels."""
-        st.banner("TC-068: Show BGP VRF Labels")
-
-        testcase = self._get_testcase("TC-068")
-        command = "show bgp ipv4 vpn labels"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP VRF labels command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC069"])
-    def test_bgp_show_tc069_vrf_import_check(self) -> None:
-        """TC-069: Display BGP VRF import check."""
-        st.banner("TC-069: Show BGP VRF Import Check")
-
-        testcase = self._get_testcase("TC-069")
-        command = "show bgp vrf default ipv4 unicast"
-
-        output = self._execute_show_command(self.data.D1, command)
-        st.log("✓ BGP VRF import check command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC070"])
-    def test_bgp_show_tc070_vrf_route_leak(self) -> None:
-        """TC-070: Display BGP VRF route-leak information."""
-        st.banner("TC-070: Show BGP VRF Route Leak")
-
-        testcase = self._get_testcase("TC-070")
-        command = "show bgp ipv4 unicast"
-
-        output = self._execute_show_command(self.data.D1, command)
-        # Check if routes have VRF leak indicators
-        st.log("✓ BGP VRF route-leak command executed")
-        st.report_pass("test_case_passed")
-
-    # ==========================================================================
-    # Test Cases - Advanced Filtering (TC-071 to TC-080)
-    # ==========================================================================
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC071"])
-    def test_bgp_show_tc071_routes_filter_list(self) -> None:
-        """TC-071: Display BGP routes filtered by network."""
-        st.banner("TC-071: Show BGP Routes Filter-List")
-
-        testcase = self._get_testcase("TC-071")
-        command = "show bgp ipv4 unicast filter-list"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP filter-list command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC072"])
-    def test_bgp_show_tc072_routes_access_list(self) -> None:
-        """TC-072: Display BGP routes with access-list filter."""
-        st.banner("TC-072: Show BGP Routes Access-List Filter")
-
-        testcase = self._get_testcase("TC-072")
-        acl_name = "TEST_ACL"
-        command = f"show bgp ipv4 unicast access-list {acl_name}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP access-list filter command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC073"])
-    def test_bgp_show_tc073_routes_large_community(self) -> None:
-        """TC-073: Display BGP routes with large-community."""
-        st.banner("TC-073: Show BGP Routes Large-Community")
-
-        testcase = self._get_testcase("TC-073")
-        command = "show bgp ipv4 unicast large-community"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP large-community command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC074"])
-    def test_bgp_show_tc074_routes_extcommunity(self) -> None:
-        """TC-074: Display BGP routes with extended community."""
-        st.banner("TC-074: Show BGP Routes Extended Community")
-
-        testcase = self._get_testcase("TC-074")
-        command = "show bgp ipv4 unicast extcommunity-list"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP extended community command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC075"])
-    def test_bgp_show_tc075_routes_detail(self) -> None:
-        """TC-075: Display BGP routes with detailed information."""
-        st.banner("TC-075: Show BGP Routes Detail")
-
-        testcase = self._get_testcase("TC-075")
-        command = "show bgp ipv4 unicast detail"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP routes detail command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC076"])
-    def test_bgp_show_tc076_routes_paths(self) -> None:
-        """TC-076: Display BGP routes with all paths."""
-        st.banner("TC-076: Show BGP Routes All Paths")
-
-        testcase = self._get_testcase("TC-076")
-        command = "show bgp ipv4 unicast paths"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP routes paths command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC077"])
-    def test_bgp_show_tc077_routes_peer_group(self) -> None:
-        """TC-077: Display BGP routes from peer-group."""
-        st.banner("TC-077: Show BGP Routes from Peer-Group")
-
-        testcase = self._get_testcase("TC-077")
-        pg_name = "TEST_PG"
-        command = f"show bgp ipv4 unicast peer-group {pg_name}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP peer-group routes command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC078"])
-    def test_bgp_show_tc078_routes_origin(self) -> None:
-        """TC-078: Display BGP routes by origin."""
-        st.banner("TC-078: Show BGP Routes by Origin")
-
-        testcase = self._get_testcase("TC-078")
-        command = "show bgp ipv4 unicast"
-
-        output = self._execute_show_command(self.data.D1, command)
-        # Origin info is in detailed output
-        st.log("✓ BGP routes by origin command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC079"])
-    def test_bgp_show_tc079_routes_next_hop_filter(self) -> None:
-        """TC-079: Display BGP routes with next-hop filter."""
-        st.banner("TC-079: Show BGP Routes Next-Hop Filter")
-
-        testcase = self._get_testcase("TC-079")
-        nexthop = self.data.d1_bgp_neighbor
-        command = f"show bgp ipv4 unicast neighbors {nexthop} routes"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        st.log("✓ BGP next-hop filter command executed")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC080"])
-    def test_bgp_show_tc080_routes_attribute_filter(self) -> None:
-        """TC-080: Display BGP routes with attribute filter."""
-        st.banner("TC-080: Show BGP Routes Attribute Filter")
-
-        testcase = self._get_testcase("TC-080")
-        command = "show bgp ipv4 unicast detail"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Attribute filtering requires detailed output
-        st.log("✓ BGP attribute filter command executed")
-        st.report_pass("test_case_passed")
-
-    # ==========================================================================
-    # Test Cases - Negative Tests (TC-081 to TC-091)
-    # ==========================================================================
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC081"])
-    @pytest.mark.negative
-    def test_bgp_show_tc081_invalid_neighbor_ip(self) -> None:
-        """TC-081: Negative test - invalid neighbor IP address."""
-        st.banner("TC-081: Show BGP Neighbor - Invalid IP (Negative)")
-
-        invalid_ip = "999.999.999.999"
-        command = f"show bgp ipv4 unicast neighbors {invalid_ip}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-
-        # Command should fail or return error message
-        if output and ("error" in str(output).lower() or "invalid" in str(output).lower()):
-            st.log("✓ Invalid IP correctly rejected")
-        else:
-            st.log("Command executed, validation may vary by implementation")
-
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC082"])
-    @pytest.mark.negative
-    def test_bgp_show_tc082_non_existent_neighbor(self) -> None:
-        """TC-082: Negative test - non-existent neighbor."""
-        st.banner("TC-082: Show BGP Neighbor - Non-Existent (Negative)")
-
-        non_existent_ip = "192.168.99.99"
-        command = f"show bgp ipv4 unicast neighbors {non_existent_ip}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-
-        # Should return message indicating neighbor not found
-        if output:
-            st.log(f"Command output: {output}")
-
-        st.log("✓ Non-existent neighbor handled")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC083"])
-    @pytest.mark.negative
-    def test_bgp_show_tc083_invalid_afi_safi(self) -> None:
-        """TC-083: Negative test - invalid AFI/SAFI combination."""
-        st.banner("TC-083: Show BGP - Invalid AFI/SAFI (Negative)")
-
-        testcase = self._get_testcase("TC-083")
-        command = "show bgp ipv4 multicast summary"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # May show no neighbors or command not supported
-        st.log("✓ Invalid AFI/SAFI handled")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC084"])
-    @pytest.mark.negative
-    def test_bgp_show_tc084_invalid_vrf_name(self) -> None:
-        """TC-084: Negative test - invalid VRF name."""
-        st.banner("TC-084: Show BGP - Invalid VRF Name (Negative)")
-
-        testcase = self._get_testcase("TC-084")
-        command = "show bgp vrf non_existent_vrf ipv4 unicast summary"
-
-        output = self._execute_show_command(self.data.D1, command)
-        # Should show VRF not found or error
-        st.log("✓ Invalid VRF name handled")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC085"])
-    @pytest.mark.negative
-    def test_bgp_show_tc085_invalid_prefix_format(self) -> None:
-        """TC-085: Negative test - invalid route prefix format."""
-        st.banner("TC-085: Show BGP - Invalid Prefix Format (Negative)")
-
-        testcase = self._get_testcase("TC-085")
-        invalid_prefix = "192.168.1"  # Missing netmask
-        command = f"show bgp ipv4 unicast {invalid_prefix}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Should show invalid prefix or error
-        st.log("✓ Invalid prefix format handled")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC086"])
-    @pytest.mark.negative
-    def test_bgp_show_tc086_invalid_as_path_regex(self) -> None:
-        """TC-086: Negative test - invalid AS-path regex."""
-        st.banner("TC-086: Show BGP - Invalid AS-Path Regex (Negative)")
-
-        testcase = self._get_testcase("TC-086")
-        invalid_regex = "[invalid-regex"  # Unclosed bracket
-        command = f"show bgp ipv4 unicast regexp {invalid_regex}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Should show invalid regex or error
-        st.log("✓ Invalid AS-path regex handled")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC087"])
-    @pytest.mark.negative
-    def test_bgp_show_tc087_non_existent_community(self) -> None:
-        """TC-087: Negative test - non-existent community."""
-        st.banner("TC-087: Show BGP - Non-Existent Community (Negative)")
-
-        testcase = self._get_testcase("TC-087")
-        non_existent_community = "65000:999999"
-        command = f"show bgp ipv4 unicast community {non_existent_community}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Should show no routes or empty
-        st.log("✓ Non-existent community handled")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC088"])
-    @pytest.mark.negative
-    def test_bgp_show_tc088_invalid_json_format_request(self) -> None:
-        """TC-088: Negative test - invalid JSON format request."""
-        st.banner("TC-088: Show BGP - Invalid JSON Format (Negative)")
-
-        testcase = self._get_testcase("TC-088")
-        command = "show bgp ipv4 unicast invalid-format"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Should show invalid command or error
-        st.log("✓ Invalid JSON format request handled")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC089"])
-    @pytest.mark.negative
-    def test_bgp_show_tc089_non_existent_route_map(self) -> None:
-        """TC-089: Negative test - non-existent route-map."""
-        st.banner("TC-089: Show BGP - Non-Existent Route-Map (Negative)")
-
-        testcase = self._get_testcase("TC-089")
-        non_existent_map = "NON_EXISTENT_MAP"
-        command = f"show bgp ipv4 unicast route-map {non_existent_map}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Should show no routes or route-map not found
-        st.log("✓ Non-existent route-map handled")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC090"])
-    @pytest.mark.negative
-    def test_bgp_show_tc090_non_existent_prefix_list(self) -> None:
-        """TC-090: Negative test - non-existent prefix-list."""
-        st.banner("TC-090: Show BGP - Non-Existent Prefix-List (Negative)")
-
-        testcase = self._get_testcase("TC-090")
-        non_existent_list = "NON_EXISTENT_LIST"
-        command = f"show bgp ipv4 unicast prefix-list {non_existent_list}"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Should show no routes or prefix-list not found
-        st.log("✓ Non-existent prefix-list handled")
-        st.report_pass("test_case_passed")
-
-    @pytest.mark.inventory(feature="Regression", testcases=["BGP_SHOW_TC091"])
-    @pytest.mark.negative
-    def test_bgp_show_tc091_invalid_neighbor_attribute(self) -> None:
-        """TC-091: Negative test - invalid neighbor attribute."""
-        st.banner("TC-091: Show BGP - Invalid Neighbor Attribute (Negative)")
-
-        testcase = self._get_testcase("TC-091")
-        command = f"show bgp neighbors {self.data.d1_bgp_neighbor} invalid-attribute"
-
-        output = self._execute_show_command(self.data.D1, command, cli_type="vtysh")
-        # Should show invalid command or error
-        st.log("✓ Invalid neighbor attribute handled")
+        self._assert_command_supported(output, command)
         st.report_pass("test_case_passed")
