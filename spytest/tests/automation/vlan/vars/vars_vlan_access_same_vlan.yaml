@@ -1,0 +1,246 @@
+# VLAN Access Port Same VLAN Communication Test Variables (TC_VLAN_ACCESS_003)
+# Author: Test Automation Team
+# Date: 2026-05-06
+#
+# This YAML file contains configuration for TC_VLAN_ACCESS_003: Access Port Same VLAN Communication
+#
+# Test Scenario:
+#   Verify that two access ports configured in the same VLAN (VLAN 10) can
+#   communicate with each other using untagged Ethernet frames. The test uses
+#   Scapy to generate untagged packets from one access port and tcpdump to
+#   capture and verify reception on the other access port.
+#
+# Test Logic:
+#   Source: Port1 on DUT1 (configured as access port in VLAN 10)
+#   Destination: Port2 on DUT2 (configured as access port in VLAN 10)
+#   Operation: Send untagged packets from Port1 to Port2
+#   Verification: Packet capture analysis on Port2 shows untagged frames received
+#
+
+defaults:
+  # CLI Type: Use klish for all commands
+  cli_type: klish
+
+  # Topology requirement: Two DUTs with 2+ connections
+  # Format: "D1D2:2" means DUT1-DUT2 with 2 connections
+  min_topology:
+    - "D1D2:2"
+
+  # Verification timeout in seconds
+  verify_timeout: 30
+
+  # Enable cleanup after test (remove VLANs and port configs)
+  cleanup: true
+
+  # VLAN ID to test communication on
+  vlan_id: "10"
+
+testcases:
+  # TC_VLAN_ACCESS_003: Access Port Same VLAN Communication
+  "TC_VLAN_ACCESS_003":
+    title: "Access Port Same VLAN Communication"
+
+    description: |
+      Verify that two access ports configured in the same VLAN can communicate
+      using untagged Ethernet frames. The test creates VLAN 10, configures two
+      ports as untagged members, and sends packets from one port to the other,
+      verifying reception through packet capture analysis.
+
+    test_type: "vlan_access_same_vlan_communication"
+
+    # VLAN Configuration
+    vlans:
+      # VLAN 10 for same-VLAN communication
+      vlan_10: 10
+
+    # Port Configuration
+    ports:
+      # Port1 (access port on D1 - connects to D2)
+      port1:
+        vlans: [10]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+      # Port2 (access port on D2 - connects to D1)
+      port2:
+        vlans: [10]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+    # Traffic Generation Parameters
+    traffic:
+      # Packet generation method
+      method: "scapy"
+
+      # Number of packets to send from Port1 to Port2
+      packet_count: 10
+
+      # Packet size in bytes
+      packet_size: 64
+
+      # Packet type (untagged L2 Ethernet frame)
+      packet_type: "ethernet"
+
+      # Packet rate (pps = packets per second)
+      packet_rate: 1000
+
+      # Traffic duration in seconds
+      duration: 5
+
+      # Frame format
+      frame_format:
+        type: "ethernet"           # L2 Ethernet frame
+        src_mac: "auto"            # Auto-discover from Port1
+        dst_mac: "auto"            # Auto-discover from Port2
+        vlan_tag: null             # No VLAN tag (untagged)
+        vlan_priority: 0           # N/A for untagged
+        ethertype: "0x0800"        # IPv4
+
+    # Capture Configuration
+    capture:
+      # Packet capture method
+      method: "tcpdump"
+
+      # Interface to capture on (Port2)
+      interface: "Port2"
+
+      # Capture filters (capture all frames to Port2's MAC)
+      bpf_filter: "ether dst Port2_MAC"
+
+      # Capture timeout
+      timeout: 30
+
+      # Output format
+      output_format: "pcap"
+
+      # Keep capture file for analysis
+      keep_pcap: false
+
+    # Verification Parameters
+    verification:
+      # Verify VLAN configuration
+      verify_vlan_config: true
+
+      # Verify port configuration as access ports
+      verify_port_config: true
+
+      # Verify packet capture
+      verify_capture: true
+
+      # Verify packets are untagged (no Dot1Q header)
+      verify_untagged: true
+
+      # Expected behavior: packets should be untagged
+      expected_untagged: true
+
+      # Acceptable packet loss percentage
+      max_packet_loss_percent: 20
+
+      # Verify using running-configuration
+      use_show_running_config: true
+
+    # Logging Configuration
+    logging:
+      # Log level: "debug", "info", "warning", "error"
+      level: "debug"
+
+      # Log captured packets in detail
+      log_packets: true
+
+      # Log interface counters
+      log_counters: true
+
+      # Log configuration changes
+      log_config: true
+
+      # Log MAC address discovery
+      log_mac_discovery: true
+
+    # Packet Capture Configuration
+    packet_capture:
+      # Enable packet capture
+      enabled: true
+
+      # Capture file location
+      capture_path: "/tmp/vlan_access_same_vlan_10.pcap"
+
+      # Filter for destination MAC (Port2)
+      dst_mac_filter: "auto"
+
+      # Capture interface timeout (seconds)
+      capture_timeout: 30
+
+      # Number of expected packets
+      expected_packets: 10
+
+    # Error Handling
+    error_handling:
+      # Continue on minor errors
+      continue_on_error: false
+
+      # Save diagnostic data on failure
+      save_diagnostics: true
+
+      # Diagnostic capture location
+      diagnostics_path: "/tmp/vlan_access_same_vlan_diagnostics"
+
+    # Cleanup Configuration
+    cleanup:
+      # Clean up VLANs
+      cleanup_vlans: true
+
+      # Clean up port configurations
+      cleanup_ports: true
+
+      # Clean up pcap files
+      cleanup_pcaps: true
+
+      # Cleanup order (reverse order of creation)
+      cleanup_order:
+        - "ports"
+        - "vlans"
+        - "pcaps"
+
+# Global Test Parameters (overrides per-test defaults if applicable)
+global:
+  # Packet capture retention
+  retain_pcaps: false
+
+  # Diagnostic level on failure
+  diagnostics_level: "full"
+
+  # Test retry on failure
+  max_retries: 0
+
+  # Test timeout in seconds
+  test_timeout: 300
+
+  # Interface link speed detection
+  auto_detect_speed: true
+
+  # MTU verification
+  verify_mtu: false
+
+  # MAC address refresh interval
+  mac_refresh_interval: 10
+
+# Integration Parameters (for CI/CD systems)
+integration:
+  # Enable integration mode
+  enabled: false
+
+  # CI/CD system type: "jenkins", "gitlab", "github", "azure"
+  ci_system: "github"
+
+  # Report format: "junit", "html", "json"
+  report_format: "junit"
+
+  # Report output location
+  report_path: "/tmp/vlan_access_same_vlan_report"
+
+  # Metrics collection
+  collect_metrics: false

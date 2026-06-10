@@ -1,0 +1,92 @@
+# Test variables for test_vlan_svi_l3_traffic_2dut.py
+# VLAN SVI L3 traffic (two-DUT, Scapy-based).
+# Topology: testbed_2vs_reg.yaml  (D1 <-> D2, access ports Ethernet8/Ethernet12)
+
+defaults:
+  min_topology: ["D1D2:1"]
+  cli_type: klish
+  verify_timeout: 30
+  cleanup: true
+
+# VLAN under test
+vlan_config:
+  vlan_id: 10
+
+# SVI / access-port layout per DUT
+interface_config:
+  dut1:
+    access_ports: ["Ethernet8", "Ethernet12"]
+    svi_ip: "10.1.1.1"
+    svi_prefix: 24
+  dut2:
+    access_ports: ["Ethernet8", "Ethernet12"]
+    svi_ip: "10.1.1.2"
+    svi_prefix: 24
+
+# Traffic scenarios. ~100 pps => total_packets = duration * 100.
+traffic_scenarios:
+  unidirectional:
+    - name: "Small_Packets_64B_10s"
+      description: "Unidirectional 64B packets for 10s (D1 -> D2)"
+      packet_size: 64
+      duration: 10
+      total_packets: 1000
+      source_dut: "D1"
+      dest_dut: "D2"
+
+    - name: "Medium_Packets_256B_10s"
+      description: "Unidirectional 256B packets for 10s (D1 -> D2)"
+      packet_size: 256
+      duration: 10
+      total_packets: 1000
+      source_dut: "D1"
+      dest_dut: "D2"
+
+    - name: "Large_Packets_512B_10s"
+      description: "Unidirectional 512B packets for 10s (D1 -> D2)"
+      packet_size: 512
+      duration: 10
+      total_packets: 1000
+      source_dut: "D1"
+      dest_dut: "D2"
+
+    - name: "Jumbo_Packets_1000B_10s"
+      description: "Unidirectional 1000B packets for 10s (D1 -> D2)"
+      packet_size: 1000
+      duration: 10
+      total_packets: 1000
+      source_dut: "D1"
+      dest_dut: "D2"
+
+    - name: "Max_Packets_1500B_10s"
+      description: "Unidirectional 1500B packets for 10s (D1 -> D2)"
+      packet_size: 1500
+      duration: 10
+      total_packets: 1000
+      source_dut: "D1"
+      dest_dut: "D2"
+
+    - name: "Small_Packets_64B_5s"
+      description: "Unidirectional 64B packets for 5s (D1 -> D2)"
+      packet_size: 64
+      duration: 5
+      total_packets: 500
+      source_dut: "D1"
+      dest_dut: "D2"
+
+    - name: "Max_Packets_1500B_20s"
+      description: "Unidirectional 1500B packets for 20s (D1 -> D2)"
+      packet_size: 1500
+      duration: 20
+      total_packets: 2000
+      source_dut: "D1"
+      dest_dut: "D2"
+
+  bidirectional:
+    - name: "Bidir_Medium_Packets_256B_10s"
+      description: "Bidirectional 256B packets for 10s (D1 <-> D2)"
+      packet_size: 256
+      duration: 10
+      total_packets: 1000
+      source_dut: "D1"
+      dest_dut: "D2"

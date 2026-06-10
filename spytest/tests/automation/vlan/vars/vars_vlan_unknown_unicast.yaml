@@ -1,0 +1,280 @@
+# VLAN Unknown Unicast Flooding Test Variables (TC_VLAN_FORWARD_005)
+# Author: Test Automation Team
+# Date: 2026-05-06
+#
+# This YAML file contains configuration for TC_VLAN_FORWARD_005: Unknown Unicast Flooding
+#
+# Test Scenario:
+#   Verify that unknown unicast frames (destination MAC not in FDB) are flooded to
+#   all ports within the same VLAN. The test creates VLAN 10, configures three ports
+#   as members, sends unicast frames with unknown destination MAC from one port, and
+#   verifies they are received on all other ports in the same VLAN (flooding behavior).
+#
+# Test Logic:
+#   Source: Port1 on DUT1 (configured as access port in VLAN 10)
+#   Destinations: Port2 on DUT2 and Port3 on DUT1 (both in VLAN 10)
+#   Operation: Send unicast packet with unknown destination MAC
+#   Verification: Both Port2 and Port3 receive the flooded packet
+#   Expected: Unknown unicast flooded to all VLAN 10 ports
+#
+
+defaults:
+  # CLI Type: Use klish for all commands
+  cli_type: klish
+
+  # Topology requirement: Two DUTs with 3+ connections
+  # Format: "D1D2:3" means DUT1-DUT2 with 3+ connections
+  min_topology:
+    - "D1D2:3"
+
+  # Verification timeout in seconds
+  verify_timeout: 30
+
+  # Enable cleanup after test (remove VLANs and port configs)
+  cleanup: true
+
+  # VLAN ID for unknown unicast flooding test
+  vlan_id: "10"
+
+testcases:
+  # TC_VLAN_FORWARD_005: Unknown Unicast Flooding
+  "TC_VLAN_FORWARD_005":
+    title: "Unknown Unicast Flooding"
+
+    description: |
+      Verify that unknown unicast frames are flooded to all ports in the same VLAN.
+      The test creates VLAN 10, configures three ports as untagged members of VLAN 10,
+      sends unicast Ethernet frames with an unknown destination MAC from Port1, and
+      verifies reception on Port2 and Port3, confirming flooding behavior for unknown
+      unicast within the VLAN.
+
+    test_type: "vlan_unknown_unicast_flooding"
+
+    # VLAN Configuration
+    vlans:
+      # VLAN 10 - unknown unicast flooding test VLAN
+      vlan_10: 10
+
+    # Port Configuration
+    ports:
+      # Port1 (access port on D1 - sender)
+      port1:
+        vlans: [10]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+      # Port2 (access port on D2 - receiver1)
+      port2:
+        vlans: [10]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+      # Port3 (access port on D1 - receiver2)
+      port3:
+        vlans: [10]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+    # Traffic Generation Parameters
+    traffic:
+      # Packet generation method
+      method: "scapy"
+
+      # Number of unknown unicast packets to send
+      packet_count: 10
+
+      # Packet size in bytes
+      packet_size: 64
+
+      # Packet type (unicast L2 Ethernet frame with unknown destination)
+      packet_type: "ethernet"
+
+      # Packet rate (pps = packets per second)
+      packet_rate: 1000
+
+      # Traffic duration in seconds
+      duration: 5
+
+      # Frame format
+      frame_format:
+        type: "ethernet"           # L2 Ethernet frame
+        src_mac: "auto"            # Auto-discover from Port1
+        dst_mac: "00:11:22:33:44:55"  # Unknown destination MAC (not in FDB)
+        vlan_tag: null             # No VLAN tag (untagged)
+        vlan_priority: 0           # N/A for untagged
+        ethertype: "0x0800"        # IPv4
+
+    # Capture Configuration
+    capture:
+      # Packet capture method
+      method: "tcpdump"
+
+      # Interfaces to capture on (Port2 and Port3)
+      interfaces: ["Port2", "Port3"]
+
+      # Capture filters (capture unknown unicast frames)
+      bpf_filter: "ether dst 00:11:22:33:44:55"
+
+      # Capture timeout
+      timeout: 30
+
+      # Output format
+      output_format: "pcap"
+
+      # Keep capture file for analysis
+      keep_pcap: false
+
+    # Verification Parameters
+    verification:
+      # Verify VLAN configuration
+      verify_vlan_config: true
+
+      # Verify port configuration as access ports
+      verify_port_config: true
+
+      # Verify packet capture on Port2
+      verify_capture_port2: true
+
+      # Verify packet capture on Port3
+      verify_capture_port3: true
+
+      # Verify packets are flooded (unknown unicast)
+      verify_flooding: true
+
+      # Expected behavior: all VLAN 10 ports receive unknown unicast (flooding)
+      expected_flooding_all_ports: true
+
+      # Acceptable packet loss percentage
+      max_packet_loss_percent: 20
+
+      # Verify using running-configuration
+      use_show_running_config: true
+
+    # Logging Configuration
+    logging:
+      # Log level: "debug", "info", "warning", "error"
+      level: "debug"
+
+      # Log captured packets in detail
+      log_packets: true
+
+      # Log interface counters
+      log_counters: true
+
+      # Log configuration changes
+      log_config: true
+
+      # Log MAC address discovery
+      log_mac_discovery: true
+
+      # Log forwarding decisions
+      log_forwarding: true
+
+      # Log flooding verification
+      log_flooding: true
+
+    # Packet Capture Configuration
+    packet_capture:
+      # Enable packet capture
+      enabled: true
+
+      # Capture file locations
+      capture_path_port2: "/tmp/vlan_unknown_unicast_port2.pcap"
+      capture_path_port3: "/tmp/vlan_unknown_unicast_port3.pcap"
+
+      # Filter for unknown destination MAC
+      unknown_dst_mac_filter: "00:11:22:33:44:55"
+
+      # Capture interface timeout (seconds)
+      capture_timeout: 30
+
+      # Number of expected packets per port
+      expected_packets_per_port: 10
+
+    # Unknown Unicast Flooding Verification
+    flooding:
+      # Verify all VLAN ports receive unknown unicast
+      verify_all_vlan_ports_flooded: true
+
+      # Verify Port2 receives unknown unicast
+      verify_port2_receives_flooding: true
+
+      # Verify Port3 receives unknown unicast
+      verify_port3_receives_flooding: true
+
+      # Unknown unicast detection: exact MAC match
+      unknown_unicast_detection_exact_match: true
+
+    # Error Handling
+    error_handling:
+      # Continue on minor errors
+      continue_on_error: false
+
+      # Save diagnostic data on failure
+      save_diagnostics: true
+
+      # Diagnostic capture location
+      diagnostics_path: "/tmp/vlan_unknown_unicast_diagnostics"
+
+    # Cleanup Configuration
+    cleanup:
+      # Clean up VLANs
+      cleanup_vlans: true
+
+      # Clean up port configurations
+      cleanup_ports: true
+
+      # Clean up pcap files
+      cleanup_pcaps: true
+
+      # Cleanup order (reverse order of creation)
+      cleanup_order:
+        - "ports"
+        - "vlans"
+        - "pcaps"
+
+# Global Test Parameters (overrides per-test defaults if applicable)
+global:
+  # Packet capture retention
+  retain_pcaps: false
+
+  # Diagnostic level on failure
+  diagnostics_level: "full"
+
+  # Test retry on failure
+  max_retries: 0
+
+  # Test timeout in seconds
+  test_timeout: 300
+
+  # Interface link speed detection
+  auto_detect_speed: true
+
+  # MTU verification
+  verify_mtu: false
+
+  # MAC address refresh interval
+  mac_refresh_interval: 10
+
+# Integration Parameters (for CI/CD systems)
+integration:
+  # Enable integration mode
+  enabled: false
+
+  # CI/CD system type: "jenkins", "gitlab", "github", "azure"
+  ci_system: "github"
+
+  # Report format: "junit", "html", "json"
+  report_format: "junit"
+
+  # Report output location
+  report_path: "/tmp/vlan_unknown_unicast_report"
+
+  # Metrics collection
+  collect_metrics: false
