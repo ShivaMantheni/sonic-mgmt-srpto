@@ -1,0 +1,126 @@
+# 4-node full-mesh testbed (regression)
+# Devices D1-D4, every pair connected with 4 links (Core Mesh Connections).
+#
+# Core Mesh Connections (D1 - D4):
+#   D1 Eth0,4,8,12     <-> D2 Eth0,4,8,12
+#   D1 Eth16,20,24,28  <-> D3 Eth0,4,8,12
+#   D1 Eth32,36,40,44  <-> D4 Eth0,4,8,12
+#   D2 Eth32,36,40,44  <-> D3 Eth16,20,24,28
+#   D2 Eth16,20,24,28  <-> D4 Eth16,20,24,28
+#   D3 Eth32,36,40,44  <-> D4 Eth32,36,40,44
+#
+# Used by: tests/automation/vlan/scripts/test_4device_vlan_topology.py
+
+version: 2.0
+
+devices:
+  # D1 - 192.168.100.35
+  D1:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.35, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
+    properties: {services: default, build: default, config: default, errors: default}
+
+  # D2 - 192.168.100.36
+  D2:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.36, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
+    properties: {services: default, build: default, config: default, errors: default}
+
+  # D3 - 192.168.100.37
+  D3:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.37, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
+    properties: {services: default, build: default, config: default, errors: default}
+
+  # D4 - 192.168.100.38
+  D4:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.38, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
+    properties: {services: default, build: default, config: default, errors: default}
+
+topology:
+  # D1 connections
+  D1:
+    interfaces:
+      # D1 <-> D2  (D1 Eth0,4,8,12  -> D2 Eth0,4,8,12)
+      Ethernet0:  {EndDevice: D2, EndPort: Ethernet0}
+      Ethernet4:  {EndDevice: D2, EndPort: Ethernet4}
+      Ethernet8:  {EndDevice: D2, EndPort: Ethernet8}
+      Ethernet12: {EndDevice: D2, EndPort: Ethernet12}
+      # D1 <-> D3  (D1 Eth16,20,24,28 -> D3 Eth0,4,8,12)
+      Ethernet16: {EndDevice: D3, EndPort: Ethernet0}
+      Ethernet20: {EndDevice: D3, EndPort: Ethernet4}
+      Ethernet24: {EndDevice: D3, EndPort: Ethernet8}
+      Ethernet28: {EndDevice: D3, EndPort: Ethernet12}
+      # D1 <-> D4  (D1 Eth32,36,40,44 -> D4 Eth0,4,8,12)
+      Ethernet32: {EndDevice: D4, EndPort: Ethernet0}
+      Ethernet36: {EndDevice: D4, EndPort: Ethernet4}
+      Ethernet40: {EndDevice: D4, EndPort: Ethernet8}
+      Ethernet44: {EndDevice: D4, EndPort: Ethernet12}
+
+  # D2 connections
+  D2:
+    interfaces:
+      # D2 <-> D1  (reciprocal of D1 <-> D2)
+      Ethernet0:  {EndDevice: D1, EndPort: Ethernet0}
+      Ethernet4:  {EndDevice: D1, EndPort: Ethernet4}
+      Ethernet8:  {EndDevice: D1, EndPort: Ethernet8}
+      Ethernet12: {EndDevice: D1, EndPort: Ethernet12}
+      # D2 <-> D4  (D2 Eth16,20,24,28 -> D4 Eth16,20,24,28)
+      Ethernet16: {EndDevice: D4, EndPort: Ethernet16}
+      Ethernet20: {EndDevice: D4, EndPort: Ethernet20}
+      Ethernet24: {EndDevice: D4, EndPort: Ethernet24}
+      Ethernet28: {EndDevice: D4, EndPort: Ethernet28}
+      # D2 <-> D3  (D2 Eth32,36,40,44 -> D3 Eth16,20,24,28)
+      Ethernet32: {EndDevice: D3, EndPort: Ethernet16}
+      Ethernet36: {EndDevice: D3, EndPort: Ethernet20}
+      Ethernet40: {EndDevice: D3, EndPort: Ethernet24}
+      Ethernet44: {EndDevice: D3, EndPort: Ethernet28}
+
+  # D3 connections
+  D3:
+    interfaces:
+      # D3 <-> D1  (reciprocal of D1 <-> D3)
+      Ethernet0:  {EndDevice: D1, EndPort: Ethernet16}
+      Ethernet4:  {EndDevice: D1, EndPort: Ethernet20}
+      Ethernet8:  {EndDevice: D1, EndPort: Ethernet24}
+      Ethernet12: {EndDevice: D1, EndPort: Ethernet28}
+      # D3 <-> D2  (reciprocal of D2 <-> D3)
+      Ethernet16: {EndDevice: D2, EndPort: Ethernet32}
+      Ethernet20: {EndDevice: D2, EndPort: Ethernet36}
+      Ethernet24: {EndDevice: D2, EndPort: Ethernet40}
+      Ethernet28: {EndDevice: D2, EndPort: Ethernet44}
+      # D3 <-> D4  (D3 Eth32,36,40,44 -> D4 Eth32,36,40,44)
+      Ethernet32: {EndDevice: D4, EndPort: Ethernet32}
+      Ethernet36: {EndDevice: D4, EndPort: Ethernet36}
+      Ethernet40: {EndDevice: D4, EndPort: Ethernet40}
+      Ethernet44: {EndDevice: D4, EndPort: Ethernet44}
+
+  # D4 connections
+  D4:
+    interfaces:
+      # D4 <-> D1  (reciprocal of D1 <-> D4)
+      Ethernet0:  {EndDevice: D1, EndPort: Ethernet32}
+      Ethernet4:  {EndDevice: D1, EndPort: Ethernet36}
+      Ethernet8:  {EndDevice: D1, EndPort: Ethernet40}
+      Ethernet12: {EndDevice: D1, EndPort: Ethernet44}
+      # D4 <-> D2  (reciprocal of D2 <-> D4)
+      Ethernet16: {EndDevice: D2, EndPort: Ethernet16}
+      Ethernet20: {EndDevice: D2, EndPort: Ethernet20}
+      Ethernet24: {EndDevice: D2, EndPort: Ethernet24}
+      Ethernet28: {EndDevice: D2, EndPort: Ethernet28}
+      # D4 <-> D3  (reciprocal of D3 <-> D4)
+      Ethernet32: {EndDevice: D3, EndPort: Ethernet32}
+      Ethernet36: {EndDevice: D3, EndPort: Ethernet36}
+      Ethernet40: {EndDevice: D3, EndPort: Ethernet40}
+      Ethernet44: {EndDevice: D3, EndPort: Ethernet44}
+
+services: {default: {}}
+builds:   {default: {}}
+configs:  {default: {}}
+errors:   {default: {}}
+params:   {}

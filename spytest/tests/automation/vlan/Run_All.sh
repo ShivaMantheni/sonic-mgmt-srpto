@@ -76,11 +76,11 @@ run_vlan_test() {
 }
 
 # ==========================================================
-# Batch 1/5 : VLAN 2-DUT Tests (testbed_vs_2d_reg.yaml) - 12 tests
+# Batch 1/6 : VLAN 2-DUT Tests (testbed_vs_2d_reg.yaml) - 12 tests
 # Note: reboot tests are isolated into their own batch (Batch 2) so a
 # reboot timeout cannot abort the rest of these tests.
 # ==========================================================
-echo "Batch 1/5: VLAN 2-DUT Tests"
+echo "Batch 1/6: VLAN 2-DUT Tests"
 run_vlan_test "VLAN_2D" "./testbeds/testbed_vs_2d_reg.yaml" \
     automation/vlan/scripts/test_interface_1_iscli_vlan.py \
     automation/vlan/scripts/test_interface_2_iscli_vlan_ip.py \
@@ -96,19 +96,19 @@ run_vlan_test "VLAN_2D" "./testbeds/testbed_vs_2d_reg.yaml" \
     automation/vlan/scripts/test_vlan_native.py
 
 # ==========================================================
-# Batch 2/5 : VLAN Reboot Tests (testbed_vs_2d_reg.yaml) - 2 tests
+# Batch 2/6 : VLAN Reboot Tests (testbed_vs_2d_reg.yaml) - 2 tests
 # Isolated batch: these tests reboot the DUT and can time out; running them
 # separately keeps a reboot failure from aborting the other 2-DUT tests.
 # ==========================================================
-echo "Batch 2/5: VLAN Reboot Tests"
+echo "Batch 2/6: VLAN Reboot Tests"
 run_vlan_test "VLAN_REBOOT" "./testbeds/testbed_vs_2d_reg.yaml" \
     automation/vlan/scripts/test_interface_1_iscli_vlan_reboot.py \
     automation/vlan/scripts/test_interface_2_iscli_vlan_ip_reboot.py
 
 # ==========================================================
-# Batch 3/5 : VLAN Standalone Tests (ztp_standalone_reg.yaml) - 5 tests
+# Batch 3/6 : VLAN Standalone Tests (ztp_standalone_reg.yaml) - 5 tests
 # ==========================================================
-echo "Batch 3/5: VLAN Standalone Tests"
+echo "Batch 3/6: VLAN Standalone Tests"
 run_vlan_test "VLAN_STANDALONE" "./testbeds/ztp_standalone_reg.yaml" \
     automation/vlan/scripts/test_vlan_basic_config.py \
     automation/vlan/scripts/test_vlan_interface_lifecycle.py \
@@ -117,24 +117,34 @@ run_vlan_test "VLAN_STANDALONE" "./testbeds/ztp_standalone_reg.yaml" \
     automation/vlan/scripts/test_vlan_trunk_config_removal.py
 
 # ==========================================================
-# Batch 4/5 : VLAN 2-VS Tests (testbed_2vs_reg.yaml) - 3 tests
+# Batch 4/6 : VLAN 2-VS Tests (testbed_2vs_reg.yaml) - 3 tests
 # ==========================================================
-echo "Batch 4/5: VLAN 2-VS Tests"
+echo "Batch 4/6: VLAN 2-VS Tests"
 run_vlan_test "VLAN_2VS" "./testbeds/testbed_2vs_reg.yaml" \
     automation/vlan/scripts/test_vlan_iscli_p2_42_svi_removal.py \
     automation/vlan/scripts/test_vlan_iscli_p2_39_switchport_trunk_vlan.py \
     automation/vlan/scripts/test_vlan_svi_l3_traffic_2dut.py
 
 # ==========================================================
-# Batch 5/5 : VLAN Delete Tests (testbed_vs_1node_reg.yaml) - 2 tests
+# Batch 5/6 : VLAN Delete Tests (testbed_vs_1node_reg.yaml) - 2 tests
 # These tests only need a single DUT (ensure_min_topology "D1"), so they run on
 # the 1-node testbed. A multi-node testbed would make the run abort if any other
 # device (e.g. D3) is unhealthy, even though these tests never use it.
 # ==========================================================
-echo "Batch 5/5: VLAN Delete Tests"
+echo "Batch 5/6: VLAN Delete Tests"
 run_vlan_test "VLAN_DELETE" "./testbeds/testbed_vs_1node_reg.yaml" \
     automation/vlan/scripts/test_vlan_delete_with_members.py \
     automation/vlan/scripts/test_vlan_delete_verification.py
+
+# ==========================================================
+# Batch 6/6 : VLAN 4-Device Topology (testbed_vs_4d_reg.yaml) - 1 test
+# Full-mesh 4-node topology (D1-D4): VLAN10 access, VLAN20 trunk, LAG50.
+# Requires vars file: tests/automation/vlan/vars/vars_4device_vlan_topology.yaml
+# (test skips if the vars file is absent).
+# ==========================================================
+echo "Batch 6/6: VLAN 4-Device Topology"
+run_vlan_test "VLAN_4D_TOPOLOGY" "./testbeds/testbed_vs_4d_reg.yaml" \
+    automation/vlan/scripts/test_4device_vlan_topology.py
 
 # ==========================================================
 # Generate Feature JSON  -> reports/VLAN_summary.json
