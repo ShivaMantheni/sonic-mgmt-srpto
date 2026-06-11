@@ -3,14 +3,14 @@ devices:
   # D1 - 192.168.100.39 (Primary device)
   D1:
     device_type: sonic
-    access: {protocol: ssh, ip: 192.168.100.39, port: 22}
+    access: {protocol: ssh, ip: 192.168.100.37, port: 22}
     credentials: {username: admin, password: root@123, altpassword: sonic@123}
     properties: {services: default, build: default, config: default, errors: default}
 
   # D2 - 192.168.100.40 (Secondary device)
   D2:
     device_type: sonic
-    access: {protocol: ssh, ip: 192.168.100.40, port: 22}
+    access: {protocol: ssh, ip: 192.168.100.38, port: 22}
     credentials: {username: admin, password: root@123, altpassword: sonic@123}
     properties: {services: default, build: default, config: default, errors: default}
 
@@ -32,7 +32,6 @@ topology:
       Ethernet36: {EndDevice: D1, EndPort: Ethernet36}
       Ethernet40: {EndDevice: D1, EndPort: Ethernet40}
       Ethernet44: {EndDevice: D1, EndPort: Ethernet44}
-
 
 services: {default: {}}
 builds:   {default: {}}
