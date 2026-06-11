@@ -126,10 +126,13 @@ run_vlan_test "VLAN_2VS" "./testbeds/testbed_2vs_reg.yaml" \
     automation/vlan/scripts/test_vlan_svi_l3_traffic_2dut.py
 
 # ==========================================================
-# Batch 5/5 : VLAN 3-DUT Delete Tests (testbed_vs_3d_reg.yaml) - 2 tests
+# Batch 5/5 : VLAN Delete Tests (testbed_vs_1node_reg.yaml) - 2 tests
+# These tests only need a single DUT (ensure_min_topology "D1"), so they run on
+# the 1-node testbed. A multi-node testbed would make the run abort if any other
+# device (e.g. D3) is unhealthy, even though these tests never use it.
 # ==========================================================
-echo "Batch 5/5: VLAN 3-DUT Delete Tests"
-run_vlan_test "VLAN_3D_DELETE" "./testbeds/testbed_vs_3d_reg.yaml" \
+echo "Batch 5/5: VLAN Delete Tests"
+run_vlan_test "VLAN_DELETE" "./testbeds/testbed_vs_1node_reg.yaml" \
     automation/vlan/scripts/test_vlan_delete_with_members.py \
     automation/vlan/scripts/test_vlan_delete_verification.py
 
