@@ -99,8 +99,12 @@ def create_portchannel(dut, portchannel_list=[], fallback=False, min_link="", st
     elif cli_type == "click":
         for portchannel_name in utils.make_list(portchannel_list):
             if not fallback:
-                if st.is_feature_supported("config_static_portchannel"):
-                    static_flag = "--static=true" if static else "--static=false"
+                # Only add --static flag if:
+                # 1. Feature is supported AND
+                # 2. Explicitly requested (static=True)
+                # Omit flag for default LACP mode (static=False) to support all SONiC versions
+                if static and st.is_feature_supported("config_static_portchannel"):
+                    static_flag = "--static=true"
                 else:
                     static_flag = ""
                 command = "config portchannel add {} {} ".format(portchannel_name, static_flag)
@@ -321,7 +325,7 @@ def get_portchannel(dut, portchannel_name="", cli_type="", **kwargs):
             return rv
         elif cli_type == "klish":
             channel_number = uutils.get_interface_number_from_name(portchannel_name)["number"]
-            command = "show interface PortChannel {}".format(channel_number)
+            command = "show interface PortChannel {} | no-more".format(channel_number)
             output = st.show(dut, command, type=cli_type)
             if output:
                 result["group"] = output[0]["channel_number"]
@@ -486,7 +490,7 @@ def get_portchannel_list(dut, cli_type=""):
         return False
 
 
-def add_portchannel_member(dut, portchannel="", members=[], cli_type=""):
+def add_portchannel_member(dut, portchannel="", members=[], cli_type="", **kwargs):
     """
     This API is used to add the members to portchannel
     Author: Chaitanya Vella (chaitanya-vella.kumar@broadcom.com)
@@ -494,9 +498,13 @@ def add_portchannel_member(dut, portchannel="", members=[], cli_type=""):
     :param dut:
     :param portchannel:
     :param members:
+    :param cli_type:
+    :param skip_error_check: Skip error checking (optional)
     :return:
     """
-    return add_del_portchannel_member(dut, portchannel, members, flag="add", cli_type=cli_type)
+    # Map skip_error_check to skip_err_check for backward compatibility
+    skip_err = kwargs.pop('skip_error_check', False) or kwargs.pop('skip_err_check', False)
+    return add_del_portchannel_member(dut, portchannel, members, flag="add", cli_type=cli_type, skip_err_check=skip_err, **kwargs)
 
 
 def get_portchannel_members(dut, portchannel, with_state=False, cli_type="", **kwargs):
@@ -717,16 +725,20 @@ def add_del_portchannel_member(dut, portchannel, members, flag="add", skip_verif
     return True
 
 
-def delete_portchannel_member(dut, portchannel, members, cli_type=""):
+def delete_portchannel_member(dut, portchannel, members, cli_type="", **kwargs):
     """
     This API is used to delete the member of the portchannel
     Author: Chaitanya Vella (chaitanya-vella.kumar@broadcom.com)
     :param dut:
     :param portchannel:
     :param members:
+    :param cli_type:
+    :param skip_error_check: Skip error checking (optional)
     :return:
     """
-    return add_del_portchannel_member(dut, portchannel, members, flag="del", cli_type=cli_type)
+    # Map skip_error_check to skip_err_check for backward compatibility
+    skip_err = kwargs.pop('skip_error_check', False) or kwargs.pop('skip_err_check', False)
+    return add_del_portchannel_member(dut, portchannel, members, flag="del", cli_type=cli_type, skip_err_check=skip_err, **kwargs)
 
 
 def verify_portchannel_state(dut, portchannel, state="up", error_msg=True, cli_type=""):
@@ -1105,8 +1117,9 @@ def config_portchannel_gshut(dut, **kwargs):
         return
     else:
         st.error("UNSUPPORTED cli_type")
-        return
+        return False
     st.config(dut, cmd, type=cli_type)
+    return True
 
 
 def verify_lacp_fallback(dut, **kwargs):
@@ -1143,7 +1156,7 @@ def verify_lacp_fallback(dut, **kwargs):
     elif cli_type == 'klish':
         output = []
         intf_data = uutils.get_interface_number_from_name(kwargs['port_channel_name'])
-        cmd = 'show interface PortChannel {}'.format(intf_data["number"])
+        cmd = 'show interface PortChannel {} | no-more'.format(intf_data["number"])
         raw_output = st.show(dut, cmd, type=cli_type)
         try:
             data = raw_output[0]
@@ -1349,7 +1362,7 @@ def get_interface_portchannel(dut, channel_number=None, cli_type=""):
     cli_type = override_supported_ui("rest-put", "rest-patch", "click", cli_type=cli_type)
     if cli_type == "klish":
         # stats_index = ["pkts","octets","multicasts","broadcasts","unicasts","errors","discards"]
-        command = "show interface PortChannel"
+        command = "show interface PortChannel | no-more"
         if channel_number:
             command += " {}".format(channel_number)
         output = st.show(dut, command, type=cli_type)

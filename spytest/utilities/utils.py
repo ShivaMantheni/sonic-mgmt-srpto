@@ -691,8 +691,9 @@ def ip4_ip6_to_integer(ip_address):
 
 def subnetwork_to_ip4_ip6_range(subnetwork):
     try:
+        subnetwork = str(subnetwork)  # Ensure subnetwork is a string
         fragments = subnetwork.split('/')
-        network_prefix = fragments[0]
+        network_prefix = str(fragments[0])  # Ensure network_prefix is a string
         netmask_len = int(fragments[1])
         for version in (socket.AF_INET, socket.AF_INET6):
 
@@ -700,7 +701,7 @@ def subnetwork_to_ip4_ip6_range(subnetwork):
             try:
                 suffix_mask = (1 << (ip_len - netmask_len)) - 1
                 netmask = ((1 << ip_len) - 1) - suffix_mask
-                ip_hex = socket.inet_pton(version, network_prefix)
+                ip_hex = socket.inet_pton(version, str(network_prefix))
                 ip_lower = int(binascii.hexlify(ip_hex), 16) & netmask
                 ip_upper = ip_lower + suffix_mask
 
