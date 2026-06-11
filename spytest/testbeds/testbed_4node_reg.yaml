@@ -6,26 +6,26 @@ version: 2.0
 devices:
   D1:
     device_type: sonic
-    access: {protocol: ssh, ip: 192.168.100.41, port: 22}
-    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
+    access: {protocol: ssh, ip: 192.168.100.35, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
     properties: {services: default, build: default, config: default, errors: default}
 
   D2:
     device_type: sonic
-    access: {protocol: ssh, ip: 192.168.100.42, port: 22}
-    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
+    access: {protocol: ssh, ip: 192.168.100.36, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
     properties: {services: default, build: default, config: default, errors: default}
 
   D3:
     device_type: sonic
-    access: {protocol: ssh, ip: 192.168.100.43, port: 22}
-    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
+    access: {protocol: ssh, ip: 192.168.100.36, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
     properties: {services: default, build: default, config: default, errors: default}
 
   D4:
     device_type: sonic
-    access: {protocol: ssh, ip: 192.168.100.44, port: 22}
-    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
+    access: {protocol: ssh, ip: 192.168.100.37, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: sonic@123}
     properties: {services: default, build: default, config: default, errors: default}
 
 topology:
@@ -45,7 +45,7 @@ topology:
       Ethernet32: {EndDevice: D4, EndPort: Ethernet0}
       Ethernet36: {EndDevice: D4, EndPort: Ethernet4}
       Ethernet40: {EndDevice: D4, EndPort: Ethernet8}
-      Ethernet44: {EndDevice: D4, EndPort: Ethernet12}
+      Ethernet37: {EndDevice: D4, EndPort: Ethernet12}
 
   D2:
     interfaces:
@@ -63,7 +63,7 @@ topology:
       Ethernet32: {EndDevice: D3, EndPort: Ethernet16}
       Ethernet36: {EndDevice: D3, EndPort: Ethernet20}
       Ethernet40: {EndDevice: D3, EndPort: Ethernet24}
-      Ethernet44: {EndDevice: D3, EndPort: Ethernet28}
+      Ethernet37: {EndDevice: D3, EndPort: Ethernet28}
 
   D3:
     interfaces:
@@ -76,12 +76,12 @@ topology:
       Ethernet16: {EndDevice: D2, EndPort: Ethernet32}
       Ethernet20: {EndDevice: D2, EndPort: Ethernet36}
       Ethernet24: {EndDevice: D2, EndPort: Ethernet40}
-      Ethernet28: {EndDevice: D2, EndPort: Ethernet44}
+      Ethernet28: {EndDevice: D2, EndPort: Ethernet37}
       # D3 ↔ D4 connections (Group 3)
       Ethernet32: {EndDevice: D4, EndPort: Ethernet32}
       Ethernet36: {EndDevice: D4, EndPort: Ethernet36}
       Ethernet40: {EndDevice: D4, EndPort: Ethernet40}
-      Ethernet44: {EndDevice: D4, EndPort: Ethernet44}
+      Ethernet37: {EndDevice: D4, EndPort: Ethernet44}
 
   D4:
     interfaces:
@@ -89,7 +89,7 @@ topology:
       Ethernet0: {EndDevice: D1, EndPort: Ethernet32}
       Ethernet4: {EndDevice: D1, EndPort: Ethernet36}
       Ethernet8: {EndDevice: D1, EndPort: Ethernet40}
-      Ethernet12: {EndDevice: D1, EndPort: Ethernet44}
+      Ethernet12: {EndDevice: D1, EndPort: Ethernet37}
       # D4 ↔ D2 connections (Group 2)
       Ethernet16: {EndDevice: D2, EndPort: Ethernet16}
       Ethernet20: {EndDevice: D2, EndPort: Ethernet20}
@@ -99,7 +99,7 @@ topology:
       Ethernet32: {EndDevice: D3, EndPort: Ethernet32}
       Ethernet36: {EndDevice: D3, EndPort: Ethernet36}
       Ethernet40: {EndDevice: D3, EndPort: Ethernet40}
-      Ethernet44: {EndDevice: D3, EndPort: Ethernet44}
+      Ethernet37: {EndDevice: D3, EndPort: Ethernet44}
 
 services: {default: {}}
 builds:   {default: {}}

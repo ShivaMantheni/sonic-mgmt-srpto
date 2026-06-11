@@ -14,7 +14,7 @@ devices:
     credentials:
       username: admin
       password: root@123
-      altpassword: YourPaSsWoRd
+      altpassword: sonic@123
     properties:
       services: default
       build: default
@@ -32,7 +32,7 @@ devices:
     credentials:
       username: admin
       password: root@123
-      altpassword: YourPaSsWoRd
+      altpassword: sonic@123
     properties:
       services: default
       build: default
@@ -50,7 +50,7 @@ devices:
     credentials:
       username: admin
       password: root@123
-      altpassword: YourPaSsWoRd
+      altpassword: sonic@123
     properties:
       services: default
       build: default

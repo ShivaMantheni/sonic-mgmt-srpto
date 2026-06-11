@@ -1,0 +1,143 @@
+# VLAN Multiple Creation Test Variables (TC_VLAN_CREATE_002)
+# Author: Test Automation Team
+# Date: 2026-05-06
+#
+# This YAML file contains configuration for TC_VLAN_CREATE_002: Create Multiple VLANs
+#
+# Test Scenario:
+#   Verify that multiple VLANs (10, 20, 30, 40, 50) can be created successfully
+#   on network devices using klish CLI commands with proper validation
+#   using show running-configuration and VLAN database queries.
+#
+# Test Logic:
+#   Source: Both DUT1 and DUT2 in 2-node topology
+#   Operation: Create VLANs 10, 20, 30, 40, 50 on both DUTs
+#   Verification: 5-command verification for each VLAN
+#   - show Vlan <id>
+#   - show running-configuration | grep Vlan<id>
+#   - show Vlan count
+#   - show interface brief
+#   - show interface status | no-more
+#   Validation: All VLANs created successfully in VLAN database
+#
+
+defaults:
+  # CLI Type: Use klish for all commands
+  cli_type: klish
+
+  # Topology requirement: Two DUTs with 2+ connections
+  # Format: "D1D2:2" means DUT1-DUT2 with 2 connections
+  min_topology:
+    - "D1D2:2"
+
+  # Verification timeout in seconds
+  verify_timeout: 30
+
+  # Enable cleanup after test (remove VLANs)
+  cleanup: true
+
+  # VLANs to create for the test
+  # Can be overridden via environment variable
+  vlans: [10, 20, 30, 40, 50]
+
+testcases:
+  # TC_VLAN_CREATE_002: Create Multiple VLANs
+  "TC_VLAN_CREATE_002":
+    title: "Create Multiple VLANs"
+
+    description: |
+      Verify that multiple VLANs (10, 20, 30, 40, 50) are created successfully
+      and appear in the VLAN database on network devices.
+
+    test_type: "vlan_multiple_create"
+
+    # VLAN Configuration
+    vlans:
+      # Primary VLAN IDs to create
+      vlan_10: 10
+      vlan_20: 20
+      vlan_30: 30
+      vlan_40: 40
+      vlan_50: 50
+
+    # Verification Parameters
+    verification:
+      # Verify VLAN configuration
+      verify_vlan_config: true
+
+      # Verify VLAN database entries
+      verify_vlan_database: true
+
+      # Verify running-configuration
+      verify_running_config: true
+
+      # Use show running-configuration for validation
+      use_show_running_config: true
+
+      # Acceptable error threshold (for verification commands)
+      max_verification_errors: 0
+
+    # Logging Configuration
+    logging:
+      # Log level: "debug", "info", "warning", "error"
+      level: "debug"
+
+      # Log VLAN configuration changes
+      log_config: true
+
+      # Log verification results
+      log_verification: true
+
+      # Log interface status
+      log_interface_status: true
+
+    # Error Handling
+    error_handling:
+      # Continue on minor errors
+      continue_on_error: false
+
+      # Save diagnostic data on failure
+      save_diagnostics: true
+
+      # Diagnostic capture location
+      diagnostics_path: "/tmp/vlan_create_multiple_diagnostics"
+
+    # Cleanup Configuration
+    cleanup:
+      # Clean up VLANs
+      cleanup_vlans: true
+
+      # Cleanup order (reverse order of creation)
+      cleanup_order:
+        - "vlans"
+
+# Global Test Parameters (overrides per-test defaults if applicable)
+global:
+  # Test retry on failure
+  max_retries: 0
+
+  # Test timeout in seconds
+  test_timeout: 300
+
+  # Interface link speed detection
+  auto_detect_speed: true
+
+  # MTU verification
+  verify_mtu: false
+
+# Integration Parameters (for CI/CD systems)
+integration:
+  # Enable integration mode
+  enabled: false
+
+  # CI/CD system type: "jenkins", "gitlab", "github", "azure"
+  ci_system: "github"
+
+  # Report format: "junit", "html", "json"
+  report_format: "junit"
+
+  # Report output location
+  report_path: "/tmp/vlan_create_multiple_report"
+
+  # Metrics collection
+  collect_metrics: false

@@ -136,7 +136,7 @@ def wait_for_threads(threads):
 
 
 def get_current_thread():
-    return threading.currentThread()
+    return threading.current_thread()
 
 
 def get_thread_name(thread=None):

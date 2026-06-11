@@ -1,0 +1,15 @@
+Value Filldown access_list_name (\S+)
+Value rule_no (\d+)
+Value action (permit|deny)
+Value src_mac_address (\S+)
+Value dst_mac_address ([0-9a-fA-F:\.]+)
+
+Start
+  ^mac\s+access-list\s+${access_list_name}\s*$$
+  ^\s+seq\s+${rule_no}\s+${action}\s+any\s+any\s*$$ -> Record
+  ^\s+seq\s+${rule_no}\s+${action}\s+any\s+host\s+${dst_mac_address}\s*$$ -> Record
+  ^\s+seq\s+${rule_no}\s+${action}\s+host\s+${src_mac_address}\s+any\s*$$ -> Record
+  ^\s+seq\s+${rule_no}\s+${action}\s+host\s+${src_mac_address}\s+host\s+${dst_mac_address}\s*$$ -> Record
+  ^No\s+MAC\s+ACLs\s+found -> Record
+  ^\s*$$
+  ^.

@@ -1,0 +1,45 @@
+# vars/routing/arp/vars_arp_table_verification.yaml
+# Test variables for TC_ARP_01: ARP Table Output Formatting and Mapping
+#
+# Testbed: ztp_standalone.yaml (smic_sonic1 @ 192.168.100.101)
+# CLI type: klish (IS-CLI / sonic-cli)
+
+defaults:
+  cli_type: klish
+  verify_timeout: 10
+  cleanup: false        # Read-only test - no DUT configuration, no teardown needed
+  min_topology:
+    - "D1"
+
+testcases:
+  TC_ARP_01:
+    title: "Verify ARP Table Output Formatting and Mapping"
+
+    # Step 3 validation thresholds
+    # Minimum number of ARP entries expected in the table
+    min_entries: 1
+
+    # Accepted values for the Type column
+    valid_types:
+      - "Dynamic"
+      - "Static"
+
+    # Accepted values for the Action column (empty string = skip action check)
+    valid_actions:
+      - "Fwd"
+
+    # Step 4: Set to true to enable known-entry validation in a controlled environment.
+    # When false, Step 4 is skipped and the test relies solely on format checks.
+    verify_known_entries: false
+
+    # Known entries for Step 4 validation (based on sample log data from apr_table.md).
+    # Populated with representative entries; update for the actual DUT environment.
+    known_entries:
+      - ip_address: "192.168.100.1"
+        mac_address: "7c:5a:1c:b1:f2:f6"
+        interface: "Management0"
+        type: "Dynamic"
+      - ip_address: "10.10.10.4"
+        mac_address: "22:0e:4f:40:2a:11"
+        interface: "PortChannel12"
+        type: "Dynamic"

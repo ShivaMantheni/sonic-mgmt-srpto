@@ -26,6 +26,14 @@ Description:
   Traffic Flow: DUT2 → DUT1 (ACL ingress) → DUT3 (tcpdump capture)
   Verification: Pcap file analysis using Scapy rdpcap()
 
+  IMPORTANT IMPLEMENTATION NOTES:
+  ✅ All ACL rules include PHASE 1.5 verification after creation to validate:
+     - ACL table/rule name exists in output
+     - IP addresses are NOT dropped by backend (critical bug detection)
+  ✅ For raw CLI rule creation: Always use "no seq {number}" cleanup before
+     creating rules to avoid conflicts in rapid create/delete cycles
+  ✅ Show commands use skip_tmpl=True to get raw output for validation
+
 Pre-requisites:
   - Topology: 3-node (D1D2D3) SONiC DUTs
   - DUTs: Virtual (SONiC-VS) or Hardware with direct connections
@@ -72,7 +80,6 @@ pytestmark = [
 VAR_FILE_ENV = "L3_ACL_VAR_FILE"
 DEFAULT_VAR_FILE = (
     Path(__file__).resolve().parents[3]
-    / "spytest"
     / "vars"
     / "routing"
     / "l3_acl"
@@ -414,6 +421,26 @@ class TestL3AclRobustness:
 
         st.log("✅ Static routes configured for cross-subnet L3 routing")
 
+        # CRITICAL FIX: Enable IP forwarding on DUT1 (the router) for inter-subnet traffic routing
+        # Without IP forwarding, DUT1 receives packets but does NOT forward them to other subnets
+        st.banner("Enabling IP forwarding on DUT1 for L3 traffic routing")
+
+        try:
+            # Enable IP forwarding via sysctl
+            st.config(cls.data.dut1, "echo 1 > /proc/sys/net/ipv4/ip_forward")
+            st.log("✅ IP forwarding enabled on DUT1 via sysctl")
+
+            # Verify IP forwarding is enabled
+            result = st.show(cls.data.dut1, "cat /proc/sys/net/ipv4/ip_forward", skip_error_check=True)
+            if result and "1" in str(result):
+                st.log("✅ VERIFIED: IP forwarding is ENABLED on DUT1")
+            else:
+                st.warn(f"⚠️ WARNING: IP forwarding status unclear on DUT1. Result: {result}")
+                st.log("⚠️ Continuing with test - forwarding may not be enabled")
+        except Exception as e:
+            st.warn(f"⚠️ Warning: Could not enable IP forwarding on DUT1: {e}")
+            st.log("⚠️ Continuing with test - if traffic fails, check IP forwarding status")
+
     @classmethod
     def _configure_acl(cls, acl_config: Dict[str, Any]) -> bool:
         """Configure ACL tables and rules on DUT1."""
@@ -655,6 +682,52 @@ class TestL3AclRobustness:
             st.error(f"Error during traffic generation: {e}")
             return False, {"success": False, "error": str(e)}
 
+    @classmethod
+    def _clear_interface_counters(cls, dut: str, interfaces: List[str]) -> bool:
+        """Clear interface counters before traffic generation."""
+        st.banner(f"Clearing interface counters on {dut}")
+        try:
+            # Clear all interface counters (klish command)
+            st.log(f"  Clearing counters on {dut} for interfaces: {', '.join(interfaces)}")
+            cmd = "clear interface counters"
+            st.show(dut, cmd, skip_tmpl=True, skip_error_check=False)
+            st.log(f"✅ Cleared counters on {dut} for {len(interfaces)} interface(s)")
+            return True
+        except Exception as e:
+            st.warn(f"Error clearing interface counters on {dut}: {e}")
+            return False
+
+    @classmethod
+    def _show_interface_counters(cls, dut: str, interface: str) -> Dict[str, Any]:
+        """Display interface counters after traffic generation."""
+        st.log(f"Showing counters for {dut}:{interface}")
+        try:
+            # Use the correct klish command: "show interface counters"
+            cmd = "show interface counters"
+            output = st.show(dut, cmd, skip_tmpl=True, skip_error_check=False)
+
+            # Parse interface statistics
+            stats = {
+                "interface": interface,
+                "output_raw": output
+            }
+
+            # Extract packet counts (common format: packets, bytes, errors, drops)
+            lines = output.split('\n')
+            for line in lines:
+                # Look for lines containing the interface name or counter stats
+                if interface in line or 'RX_OK' in line or 'TX_OK' in line or 'RX_ERR' in line or 'TX_ERR' in line:
+                    st.log(f"  {line.strip()}")
+                if 'packets' in line.lower() or 'bytes' in line.lower() or 'dropped' in line.lower():
+                    st.log(f"  {line.strip()}")
+
+            st.log(f"✅ Retrieved counters for {interface}")
+            return stats
+
+        except Exception as e:
+            st.error(f"Error showing interface counters on {dut}: {e}")
+            return {"interface": interface, "error": str(e)}
+
     # ============================================================================
     # L3-R01: ACL Rule Persistence After IP Config Change
     # ============================================================================
@@ -805,22 +878,41 @@ class TestL3AclRobustness:
         # ===== PHASE 7: Validate results =====
         st.banner("PHASE 7: Validating ACL rule persistence")
 
-        # Check before IP change (should allow 10.0.0.1)
-        if rx_count_before < (num_packets * 0.9):
-            st.error(f"❌ Before IP change: RX={rx_count_before} < 90% of TX={num_packets}")
-            st.report_fail("msg", f"Traffic from allowed IP blocked unexpectedly (RX={rx_count_before})")
+        # Determine platform type to apply appropriate threshold
+        # Hardware platforms (HW): 98% threshold (stricter)
+        # Virtual platforms (VS): 95% threshold (more lenient due to timing variations)
+        is_virtual = "vsonic" in str(self.data.dut1).lower() or "vs" in str(self.data.testbed_name).lower()
 
-        # Check blocked IP (should deny 10.0.0.99)
+        if is_virtual:
+            min_rx_ratio = 95.0  # Virtual: accept up to 5% loss
+            platform_type = "Virtual (SONiC-VS)"
+        else:
+            min_rx_ratio = 98.0  # Hardware: accept up to 2% loss
+            platform_type = "Hardware"
+
+        st.log(f"Platform: {platform_type}, Using {min_rx_ratio:.0f}% reception threshold")
+
+        # Check before IP change (should allow 10.0.0.1)
+        rx_ratio_before = (rx_count_before / num_packets * 100) if num_packets > 0 else 0.0
+        if rx_ratio_before < min_rx_ratio:
+            st.error(f"❌ Before IP change: RX={rx_count_before}/{num_packets} ({rx_ratio_before:.1f}%) < {min_rx_ratio:.0f}%")
+            st.report_fail("msg", f"Traffic from allowed IP below threshold (RX ratio={rx_ratio_before:.1f}%)")
+
+        # Check blocked IP (should deny 10.0.0.99) - strict validation
         if rx_count_blocked != 0:
             st.error(f"❌ Blocked IP rule not working: RX={rx_count_blocked}, expected 0")
             st.report_fail("msg", f"ACL not blocking denied IP (RX={rx_count_blocked})")
 
         # Check after IP change (should allow new IP)
-        if rx_count_after < (num_packets * 0.9):
-            st.error(f"❌ After IP change: RX={rx_count_after} < 90% of TX={num_packets}")
-            st.report_fail("msg", f"Traffic from new IP blocked after reconfiguration (RX={rx_count_after})")
+        rx_ratio_after = (rx_count_after / num_packets * 100) if num_packets > 0 else 0.0
+        if rx_ratio_after < min_rx_ratio:
+            st.error(f"❌ After IP change: RX={rx_count_after}/{num_packets} ({rx_ratio_after:.1f}%) < {min_rx_ratio:.0f}%")
+            st.report_fail("msg", f"Traffic from new IP below threshold (RX ratio={rx_ratio_after:.1f}%)")
 
-        st.log("✅ L3-R01 test PASSED - ACL rules persist correctly after IP reconfiguration")
+        st.log(f"✅ L3-R01 test PASSED - ACL rules persist correctly")
+        st.log(f"   Before IP change: RX ratio = {rx_ratio_before:.1f}% (threshold: {min_rx_ratio:.0f}%)")
+        st.log(f"   Blocked traffic: RX = {rx_count_blocked} (expected: 0)")
+        st.log(f"   After IP change: RX ratio = {rx_ratio_after:.1f}% (threshold: {min_rx_ratio:.0f}%)")
         st.report_pass("test_case_passed")
 
     # ============================================================================

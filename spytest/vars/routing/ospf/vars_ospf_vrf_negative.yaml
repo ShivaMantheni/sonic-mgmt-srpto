@@ -1,0 +1,20 @@
+---
+# OSPF VRF Negative Test Variables
+# Test: Verify OSPF configuration rejection for non-existent VRF
+# Author: Shiva
+# Year: 2026
+
+defaults:
+  cli_type: klish
+  verify_timeout: 30
+  cleanup: true
+  min_topology:
+    - "D1"
+
+testcases:
+  "SONIC-OSPF-VRF-NEG-001":
+    title: "OSPF Configuration with Non-Existent VRF"
+    description: "Verify that OSPF configuration is rejected when VRF does not exist"
+    vrf_name: "Vrftest"
+    expected_error: "%Error: VRF Vrftest does not exist"
+    expected_error_pattern: "(?i)error.*vrf.*does not exist"

@@ -1,0 +1,48 @@
+# VLAN Create Multiple VLANs Test Variables (TC_VLAN_CREATE_002)
+defaults:
+  cli_type: klish
+  min_topology: ["D1D2:1"]
+  verify_timeout: 30
+  cleanup: true
+
+testcases:
+  "TC_VLAN_CREATE_002":
+    title: "Create Multiple VLANs"
+    description: |
+      Create multiple VLANs (10, 20, 30, 40, 50) and verify creation
+      using show vlan and show running-configuration.
+    test_type: "vlan_create_multiple"
+
+    vlans:
+      vlan_10: 10
+      vlan_20: 20
+      vlan_30: 30
+      vlan_40: 40
+      vlan_50: 50
+
+    verification:
+      verify_show_vlan: true
+      verify_show_running_config: true
+      verify_vlan_count: true
+      expected_vlan_count: 5
+      max_wait_time: 30
+
+    verification_commands:
+      - "show vlan"
+      - "show vlan brief"
+      - "show running-configuration | no-more"
+
+    cleanup:
+      cleanup_vlans: true
+      cleanup_order:
+        - "vlans"
+
+global:
+  test_timeout: 300
+  diagnostics_level: "full"
+  max_retries: 0
+
+integration:
+  enabled: false
+  ci_system: "github"
+  report_format: "junit"

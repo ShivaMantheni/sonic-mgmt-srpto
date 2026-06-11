@@ -1,0 +1,13 @@
+#Requirement.txt
+----------------
+
+1. Static-route functionality will be tested using a 3‑node topology.
+2. All Static-route related functionalities will be validated.
+3. The setup consists of one DUT and another two system running the SONiC-VS image.
+4. Two ports are connected between each Device. DEV-A<>DEV-B<>DEV-C
+5. All functionalities will be validated by sending packets using Scapy.
+6. All configurations will first be verified using show running-config.
+7. After verifying the configuration, test packets will be transmitted to validate the behavior.
+8. Test case IDs will follow the format:TC_<MODULE_NAME>_<SUBMODULE_NAME>_<THREE_DIGIT_NUMBER>.
+
+

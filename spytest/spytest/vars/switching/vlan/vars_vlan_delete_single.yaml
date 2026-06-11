@@ -1,0 +1,44 @@
+# VLAN Delete Single VLAN Test Variables (TC_VLAN_DELETE_001)
+defaults:
+  cli_type: klish
+  min_topology: ["D1D2:1"]
+  verify_timeout: 30
+  cleanup: true
+
+testcases:
+  "TC_VLAN_DELETE_001":
+    title: "Delete Single VLAN"
+    description: |
+      Create VLAN 100, verify creation, delete VLAN, and verify deletion
+      using show vlan and show running-configuration.
+    test_type: "vlan_delete_single"
+
+    vlans:
+      vlan_100: 100
+
+    verification:
+      verify_create: true
+      verify_delete: true
+      verify_show_vlan: true
+      verify_show_running_config: true
+      max_wait_time: 30
+
+    verification_commands:
+      - "show vlan"
+      - "show vlan brief"
+      - "show running-configuration | no-more"
+
+    cleanup:
+      cleanup_vlans: true
+      cleanup_order:
+        - "vlans"
+
+global:
+  test_timeout: 300
+  diagnostics_level: "full"
+  max_retries: 0
+
+integration:
+  enabled: false
+  ci_system: "github"
+  report_format: "junit"

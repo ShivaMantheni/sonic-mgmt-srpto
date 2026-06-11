@@ -1,0 +1,52 @@
+defaults:
+  cli_type: klish
+  vlan_id: 10                # VLAN ID to create and configure
+  cleanup: true              # Remove all configurations after test
+
+testcases:
+  TC_VLAN_PERSIST_002:
+    description: "Running Config Accuracy"
+    objective: "Verify show running-config accurately reflects VLAN config"
+
+    steps:
+      - id: 1
+        description: "Create VLAN 10"
+        expected: "VLAN successfully created"
+
+      - id: 2
+        description: "Add Port1 as untagged member"
+        expected: "Port1 successfully added to VLAN as untagged"
+
+      - id: 3
+        description: "Add Port3 as tagged member"
+        expected: "Port3 successfully added to VLAN as tagged"
+
+      - id: 4
+        description: "Execute show running-configuration"
+        expected: "Running configuration output retrieved successfully"
+
+      - id: 5
+        description: "Verify all configurations are accurately displayed"
+        expected: "All VLAN and port configurations visible in running-config"
+
+    # Port configurations
+    port_configs:
+      port1:
+        mode: "access"
+        vlan: 10
+        tagged: false
+
+      port3:
+        mode: "trunk"
+        vlan: 10
+        tagged: true
+
+    # Pre-conditions
+    pre_conditions:
+      - clear_interface_config: true    # Clear IP and VLAN config before test
+      - cleanup_vlans: true             # Remove test VLANs before test
+
+    # Post-conditions
+    post_conditions:
+      - remove_ports_from_vlan: true    # Remove ports from VLAN during cleanup
+      - delete_vlans: true              # Delete all test VLANs after test

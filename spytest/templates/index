@@ -68,6 +68,8 @@ show_system_reserved_vlan.tmpl, .*, sonic, show system vlan reserved
 show_bgp_ipv4_prefix.tmpl, .*, sonic, show bgp ipv4\s*([\d\.\/]+)
 show_interfaces_portchannel_qa.tmpl, .*, sonic, show interfaces portchannel
 top.tmpl, .*, sonic, top
+show_mac_access_lists.tmpl, .*, sonic, show mac access-lists.*
+show_mac_access_group.tmpl, .*, sonic, show mac access-group.*
 show_mac.tmpl, .*, sonic, show mac
 show_ipv6_neighbors.tmpl, .*, sonic, show ipv6 neighbors
 show_lldp_neighbors.tmpl, .*, sonic, show (lldp\s+)?neighbors

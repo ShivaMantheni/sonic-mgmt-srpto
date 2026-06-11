@@ -1,0 +1,28 @@
+## Topology
+
+### Two-Node Back-to-Back Topology
+version: 4.0
+devices:
+  # D1 - 192.168.100.68 (D1 - Primary)
+  vs_sonic2:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.68, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
+    properties: {services: default, build: default, config: default, errors: default}
+
+  # D2 - 192.168.100.222 (D2 - Secondary)
+  vs_sonic3:
+    device_type: sonic
+    access: {protocol: ssh, ip: 192.168.100.222, port: 22}
+    credentials: {username: admin, password: root@123, altpassword: YourPaSsWoRd}
+    properties: {services: default, build: default, config: default, errors: default}
+
+
+### Topology Details
+- **D1**: Primary DUT running SONiC
+- **D2**: Secondary DUT/Partner running SONiC-VS
+- **D1D2P1-P4**: Four interconnected ports between D1 and D2
+  - D1D2P1 ↔ D2D1P1 (Ethernet20 ↔ Ethernet24)
+  - D1D2P2 ↔ D2D1P2 (Ethernet16 ↔ Ethernet20)
+  - D1D2P3 ↔ D2D1P3 (Ethernet8 ↔ Ethernet8)
+  - D1D2P4 ↔ D2D1P4 (Ethernet12 ↔ Ethernet16)

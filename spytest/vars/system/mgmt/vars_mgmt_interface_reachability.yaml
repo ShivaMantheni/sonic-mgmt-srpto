@@ -1,0 +1,64 @@
+---
+# Management Interface Reachability Test Variables
+# Test: Verify IPv4 and IPv6 reachability on Management interface
+# Author: Shiva
+# Year: 2026
+
+defaults:
+  cli_type: klish
+  verify_timeout: 30
+  cleanup: true
+  min_topology:
+    - "D1"
+  mgmt_interface: "Management0"
+  ping_count: 3
+  expected_packet_loss: 0
+
+testcases:
+  "SONIC-MGMT-PING-001":
+    title: "Management Interface IPv4 and IPv6 Reachability"
+    description: "Verify IPv4 and IPv6 addresses on Management interface respond to ping"
+
+    # Interface to test
+    interface: "Management0"
+
+    # Test both IP families
+    test_ipv4: true
+    test_ipv6: true
+
+    # Ping parameters
+    ping_count: 3
+    ping_timeout: 10
+
+    # Expected results
+    expected_packet_loss: 0  # 0% packet loss expected
+
+    # Test steps
+    steps:
+      - step: 1
+        description: "Identify Management interface IPv6 address"
+        command: "show ipv6 interfaces"
+        verify:
+          - interface_exists: true
+          - ipv6_address_present: true
+          - status_up: true
+
+      - step: 2
+        description: "Ping IPv6 address"
+        verify:
+          - packet_loss: 0
+          - ping_success: true
+
+      - step: 3
+        description: "Identify Management interface IPv4 address"
+        command: "show ip interfaces"
+        verify:
+          - interface_exists: true
+          - ipv4_address_present: true
+          - status_up: true
+
+      - step: 4
+        description: "Ping IPv4 address"
+        verify:
+          - packet_loss: 0
+          - ping_success: true

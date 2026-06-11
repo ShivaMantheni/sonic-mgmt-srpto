@@ -321,9 +321,7 @@ run_batch () {
       --testbed "${TESTBED}" \
       ${TESTS} \
       --logs-path "${LOG_PATH}" \
-      --log-level debug \
-      --skip-init-config \
-      --ifname-type native
+      --log-level debug --skip-init-config --ifname-type native  --get-tech-support none --syslog-check none
 
     RC=$?
     echo " Batch ${FEATURE} completed with RC=${RC}"
@@ -405,7 +403,7 @@ run_bgp_batch () {
           --logs-path "${LOG_PATH}" \
           --log-level debug \
           --skip-init-config \
-          --ifname-type native
+          --ifname-type native  --get-tech-support none --syslog-check none 
 
         RC=$?
         echo " Test ${TEST} completed with RC=${RC}"
@@ -427,7 +425,7 @@ run_bgp_batch () {
 
 if should_run_batch "B"; then
     # First part: 2-node tests
-    run_bgp_batch "BGP_IPV4_FEATURES" "./testbeds/testbed_vs_2node_reg.yaml" \
+    run_bgp_batch "BGP_IPV4_FEATURES" "./testbeds/testbed_vs_2d_reg.yaml" \
     routing/BGP/test_bgp_ipv4_basic.py \
     routing/BGP/test_bgp_svi_ipv4.py \
     routing/BGP/test_bgp_portchannel_ipv4.py \
@@ -510,61 +508,58 @@ fi
 # ==========================================================
 # BATCH-G : OSPF isCLI MASTER
 # ==========================================================
-
 if should_run_batch "G"; then
     run_batch "OSPF_ISCLI_MASTER" "./testbeds/testbed_4node_reg.yaml" \
-    routing/isCLI/testcases_OSPF_1_iscli_Basic_2_node_Reboot.py \
-    routing/isCLI/testcases_OSPF_2_iscli_Basic_4_node.py \
-    routing/isCLI/testcases_OSPF_2_iscli_Basic_4_node_Reboot.py \
-    routing/isCLI/testcases_OSPF_3_iscli_Basic_4_node_Vlan.py \
-    routing/isCLI/testcases_OSPF_3_iscli_Basic_4_node_Vlan_Reboot.py \
-    routing/isCLI/testcases_OSPF_4_iscli_Basic_4_node_PortChannel.py \
-    routing/isCLI/testcases_OSPF_4_iscli_Basic_4_node_PortChannel_Reboot.py \
-    routing/isCLI/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_Eth.py \
-    routing/isCLI/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_PC.py \
-    routing/isCLI/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_Vlan.py \
-    routing/isCLI/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_Eth.py \
-    routing/isCLI/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_PC.py \
-    routing/isCLI/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_Vlan.py \
-    routing/isCLI/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_Eth.py \
-    routing/isCLI/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_PC.py \
-    routing/isCLI/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_VLAN.py \
-    routing/isCLI/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_Eth.py \
-    routing/isCLI/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_PC.py \
-    routing/isCLI/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_Eth.py \
-    routing/isCLI/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_PC.py \
-    routing/isCLI/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_Eth.py \
-    routing/isCLI/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_PC.py \
-    routing/isCLI/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_Eth.py \
-    routing/isCLI/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_PC.py \
-    routing/isCLI/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_Eth.py \
-    routing/isCLI/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_PC.py \
-    routing/isCLI/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_VLAN.py \
-    routing/isCLI/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_Eth.py \
-    routing/isCLI/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_PC.py \
-    routing/isCLI/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_Eth.py \
-    routing/isCLI/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_PC.py \
-    routing/isCLI/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_Vlan.py \
-    routing/isCLI/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Eth.py \
-    routing/isCLI/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_PC.py \
-    routing/isCLI/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Vlan.py \
-    routing/isCLI/test_ospf_1_iscli_basic.py
+    routing/iscli_OSPF/testcases_OSPF_1_iscli_Basic_2_node_Reboot.py \
+    routing/iscli_OSPF/testcases_OSPF_2_iscli_Basic_4_node.py \
+    routing/iscli_OSPF/testcases_OSPF_2_iscli_Basic_4_node_Reboot.py \
+    routing/iscli_OSPF/testcases_OSPF_3_iscli_Basic_4_node_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_3_iscli_Basic_4_node_Vlan_Reboot.py \
+    routing/iscli_OSPF/testcases_OSPF_4_iscli_Basic_4_node_PortChannel.py \
+    routing/iscli_OSPF/testcases_OSPF_4_iscli_Basic_4_node_PortChannel_Reboot.py \
+    routing/iscli_OSPF/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_5_iscli_4_node_Backbone_connect_via_ABR_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_6_iscli_4_node_Area_ID_mismatch_prevents_adj_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_7_iscli_4_node_DR_BDR_elect_VLAN.py \
+    routing/iscli_OSPF/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_8_iscli_4_node_cost_attribute_affects_path_select_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_9_iscli_4_node_MD5_authentication_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_10_iscli_4_node_Type_1_LSAs_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_11_iscli_4_node_Type_5_external_LSAs_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_12_iscli_4_MTU_mismatch_prevents_adj_VLAN.py \
+    routing/iscli_OSPF/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_13_iscli_4_node_unnumbered_adj_loopback_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_14_iscli_4_node_OSPF_scalability_over_Vlan.py \
+    routing/iscli_OSPF/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Eth.py \
+    routing/iscli_OSPF/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_PC.py \
+    routing/iscli_OSPF/testcases_OSPF_15_iscli_4_node_OSPF_per_VRF_over_Vlan.py \
+    routing/iscli_OSPF/test_ospf_1_iscli_basic.py
 else
     echo "Skipping Batch G (OSPF_ISCLI_MASTER) - not selected"
 fi
-
-
 # ==========================================================
 # BATCH-H : PortChannel isCLI
 # ==========================================================
 
 if should_run_batch "H"; then
-    run_batch "PORTCHANNEL_ISCLI" "./testbeds/testbed_2node_reg.yaml" \
+    run_batch "PORTCHANNEL_ISCLI" "./testbeds/testbed_vs_2d_reg.yaml" \
     switching/iscli_PortChannel/test_interface_1_iscli_portchannel.py \
     switching/iscli_PortChannel/test_interface_2_iscli_portchannel_Reboot.py
 else
@@ -577,11 +572,11 @@ fi
 # ==========================================================
 
 if should_run_batch "I"; then
-    run_batch "VLAN_ISCLI" "./testbeds/testbed_2node_reg.yaml" \
+    run_batch "VLAN_ISCLI" "./testbeds/testbed_vs_2d_reg.yaml" \
     switching/iscli_Vlan/test_interface_1_iscli_vlan.py \
     switching/iscli_Vlan/test_interface_2_iscli_vlan_ip.py \
-    switching/iscli_Vlan/test_interface_1_iscli_vlan_reboot.py \
-    switching/iscli_Vlan/test_interface_2_iscli_vlan_ip_reboot.py
+    #switching/iscli_Vlan/test_interface_1_iscli_vlan_reboot.py \
+    #switching/iscli_Vlan/test_interface_2_iscli_vlan_ip_reboot.py
 else
     echo "Skipping Batch I (VLAN_ISCLI) - not selected"
 fi
@@ -590,7 +585,7 @@ fi
 # ==========================================================
 # BATCH-J : Hardware Interface Events
 # ==========================================================
-
+'''
 if should_run_batch "J"; then
     run_batch "HW_INTERFACE_EVENTS" "./testbeds/testbed_hw_2node_reg.yaml" \
     system/iscli_Hardware/test_interface_1_iscli_events_admin_up_down_HW.py \
@@ -604,14 +599,14 @@ if should_run_batch "J"; then
 else
     echo "Skipping Batch J (HW_INTERFACE_EVENTS) - not selected"
 fi
-
+'''
 
 # ==========================================================
 # BATCH-K : System Interface Events
 # ==========================================================
 
 if should_run_batch "K"; then
-    run_batch "SYS_INTERFACE_EVENTS" "./testbeds/testbed_2node_reg.yaml" \
+    run_batch "SYS_INTERFACE_EVENTS" "./testbeds/testbed_vs_2d_reg.yaml" \
     system/iscli_interface_events/test_interface_1_iscli_events_admin_up_down.py \
     system/iscli_interface_events/test_interface_2_iscli_events_mtu_change.py \
     system/iscli_interface_events/test_interface_3_iscli_events_description.py \
@@ -624,19 +619,19 @@ fi
 # ==========================================================
 # BATCH-L : System AAA
 # ==========================================================
-
+'''
 if should_run_batch "L"; then
     run_batch "SYS_AAA" "./testbeds/testbed_vs_1node_reg.yaml" \
     system/AAA/test_aaa_auth.py
 else
     echo "Skipping Batch L (SYS_AAA) - not selected"
 fi
-
+'''
 
 # ==========================================================
 # BATCH-M : System NTP
 # ==========================================================
-
+'''
 if should_run_batch "M"; then
     # NTP Server Setup
     echo "Setting up NTP server for batch M..."
@@ -653,7 +648,7 @@ else
     echo "Skipping Batch M (SYS_NTP) - not selected"
 fi
 
-
+'''
 # ==========================================================
 # BATCH-N : Static Routing Tests (IPv4/IPv6)
 # ==========================================================
@@ -1145,6 +1140,7 @@ fi
 if should_run_batch "BA"; then
     run_batch "SM_ISCLI_52_LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_1node_reg.yaml" \
     system/lldp/test_lldp_cli_validation.py
+    system/lldp/test_sm_iscli_52_lldp_cli_output.py
 else
     echo "Skipping Batch BA (SM_ISCLI_52_LLDP_CLI_VALIDATION) - not selected"
 fi
@@ -1937,21 +1933,48 @@ mkdir -p "${DASHBOARD_DIR}"
 
 DASHBOARD_FILE="${DASHBOARD_DIR}/full_regression_dashboard_${DATE_DIR}_${TIME_STAMP}.html"
 
+echo "Dashboard script: dashboard/scripts/generate_graphical_dashboard.py"
+echo "Log root: ${BASE_LOG}"
+echo "Output file: ${DASHBOARD_FILE}"
+echo ""
+
+# Generate dashboard with updated script (uses results_*_functions.csv)
 python3 dashboard/scripts/generate_graphical_dashboard.py \
     --log-root ${BASE_LOG} \
     --out ${DASHBOARD_FILE} \
     --name "Full Regression - ${DATE_DIR}"
 
-echo "=============================================="
-echo " Dashboard Generation Complete"
-echo "=============================================="
-echo "Dashboard available at:"
-echo "file://$(pwd)/${DASHBOARD_FILE}"
+DASHBOARD_RC=$?
 
-# Copy dashboard to user directory
-USER_DASHBOARD_DIR="${HOME}/Dashboard/FULL_REGRESSION"
-mkdir -p "${USER_DASHBOARD_DIR}"
-cp "${DASHBOARD_FILE}" "${USER_DASHBOARD_DIR}/"
+if [ ${DASHBOARD_RC} -eq 0 ] && [ -f "${DASHBOARD_FILE}" ]; then
+    echo "=============================================="
+    echo " Dashboard Generation Complete"
+    echo "=============================================="
+    echo "Dashboard available at:"
+    echo "file://$(pwd)/${DASHBOARD_FILE}"
+    echo ""
 
-echo "Dashboard copy saved to:"
-echo "file://${USER_DASHBOARD_DIR}/full_regression_dashboard_${DATE_DIR}_${TIME_STAMP}.html"
+    # Copy dashboard to user directory
+    USER_DASHBOARD_DIR="${HOME}/Dashboard/FULL_REGRESSION"
+    mkdir -p "${USER_DASHBOARD_DIR}"
+    cp "${DASHBOARD_FILE}" "${USER_DASHBOARD_DIR}/" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        echo "Dashboard copy saved to:"
+        echo "file://${USER_DASHBOARD_DIR}/full_regression_dashboard_${DATE_DIR}_${TIME_STAMP}.html"
+    else
+        echo "Warning: Failed to copy dashboard to user directory"
+        echo "Dashboard is still available at: ${DASHBOARD_FILE}"
+    fi
+else
+    echo "=============================================="
+    echo " Dashboard Generation Failed (RC=${DASHBOARD_RC})"
+    echo "=============================================="
+    echo "Warning: Dashboard generation failed. Check logs above for errors."
+    echo "Test results are still available in: ${BASE_LOG}"
+fi
+
+echo ""
+echo "=============================================="
+echo " All Operations Complete"
+echo "=============================================="

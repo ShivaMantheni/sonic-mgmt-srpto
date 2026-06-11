@@ -19,6 +19,7 @@ import glob
 import json
 import csv
 import argparse
+import yaml
 from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
@@ -403,8 +404,120 @@ def format_seconds_to_readable(total_seconds):
     return ' '.join(parts)
 
 
+def extract_feature_from_module(module_path):
+    """
+    Extract feature name from module path.
+    Example: routing/BGP/test_bgp_ipv4_basic.py -> BGP
+             system/ISCLI_LLDP/test_lldp_01.py -> LLDP
+    """
+    if not module_path:
+        return "Unknown"
+
+    parts = module_path.split('/')
+    if len(parts) >= 2:
+        # Get the second-to-last part (feature directory)
+        feature = parts[-2]
+        # Clean up common prefixes
+        feature = feature.replace('iscli_', '').replace('ISCLI_', '')
+        return feature.upper()
+    return parts[0].upper() if parts else "Unknown"
+
+
+def extract_testcase_id(test_function):
+    """
+    Extract test case ID from TestFunction by removing class name prefix.
+    Example: TestBgpIpv4Basic.test_bgp_ipv4_configure_verify_unconfig
+             -> test_bgp_ipv4_configure_verify_unconfig
+    """
+    if not test_function:
+        return ""
+
+    # If contains a dot, split and take the last part (after class name)
+    if '.' in test_function:
+        return test_function.split('.')[-1]
+    return test_function
+
+
+def extract_first_line_doc(doc_text):
+    """
+    Extract the first line from Doc column as test description.
+    Example: "BGP-IPv4-001: Configure BGP IPv4 neighbor and verify session.
+              This test establishes..."
+             -> "BGP-IPv4-001: Configure BGP IPv4 neighbor and verify session"
+    """
+    if not doc_text:
+        return ""
+
+    # Split by newline and get first non-empty line
+    lines = [line.strip() for line in doc_text.split('\n') if line.strip()]
+    if lines:
+        first_line = lines[0]
+        # If first line ends with period followed by more text, truncate at period
+        if '.' in first_line:
+            # Find first sentence (up to first period followed by space or end)
+            sentence_end = first_line.find('. ')
+            if sentence_end > 0:
+                return first_line[:sentence_end + 1]
+        return first_line
+    return ""
+
+
+def load_feature_mapping():
+    """
+    Load feature mapping from YAML file and create reverse lookup.
+    Returns: (batch_to_feature dict, feature_display_names dict)
+    """
+    # Try to find feature_mapping.yaml in parent directories
+    script_dir = Path(__file__).resolve().parent
+    possible_paths = [
+        script_dir.parent.parent / "feature_mapping.yaml",  # From scripts/ -> spytest/
+        script_dir.parent / "feature_mapping.yaml",
+        script_dir / "feature_mapping.yaml",
+    ]
+
+    mapping_file = None
+    for path in possible_paths:
+        if path.exists():
+            mapping_file = path
+            break
+
+    if not mapping_file:
+        print("Warning: feature_mapping.yaml not found, using batch names as-is", file=sys.stderr)
+        return {}, {}
+
+    try:
+        with open(mapping_file, 'r') as f:
+            config = yaml.safe_load(f)
+
+        batch_to_feature = {}
+        feature_display_names = {}
+
+        if 'features' in config:
+            for feature_key, feature_data in config['features'].items():
+                display_name = feature_data.get('display_name', feature_key)
+                feature_display_names[feature_key] = display_name
+
+                batches = feature_data.get('batches', [])
+                for batch in batches:
+                    batch_to_feature[batch] = feature_key
+
+        print(f"Loaded feature mapping from {mapping_file}")
+        print(f"  - {len(feature_display_names)} features defined")
+        print(f"  - {len(batch_to_feature)} batch mappings")
+
+        return batch_to_feature, feature_display_names
+
+    except Exception as e:
+        print(f"Warning: Failed to load feature_mapping.yaml: {e}", file=sys.stderr)
+        return {}, {}
+
+
 def parse_csv_results(csv_file):
-    """Parse SPyTest CSV stats file to extract test results"""
+    """
+    Parse SPyTest CSV functions file to extract test results.
+    Expected columns: #, Module, TestFunction, Result, TimeTaken, ExecutedOn,
+                     Syslogs, FCLI, TSSH, DCNT, Description, Devices, KnownIssue, Doc
+    """
     total = 0
     passed = 0
     failed = 0
@@ -416,17 +529,36 @@ def parse_csv_results(csv_file):
             reader = csv.DictReader(f)
             for row in reader:
                 result = row.get('Result', '').strip()
-                # Skip module configuration rows (empty result)
+                # Skip rows with empty result
                 if not result:
                     continue
 
+                module = row.get('Module', '').strip()
+                test_function = row.get('TestFunction', '').strip()
+                doc = row.get('Doc', '').strip()
+                time_taken = row.get('TimeTaken', '').strip()
+                description = row.get('Description', '').strip()
+
+                # Extract feature, test case ID, and test description
+                feature = extract_feature_from_module(module)
+                testcase_id = extract_testcase_id(test_function)
+                test_description = extract_first_line_doc(doc)
+
+                # If no doc available, use description as fallback
+                if not test_description and description:
+                    test_description = description
+
                 # Extract test case details
                 test_case = {
-                    'module': row.get('Module', '').strip(),
-                    'function': row.get('Function', '').strip(),
+                    'feature': feature,
+                    'module': module,
+                    'testcase_id': testcase_id,
+                    'test_function': test_function,
+                    'test_description': test_description,
                     'result': result,
-                    'test_time': row.get('Test Time', '').strip(),
-                    'description': row.get('Description', '').strip()
+                    'time_taken': time_taken,
+                    'description': description,
+                    'doc': doc
                 }
                 test_cases.append(test_case)
 
@@ -446,12 +578,20 @@ def parse_csv_results(csv_file):
 
 def find_test_results(log_root):
     """
-    Scan log root directory for test results.
-    Expected structure: log_root/<date>/<feature>/<time>/results_*_functions.csv
+    Scan log root directory for test results and group by feature.
+    Expected structure: log_root/<date>/<batch>/<time>/results_*_functions.csv
 
-    IMPORTANT: Only uses results_*_functions.csv - actual test function results.
-               No fallback files used to ensure data accuracy.
+    Uses results_*_functions.csv which contains:
+    - Test case IDs with class names
+    - Detailed documentation (Doc column)
+    - Execution timing (TimeTaken column)
+    - Test results and descriptions
+
+    Results are grouped by FEATURE (not batch) using feature_mapping.yaml
     """
+    # Load feature mapping
+    batch_to_feature, feature_display_names = load_feature_mapping()
+
     results = defaultdict(list)
 
     log_path = Path(log_root)
@@ -459,36 +599,50 @@ def find_test_results(log_root):
         print(f"Error: Log root directory does not exist: {log_root}", file=sys.stderr)
         return results
 
-    # Find all CSV result files - ONLY functions.csv (actual test data)
+    # Find all CSV result files - ONLY functions.csv (test case data with documentation)
     csv_pattern = str(log_path / "**" / "results_*_functions.csv")
     csv_files = glob.glob(csv_pattern, recursive=True)
 
     print(f"Found {len(csv_files)} CSV result files in {log_root}")
 
     for csv_file in csv_files:
-        # Parse the directory structure to extract feature name
+        # Parse the directory structure to extract batch name
         csv_path = Path(csv_file)
         parts = csv_path.parts
 
-        # Try to determine feature name from directory structure
-        # Expected: .../logs/<batch>/<date>/<feature>/<time>/results_*_stats.csv
+        # Try to determine batch name from directory structure
+        # Expected: .../logs/<date>/<batch>/<time>/results_*_functions.csv
         try:
             if len(parts) >= 3:
-                feature = parts[-3]  # Feature directory name
+                batch_name = parts[-3]  # Batch directory name (e.g., LLDP_COMPREHENSIVE)
                 date = parts[-4] if len(parts) >= 4 else "unknown"
             else:
-                feature = "unknown"
+                batch_name = "unknown"
                 date = "unknown"
         except:
-            feature = "unknown"
+            batch_name = "unknown"
             date = "unknown"
+
+        # Strip __unknown suffix if present (from directory naming)
+        clean_batch_name = batch_name.replace('__unknown', '')
+
+        # Map batch to feature
+        if clean_batch_name in batch_to_feature:
+            feature_key = batch_to_feature[clean_batch_name]
+            feature_name = feature_display_names.get(feature_key, feature_key)
+            print(f"  Mapping batch '{batch_name}' -> feature '{feature_name}'")
+        else:
+            # If not in mapping, use batch name as-is
+            feature_name = batch_name
+            print(f"  Warning: Batch '{batch_name}' not in feature mapping, using as-is")
 
         total, passed, failed, skipped, test_cases = parse_csv_results(csv_file)
 
         if total > 0:
-            results[feature].append({
+            results[feature_name].append({
                 'date': date,
-                'feature': feature,
+                'batch': batch_name,
+                'feature': feature_name,
                 'total': total,
                 'passed': passed,
                 'failed': failed,
@@ -519,7 +673,7 @@ def generate_dashboard_html(results, batch_name, output_file):
 
             # Calculate runtime for all test cases in this run
             for test_case in run['test_cases']:
-                test_time_str = test_case.get('test_time', '')
+                test_time_str = test_case.get('time_taken', '')
                 total_runtime_seconds += parse_time_to_seconds(test_time_str)
 
     # Calculate percentages
@@ -659,11 +813,13 @@ def generate_dashboard_html(results, batch_name, output_file):
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 50px;">S.No</th>
-                        <th style="min-width: 250px;">Test Case ID</th>
-                        <th style="min-width: 200px;">Description</th>
-                        <th style="width: 100px;">Result</th>
-                        <th style="width: 100px;">Time</th>
+                        <th style="width: 40px;">S.No</th>
+                        <th style="min-width: 100px;">Feature</th>
+                        <th style="min-width: 200px;">Script</th>
+                        <th style="min-width: 200px;">Testcase_ID</th>
+                        <th style="min-width: 300px;">Test_Description</th>
+                        <th style="width: 80px;">Time_taken</th>
+                        <th style="width: 80px;">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -672,17 +828,23 @@ def generate_dashboard_html(results, batch_name, output_file):
             for idx, tc in enumerate(all_test_cases, 1):
                 result = tc.get('result', '')
                 result_class = 'passed' if result in ['Pass', 'PASSED'] else ('failed' if result in ['Fail', 'Failed', 'FAILED', 'SCRIPTERROR'] else 'skipped')
-                test_id = tc.get('function', '')
-                description = tc.get('description', test_id)
-                test_time = tc.get('test_time', '')
+
+                # Get extracted values
+                feature_name = tc.get('feature', 'Unknown')
+                module_path = tc.get('module', '')
+                testcase_id = tc.get('testcase_id', '')
+                test_description = tc.get('test_description', tc.get('description', ''))
+                time_taken = tc.get('time_taken', '')
 
                 html += f"""
                     <tr>
                         <td style="text-align: center; font-size: 11px;">{idx}</td>
-                        <td class="testcase-id">{test_id}</td>
-                        <td style="font-size: 11px; color: #555;">{description}</td>
+                        <td style="font-weight: 600; font-size: 11px; color: #667eea;">{feature_name}</td>
+                        <td class="module-name" style="font-size: 10px; word-break: break-all;">{module_path}</td>
+                        <td class="testcase-id">{testcase_id}</td>
+                        <td style="font-size: 11px; color: #555;">{test_description}</td>
+                        <td style="text-align: center; font-size: 11px; font-weight: 500;">{time_taken}</td>
                         <td class="result-cell {result_class}">{result}</td>
-                        <td style="text-align: center; font-size: 11px;">{test_time}</td>
                     </tr>
 """
 
@@ -712,7 +874,7 @@ def generate_dashboard_html(results, batch_name, output_file):
         f.write(html)
 
     print(f"\nDashboard generated successfully: {output_file}")
-    print(f"Total modules: {len(results)}")
+    print(f"Total features: {len(results)}")
     print(f"Total tests: {total_tests}")
     print(f"Pass: {total_passed} ({pass_pct:.1f}%)")
     print(f"Fail: {total_failed} ({fail_pct:.1f}%)")

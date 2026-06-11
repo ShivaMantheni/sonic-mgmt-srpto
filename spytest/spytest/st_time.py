@@ -5,7 +5,7 @@ from utilities.common import time_diff
 
 def get_timestamp(ms=True, this=None):
     if not this:
-        this = datetime.datetime.utcnow()
+        this = datetime.datetime.now(datetime.timezone.utc)
     if ms:
         return this.strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
     else:
@@ -13,7 +13,7 @@ def get_timestamp(ms=True, this=None):
 
 
 def get_timenow():
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.timezone.utc)
 
 
 def get_elapsed(start, fmt=False, add=0, end=None):

@@ -1,0 +1,148 @@
+# VLAN Single Deletion Test Variables (TC_VLAN_DELETE_001)
+# Author: Test Automation Team
+# Date: 2026-05-06
+#
+# This YAML file contains configuration for TC_VLAN_DELETE_001: Delete Single VLAN
+#
+# Test Scenario:
+#   Verify that a single VLAN (ID 100) can be created and then successfully deleted
+#   from network devices using klish CLI commands with proper validation using
+#   show running-configuration and VLAN database queries.
+#
+# Test Logic:
+#   Source: Both DUT1 and DUT2 in 2-node topology
+#   Operation: Create VLAN 100, verify existence, delete VLAN 100, verify removal
+#   Verification: 5-command verification for VLAN existence and deletion
+#   - show Vlan <id>
+#   - show running-configuration | grep Vlan<id>
+#   - show Vlan count
+#   - show interface brief
+#   - show interface status | no-more
+#   Validation: VLAN successfully removed from VLAN database and configuration
+#
+
+defaults:
+  # CLI Type: Use klish for all commands
+  cli_type: klish
+
+  # Topology requirement: Two DUTs with 2+ connections
+  # Format: "D1D2:2" means DUT1-DUT2 with 2 connections
+  min_topology:
+    - "D1D2:2"
+
+  # Verification timeout in seconds
+  verify_timeout: 30
+
+  # Enable cleanup after test (remove VLAN if still exists)
+  cleanup: true
+
+  # VLAN ID to test deletion on
+  # Default: VLAN 100 (outside of typical user VLAN range for testing)
+  vlan_id: "100"
+
+testcases:
+  # TC_VLAN_DELETE_001: Delete Single VLAN
+  "TC_VLAN_DELETE_001":
+    title: "Delete Single VLAN"
+
+    description: |
+      Verify that a single VLAN (ID 100) can be successfully deleted
+      from network devices and is no longer present in VLAN database
+      or running-configuration.
+
+    test_type: "vlan_single_delete"
+
+    # VLAN Configuration
+    vlans:
+      # VLAN ID to be tested for deletion
+      vlan_100: 100
+
+    # Verification Parameters
+    verification:
+      # Verify VLAN exists after creation
+      verify_vlan_exists_after_create: true
+
+      # Verify VLAN removed after deletion
+      verify_vlan_removed_after_delete: true
+
+      # Verify VLAN database entries
+      verify_vlan_database: true
+
+      # Verify running-configuration after deletion
+      verify_running_config_after_delete: true
+
+      # Use show running-configuration for validation
+      use_show_running_config: true
+
+      # Acceptable error threshold (for verification commands)
+      max_verification_errors: 0
+
+    # Logging Configuration
+    logging:
+      # Log level: "debug", "info", "warning", "error"
+      level: "debug"
+
+      # Log VLAN creation and deletion
+      log_config: true
+
+      # Log verification results for creation
+      log_creation_verification: true
+
+      # Log verification results for deletion
+      log_deletion_verification: true
+
+      # Log interface status changes
+      log_interface_status: true
+
+      # Log running-configuration checks
+      log_running_config_checks: true
+
+    # Error Handling
+    error_handling:
+      # Continue on minor errors
+      continue_on_error: false
+
+      # Save diagnostic data on failure
+      save_diagnostics: true
+
+      # Diagnostic capture location
+      diagnostics_path: "/tmp/vlan_delete_single_diagnostics"
+
+    # Cleanup Configuration
+    cleanup:
+      # Clean up VLAN if test fails
+      cleanup_vlan_on_failure: true
+
+      # Clean up VLAN after test passes (handled by teardown_class)
+      cleanup_vlan_on_pass: true
+
+# Global Test Parameters (overrides per-test defaults if applicable)
+global:
+  # Test retry on failure
+  max_retries: 0
+
+  # Test timeout in seconds
+  test_timeout: 300
+
+  # Interface link speed detection
+  auto_detect_speed: true
+
+  # MTU verification
+  verify_mtu: false
+
+# Integration Parameters (for CI/CD systems)
+integration:
+  # Enable integration mode
+  enabled: false
+
+  # CI/CD system type: "jenkins", "gitlab", "github", "azure"
+  ci_system: "github"
+
+  # Report format: "junit", "html", "json"
+  report_format: "junit"
+
+  # Report output location
+  report_path: "/tmp/vlan_delete_single_report"
+
+  # Metrics collection
+  collect_metrics: false

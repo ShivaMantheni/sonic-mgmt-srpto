@@ -7,8 +7,13 @@ Value autoneg (\S+)
 Value speed (\S+)
 Value mtu (\d+)
 Value altname (\S+)
+Value lanes ([\d,]+)
+Value fec (\S+)
+Value dhcp_rl (\d+)
+Value sub (\S+)
 
 Start
+  ^\s*${interface}\s+${description}\s+${admin}\s+${oper}\s+${speed}\s+${mtu}\s+${lanes}\s+${fec}\s+${dhcp_rl}\s+${sub}\s*$$ -> Record
   ^\s*${interface}\s*${description}\s*${oper}\s*${admin}\s*${speed}\s*${mtu}\s*$$ -> Record
   ^\s*${interface}\s*${description}\s*${oper}\s*${admin}\s*${speed}\s*${mtu}\s*${altname}\s*$$ -> Record
   ^\s*${interface}\s*${description}\s*${oper}\s*${admin}\s*${autoneg}\s*${speed}\s*${mtu}\s*${altname}\s*$$ -> Record

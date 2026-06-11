@@ -1,0 +1,59 @@
+# VLAN Create with Invalid Range - TC_VLAN_CREATE_004 Configuration
+#
+# This configuration file contains test variables for TC_VLAN_CREATE_004:
+# Create VLAN with Invalid Range
+#
+# Test Objective: Verify system rejects invalid VLAN IDs (0 and 4095)
+#
+# Date: 2026-05-11
+# Author: Test Automation Team
+
+defaults:
+  # CLI Type: klish | click | rest-patch | rest-put | gnmi
+  cli_type: klish
+
+  # Invalid VLAN IDs to test
+  vlan_invalid_low: 0         # Below valid range (valid range is 1-4094)
+  vlan_invalid_high: 4095     # Above valid range (valid range is 1-4094)
+
+  # Test behavior
+  cleanup: true               # Clean up any accidentally created VLANs after test
+
+  # Topology requirement
+  min_topology:
+    - "D1D2:2"                # Two-node topology with 2+ interconnects
+
+testcases:
+  # TC_VLAN_CREATE_004 specific configuration
+  TC_VLAN_CREATE_004:
+    description: "Create VLAN with Invalid Range (0 and 4095)"
+    objective: "Verify system correctly rejects invalid VLAN IDs"
+    vlans_to_test:
+      - id: 0
+        name: "invalid_vlan_low"
+        description: "VLAN below valid range"
+        is_invalid: true
+        is_boundary: true
+      - id: 4095
+        name: "invalid_vlan_high"
+        description: "VLAN above valid range"
+        is_invalid: true
+        is_boundary: true
+
+# Logging and verbosity
+logging:
+  level: debug
+  show_step_details: true
+  show_configuration: true
+
+# Timeout values (seconds)
+timeouts:
+  vlan_creation_attempt: 30
+  vlan_verification: 30
+  config_save: 10
+
+# Error handling
+error_handling:
+  skip_on_error: false        # Do not skip remaining steps on error
+  continue_on_failure: true   # Continue testing even if a step fails
+  collect_diagnostics: true   # Collect show commands on failure

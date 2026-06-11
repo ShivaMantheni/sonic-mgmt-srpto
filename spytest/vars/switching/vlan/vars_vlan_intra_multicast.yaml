@@ -1,0 +1,303 @@
+# VLAN Intra-VLAN Multicast Forwarding Test Variables (TC_VLAN_FORWARD_003)
+# Author: Test Automation Team
+# Date: 2026-05-06
+#
+# This YAML file contains configuration for TC_VLAN_FORWARD_003: Intra-VLAN Multicast Forwarding
+#
+# Test Scenario:
+#   Verify that multicast packets sent from one access port are forwarded to
+#   ALL other ports in the same VLAN (but NOT to ports in other VLANs).
+#   The test creates VLANs 10 and 20, configures three access ports in VLAN 10,
+#   sends multicast Ethernet frames (01:00:5E:xx:xx:xx - IPv4 multicast range),
+#   and verifies reception on all VLAN 10 ports only.
+#
+# Test Logic:
+#   Source: Port1 on DUT1 (configured as access port in VLAN 10)
+#   Destinations: Port2 on DUT2 and Port3 on DUT1 (both in VLAN 10)
+#   Isolation: Port4 on DUT2 (in VLAN 20) should NOT receive multicast
+#   Operation: Send multicast packets from Port1 to 01:00:5E:xx:xx:xx
+#   Verification: Port2 and Port3 receive multicasts; Port4 does not
+#
+
+defaults:
+  # CLI Type: Use klish for all commands
+  cli_type: klish
+
+  # Topology requirement: Two DUTs with 3+ connections
+  # Format: "D1D2:3" means DUT1-DUT2 with 3+ connections
+  min_topology:
+    - "D1D2:3"
+
+  # Verification timeout in seconds
+  verify_timeout: 30
+
+  # Enable cleanup after test (remove VLANs and port configs)
+  cleanup: true
+
+  # VLAN IDs for multicast forwarding test
+  vlan_10_id: "10"
+  vlan_20_id: "20"
+
+  # Multicast destination MAC (IPv4 multicast range: 01:00:5E:00:00:00 - 01:00:5E:7F:FF:FF)
+  multicast_mac: "01:00:5e:01:02:03"
+
+testcases:
+  # TC_VLAN_FORWARD_003: Intra-VLAN Multicast Forwarding
+  "TC_VLAN_FORWARD_003":
+    title: "Intra-VLAN Multicast Forwarding"
+
+    description: |
+      Verify that multicast packets are forwarded to all ports in the same VLAN.
+      The test creates VLAN 10 and VLAN 20, configures three ports as untagged
+      members of VLAN 10, sends multicast Ethernet frames (01:00:5E:01:02:03)
+      from Port1, and verifies reception on Port2 and Port3 only (isolation
+      from VLAN 20 tested where applicable).
+
+    test_type: "vlan_intra_vlan_multicast_forwarding"
+
+    # VLAN Configuration
+    vlans:
+      # VLAN 10 - multicast forwarding test VLAN
+      vlan_10: 10
+
+      # VLAN 20 - isolation verification VLAN
+      vlan_20: 20
+
+    # Port Configuration
+    ports:
+      # Port1 (access port on D1 - multicast sender in VLAN 10)
+      port1:
+        vlans: [10]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+      # Port2 (access port on D2 - multicast receiver in VLAN 10)
+      port2:
+        vlans: [10]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+      # Port3 (access port on D1 - multicast receiver in VLAN 10)
+      port3:
+        vlans: [10]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+      # Port4 (access port on D2 - isolation receiver in VLAN 20)
+      port4:
+        vlans: [20]           # Allowed VLANs on access port
+        mode: "access"        # Access port mode
+        state: "up"           # Port state
+        shutdown: false       # Port not shutdown
+        native_vlan: 1        # Native VLAN (not used on access)
+
+    # Traffic Generation Parameters
+    traffic:
+      # Packet generation method
+      method: "scapy"
+
+      # Number of multicast packets to send
+      packet_count: 10
+
+      # Packet size in bytes
+      packet_size: 64
+
+      # Packet type (multicast L2 Ethernet frame)
+      packet_type: "ethernet"
+
+      # Packet rate (pps = packets per second)
+      packet_rate: 1000
+
+      # Traffic duration in seconds
+      duration: 5
+
+      # Frame format
+      frame_format:
+        type: "ethernet"           # L2 Ethernet frame
+        src_mac: "auto"            # Auto-discover from Port1
+        dst_mac: "01:00:5e:01:02:03"  # IPv4 Multicast MAC (01:00:5E:xx:xx:xx range)
+        vlan_tag: null             # No VLAN tag (untagged)
+        vlan_priority: 0           # N/A for untagged
+        ethertype: "0x0800"        # IPv4
+
+    # Capture Configuration
+    capture:
+      # Packet capture method
+      method: "tcpdump"
+
+      # Interface to capture on (Port2 and Port3)
+      interfaces: ["Port2", "Port3"]
+
+      # Capture filters (capture multicast frames)
+      bpf_filter: "ether dst 01:00:5e:01:02:03"
+
+      # Capture timeout
+      timeout: 30
+
+      # Output format
+      output_format: "pcap"
+
+      # Keep capture file for analysis
+      keep_pcap: false
+
+    # Verification Parameters
+    verification:
+      # Verify VLAN configuration
+      verify_vlan_config: true
+
+      # Verify port configuration as access ports
+      verify_port_config: true
+
+      # Verify packet capture on Port2
+      verify_capture_port2: true
+
+      # Verify packet capture on Port3
+      verify_capture_port3: true
+
+      # Verify packets are multicast (01:00:5E:xx:xx:xx)
+      verify_multicast: true
+
+      # Expected behavior: all VLAN 10 ports receive multicast
+      expected_multicast_all_ports_in_vlan: true
+
+      # Acceptable packet loss percentage
+      max_packet_loss_percent: 20
+
+      # Verify isolation - Port4 (VLAN 20) should NOT receive
+      verify_vlan_isolation: false  # Requires 4th capture which is complex
+
+      # Verify using running-configuration
+      use_show_running_config: true
+
+    # Logging Configuration
+    logging:
+      # Log level: "debug", "info", "warning", "error"
+      level: "debug"
+
+      # Log captured packets in detail
+      log_packets: true
+
+      # Log interface counters
+      log_counters: true
+
+      # Log configuration changes
+      log_config: true
+
+      # Log MAC address discovery
+      log_mac_discovery: true
+
+      # Log forwarding decisions
+      log_forwarding: true
+
+      # Log multicast detection
+      log_multicast_detection: true
+
+    # Packet Capture Configuration
+    packet_capture:
+      # Enable packet capture
+      enabled: true
+
+      # Capture file locations
+      capture_path_port2: "/tmp/vlan_multicast_port2_10.pcap"
+      capture_path_port3: "/tmp/vlan_multicast_port3_10.pcap"
+
+      # Filter for multicast MAC (01:00:5E:01:02:03)
+      multicast_mac_filter: "01:00:5e:01:02:03"
+
+      # Capture interface timeout (seconds)
+      capture_timeout: 30
+
+      # Number of expected packets per port
+      expected_packets_per_port: 10
+
+    # Multicast Forwarding Verification
+    forwarding:
+      # Verify all VLAN ports receive multicast
+      verify_all_vlan_ports: true
+
+      # Verify Port2 receives multicast
+      verify_port2_receives: true
+
+      # Verify Port3 receives multicast
+      verify_port3_receives: true
+
+      # Verify Port4 (VLAN 20) does NOT receive
+      verify_port4_isolation: false
+
+      # Multicast detection (LSB check: bit 0 = 1 for multicast, or exact MAC match)
+      multicast_detection_lsb_check: true
+      multicast_detection_exact_match: true
+
+    # Error Handling
+    error_handling:
+      # Continue on minor errors
+      continue_on_error: false
+
+      # Save diagnostic data on failure
+      save_diagnostics: true
+
+      # Diagnostic capture location
+      diagnostics_path: "/tmp/vlan_multicast_forward_diagnostics"
+
+    # Cleanup Configuration
+    cleanup:
+      # Clean up VLANs
+      cleanup_vlans: true
+
+      # Clean up port configurations
+      cleanup_ports: true
+
+      # Clean up pcap files
+      cleanup_pcaps: true
+
+      # Cleanup order (reverse order of creation)
+      cleanup_order:
+        - "ports"
+        - "vlans"
+        - "pcaps"
+
+# Global Test Parameters (overrides per-test defaults if applicable)
+global:
+  # Packet capture retention
+  retain_pcaps: false
+
+  # Diagnostic level on failure
+  diagnostics_level: "full"
+
+  # Test retry on failure
+  max_retries: 0
+
+  # Test timeout in seconds
+  test_timeout: 300
+
+  # Interface link speed detection
+  auto_detect_speed: true
+
+  # MTU verification
+  verify_mtu: false
+
+  # MAC address refresh interval
+  mac_refresh_interval: 10
+
+# Integration Parameters (for CI/CD systems)
+integration:
+  # Enable integration mode
+  enabled: false
+
+  # CI/CD system type: "jenkins", "gitlab", "github", "azure"
+  ci_system: "github"
+
+  # Report format: "junit", "html", "json"
+  report_format: "junit"
+
+  # Report output location
+  report_path: "/tmp/vlan_multicast_forward_report"
+
+  # Metrics collection
+  collect_metrics: false

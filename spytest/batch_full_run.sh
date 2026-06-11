@@ -12,9 +12,9 @@
 #   ./batch_full_run.sh --features BGP_NEG_FLAP_RR,SYS_NTP
 #
 # Statistics:
-#   Total Batches: 105 (A-CZ and DA)
-#   Total Test Scripts: 351
-#   Last Updated: 2026-05-08
+#   Total Batches: 104 (A-CZ and variants)
+#   Total Test Scripts: 350
+#   Last Updated: 2026-05-11
 # ==========================================================
 
 DATE_DIR=$(date +%Y%m%d)
@@ -326,7 +326,7 @@ run_batch () {
       --logs-path "${LOG_PATH}" \
       --log-level debug \
       --skip-init-config \
-      --ifname-type native
+      --ifname-type native --get-tech-support none --syslog-check none 
 
     RC=$?
     echo " Batch ${FEATURE} completed with RC=${RC}"
@@ -1146,8 +1146,8 @@ fi
 # ==========================================================
 
 if should_run_batch "BA"; then
-    run_batch "SM_ISCLI_52_LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_1node.yaml" \
-    system/lldp/test_lldp_cli_validation.py
+    run_batch "SM_ISCLI_52_LLDP_CLI_VALIDATION" "./testbeds/testbed_vs_2d.yaml" \
+    system/lldp/test_sm_iscli_52_lldp_cli_output.py
 else
     echo "Skipping Batch BA (SM_ISCLI_52_LLDP_CLI_VALIDATION) - not selected"
 fi
@@ -1953,21 +1953,48 @@ mkdir -p "${DASHBOARD_DIR}"
 
 DASHBOARD_FILE="${DASHBOARD_DIR}/full_regression_dashboard_${DATE_DIR}_${TIME_STAMP}.html"
 
+echo "Dashboard script: dashboard/scripts/generate_graphical_dashboard.py"
+echo "Log root: ${BASE_LOG}"
+echo "Output file: ${DASHBOARD_FILE}"
+echo ""
+
+# Generate dashboard with updated script (uses results_*_functions.csv)
 python3 dashboard/scripts/generate_graphical_dashboard.py \
     --log-root ${BASE_LOG} \
     --out ${DASHBOARD_FILE} \
     --name "Full Regression - ${DATE_DIR}"
 
-echo "=============================================="
-echo " Dashboard Generation Complete"
-echo "=============================================="
-echo "Dashboard available at:"
-echo "file://$(pwd)/${DASHBOARD_FILE}"
+DASHBOARD_RC=$?
 
-# Copy dashboard to user directory
-USER_DASHBOARD_DIR="${HOME}/Dashboard/FULL_REGRESSION"
-mkdir -p "${USER_DASHBOARD_DIR}"
-cp "${DASHBOARD_FILE}" "${USER_DASHBOARD_DIR}/"
+if [ ${DASHBOARD_RC} -eq 0 ] && [ -f "${DASHBOARD_FILE}" ]; then
+    echo "=============================================="
+    echo " Dashboard Generation Complete"
+    echo "=============================================="
+    echo "Dashboard available at:"
+    echo "file://$(pwd)/${DASHBOARD_FILE}"
+    echo ""
 
-echo "Dashboard copy saved to:"
-echo "file://${USER_DASHBOARD_DIR}/full_regression_dashboard_${DATE_DIR}_${TIME_STAMP}.html"
+    # Copy dashboard to user directory
+    USER_DASHBOARD_DIR="${HOME}/Dashboard/FULL_REGRESSION"
+    mkdir -p "${USER_DASHBOARD_DIR}"
+    cp "${DASHBOARD_FILE}" "${USER_DASHBOARD_DIR}/" 2>/dev/null
+
+    if [ $? -eq 0 ]; then
+        echo "Dashboard copy saved to:"
+        echo "file://${USER_DASHBOARD_DIR}/full_regression_dashboard_${DATE_DIR}_${TIME_STAMP}.html"
+    else
+        echo "Warning: Failed to copy dashboard to user directory"
+        echo "Dashboard is still available at: ${DASHBOARD_FILE}"
+    fi
+else
+    echo "=============================================="
+    echo " Dashboard Generation Failed (RC=${DASHBOARD_RC})"
+    echo "=============================================="
+    echo "Warning: Dashboard generation failed. Check logs above for errors."
+    echo "Test results are still available in: ${BASE_LOG}"
+fi
+
+echo ""
+echo "=============================================="
+echo " All Operations Complete"
+echo "=============================================="

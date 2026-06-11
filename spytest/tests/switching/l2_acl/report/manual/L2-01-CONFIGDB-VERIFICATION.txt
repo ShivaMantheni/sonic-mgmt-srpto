@@ -1,0 +1,282 @@
+================================================================================
+              L2-01 ConfigDB VERIFICATION GUIDE
+        Checking Redis ConfigDB for MAC ACL Configuration
+================================================================================
+
+ConfigDB is SONiC's main configuration database (Redis, DB 4).
+This is where all configurations are persisted.
+
+================================================================================
+QUICK VERIFICATION COMMANDS
+================================================================================
+
+Run these commands on DUT1 via SSH:
+
+1. CHECK IF L2-01 ACL EXISTS:
+────────────────────────────────────────────────────────────────────────────
+redis-cli -n 4 KEYS '*test-l2-01*'
+
+Expected Output:
+  FLEX_COUNTER_TABLE|ACL
+  LOGGER|SAI_API_DASH_ACL
+  ACL_RULE|test-l2-01|RULE_10
+  CONFIG_DB_UPDATED_ACL_TABLE
+  LOGGER|SAI_API_ACL
+  CONFIG_DB_UPDATED_ACL_RULE
+  ACL_TABLE|test-l2-01
+
+✓ If you see "ACL_TABLE|test-l2-01" and "ACL_RULE|test-l2-01|RULE_10" → CONFIG EXISTS
+
+
+2. GET ACL TABLE DETAILS:
+────────────────────────────────────────────────────────────────────────────
+redis-cli -n 4 HGETALL 'ACL_TABLE|test-l2-01'
+
+Expected Output:
+  type                L2
+  ports@              Ethernet272
+  stage               INGRESS
+
+Key Fields:
+  • type: L2 (MAC ACL)
+  • ports@: Ethernet272 (interface where ACL is applied)
+  • stage: INGRESS (packet flow direction)
+
+✓ Confirms: Type is L2, bound to Ethernet272 ingress
+
+
+3. GET ACL RULE DETAILS:
+────────────────────────────────────────────────────────────────────────────
+redis-cli -n 4 HGETALL 'ACL_RULE|test-l2-01|RULE_10'
+
+Expected Output:
+  PRIORITY        65526
+  IP_TYPE         ANY
+  PACKET_ACTION   FORWARD
+  SRC_MAC         00:AA:AA:AA:AA:01
+
+Key Fields:
+  • PRIORITY: Rule ordering (lower = higher priority)
+  • PACKET_ACTION: FORWARD (permit) or DROP (deny)
+  • SRC_MAC: Source MAC address to match
+
+✓ Confirms: Rule permits (FORWARD) traffic from 00:AA:AA:AA:AA:01
+
+
+4. CHECK PORT CONFIGURATION:
+────────────────────────────────────────────────────────────────────────────
+redis-cli -n 4 HGETALL 'PORT|Ethernet272'
+
+Should include fields like:
+  • admin_status: up
+  • mtu: 9100
+  • mac_access_group_in: test-l2-01
+
+✓ Confirms: Interface is UP and ACL is bound
+
+
+5. CHECK INTERFACE MODE (L2 vs L3):
+────────────────────────────────────────────────────────────────────────────
+redis-cli -n 4 HGETALL 'PORT|Ethernet272' | grep -i 'mode\|type'
+
+Should show:
+  • port_type: (routed or switchport)
+
+✓ For L2 ACL testing, this should be in L2 switchport mode
+
+
+================================================================================
+WHAT EACH CONFIGDB TABLE MEANS
+================================================================================
+
+ACL_TABLE:
+  • Defines the ACL (name, type, stage, ports)
+  • Type: L2, L3, IPv6, etc.
+  • Stage: INGRESS or EGRESS
+  • ports@: Which interfaces this ACL applies to
+
+ACL_RULE:
+  • Individual rules within an ACL table
+  • Each rule has match criteria (SRC_MAC, DST_IP, etc.)
+  • Each rule has an action (FORWARD or DROP)
+  • PRIORITY determines rule order
+
+PORT:
+  • Interface configuration
+  • Includes ACL bindings (mac_access_group_in, mac_access_group_out)
+  • Includes switchport mode, VLAN, MTU, etc.
+
+================================================================================
+L2-01 CONFIGDB STRUCTURE
+================================================================================
+
+Before L2-01 Configuration:
+  ConfigDB is empty (no L2-01 entries)
+
+After L2-01 Configuration Applied:
+  ACL_TABLE:
+    - Name: test-l2-01
+    - Type: L2 (MAC-based)
+    - Stage: INGRESS
+    - Ports: Ethernet272
+
+  ACL_RULE:
+    - Rule ID: RULE_10
+    - Match: SRC_MAC 00:AA:AA:AA:AA:01
+    - Action: FORWARD (permit)
+    - Priority: 65526
+
+  PORT:
+    - Interface: Ethernet272
+    - Mode: switchport access
+    - mac_access_group_in: test-l2-01
+
+================================================================================
+DEBUGGING WITH CONFIGDB
+================================================================================
+
+If L2-01 is NOT configured, you'll see:
+  $ redis-cli -n 4 KEYS '*test-l2-01*'
+  (empty list or no results)
+
+If L2-01 is PARTIALLY configured (ACL exists but not bound):
+  $ redis-cli -n 4 HGETALL 'ACL_TABLE|test-l2-01'
+  (might not show ports@ or show empty ports@)
+
+If L2-01 rule is INCOMPLETE:
+  $ redis-cli -n 4 HGETALL 'ACL_RULE|test-l2-01|RULE_10'
+  (missing SRC_MAC field or has wrong PACKET_ACTION)
+
+================================================================================
+HOW TO VIEW ENTIRE CONFIGDB
+================================================================================
+
+1. View entire ConfigDB (large output!):
+   redis-cli -n 4 KEYS '*' | wc -l         (count entries)
+   redis-cli -n 4 KEYS '*' | head -50      (first 50 entries)
+
+2. View all ACL entries:
+   redis-cli -n 4 KEYS '*ACL*'
+
+3. View specific table:
+   redis-cli -n 4 HGETALL 'ACL_TABLE|test-l2-01'
+
+4. View running-config (user-friendly view):
+   show running-config | grep -A 10 'mac access-list'
+
+5. Dump entire config:
+   redis-cli -n 4 --csv > configdb_dump.csv
+
+================================================================================
+REDIS DATABASE NUMBERS IN SONIC
+================================================================================
+
+DB 0: APPL_DB       (Application database - Agents use this)
+DB 1: ASIC_DB       (ASIC state database - Hardware state)
+DB 2: COUNTERS_DB   (Statistics and counters)
+DB 3: LOGLEVEL_DB   (Logging configuration)
+DB 4: CONFIG_DB     ← This is where configs persist (what we check)
+DB 5: STATE_DB      (Operational state - derived from configs)
+DB 6: FLEX_COUNTER_DB (Performance counters)
+
+For checking L2-01: Use DB 4 (CONFIG_DB)
+
+================================================================================
+COMMANDS TO RUN ON DUT1
+================================================================================
+
+Complete verification sequence:
+
+# SSH to device
+ssh admin@192.168.100.137
+
+# Check if L2-01 exists
+redis-cli -n 4 KEYS '*test-l2-01*'
+
+# View ACL table
+redis-cli -n 4 HGETALL 'ACL_TABLE|test-l2-01'
+
+# View ACL rule
+redis-cli -n 4 HGETALL 'ACL_RULE|test-l2-01|RULE_10'
+
+# View interface binding
+redis-cli -n 4 HGET 'PORT|Ethernet272' 'mac_access_group_in'
+
+# Check interface mode
+redis-cli -n 4 HGET 'PORT|Ethernet272' 'port_type'
+
+# Alternative: Use CLI instead of Redis
+show mac access-list test-l2-01
+show running-config interface Ethernet 272
+
+================================================================================
+EXPECTED CONFIGDB VALUES FOR L2-01
+================================================================================
+
+ACL_TABLE|test-l2-01:
+┌─────────────────────┬──────────────────┐
+│ Key                 │ Value            │
+├─────────────────────┼──────────────────┤
+│ type                │ L2               │
+│ stage               │ INGRESS          │
+│ ports@              │ Ethernet272      │
+└─────────────────────┴──────────────────┘
+
+ACL_RULE|test-l2-01|RULE_10:
+┌─────────────────────┬──────────────────────────────┐
+│ Key                 │ Value                        │
+├─────────────────────┼──────────────────────────────┤
+│ PRIORITY            │ 65526                        │
+│ PACKET_ACTION       │ FORWARD                      │
+│ IP_TYPE             │ ANY                          │
+│ SRC_MAC             │ 00:AA:AA:AA:AA:01           │
+└─────────────────────┴──────────────────────────────┘
+
+PORT|Ethernet272:
+┌─────────────────────┬──────────────────────────────┐
+│ Key                 │ Value                        │
+├─────────────────────┼──────────────────────────────┤
+│ admin_status        │ up                           │
+│ mtu                 │ 9100                         │
+│ mac_access_group_in │ test-l2-01                   │
+│ port_type           │ switchport access (L2)       │
+└─────────────────────┴──────────────────────────────┘
+
+================================================================================
+CURRENT STATUS
+================================================================================
+
+L2-01 Configuration Status: ✓ CONFIGURED IN CONFIGDB
+
+  ACL_TABLE|test-l2-01:
+    type: L2 ✓
+    stage: INGRESS ✓
+    ports@: Ethernet272 ✓
+
+  ACL_RULE|test-l2-01|RULE_10:
+    PRIORITY: 65526 ✓
+    PACKET_ACTION: FORWARD ✓ (PERMIT action)
+    IP_TYPE: ANY ✓
+
+ConfigDB shows L2-01 is properly configured.
+Ready for traffic testing!
+
+================================================================================
+NEXT STEP
+================================================================================
+
+1. Verify with show commands:
+   show mac access-list test-l2-01
+   show running-config interface Ethernet 272
+
+2. If verified, proceed to traffic testing:
+   - TX: 10 packets with src MAC 00:AA:AA:AA:AA:01
+   - RX: Should receive ≥ 9 packets (FORWARD action)
+
+3. Document results (PASS/FAIL)
+
+================================================================================
+Document Created: 2026-04-25
+Database: Redis ConfigDB (DB 4 in SONiC)
+Test Case: L2-01 MAC ACL Configuration
+================================================================================
