@@ -98,7 +98,8 @@ docs/build/*
 docs/source/api*.rst
 docs/source/modules*
 docs/source/spytest*
-tests/automation/ntp/reports
-tests/automation/portchannel/reports
+tests/automation/vlan/reports/
+tests/automation/lldp/reports/
+tests/automation/Reports
 logs/
 .logs/

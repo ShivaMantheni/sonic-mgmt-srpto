@@ -1,0 +1,200 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  BGP TEST DOCUMENTATION - ORGANIZATION SUMMARY                ║
+║                                                                               ║
+║  Location: /home/sonic-claude/athira/sonic-mgmt/spytest/tests/routing/bgp/doc/║
+║  Last Updated: 2026-05-28                                                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════════
+  📊 TOTAL TEST COVERAGE: 435 TEST CASES
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CATEGORY 1: CUSTOMER-APPROVED FUNCTIONAL TESTS                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ File:       bgp_testplan.md                                                 │
+│ Status:     ✅ CUSTOMER APPROVED                                            │
+│ Test Cases: 168                                                             │
+│ Size:       1.2 MB (42,592 lines)                                           │
+│ Sections:   19                                                              │
+│ Priority:   P0 (Critical)                                                   │
+│                                                                             │
+│ Coverage:                                                                   │
+│   • BGP Basic Functionality (12)                                            │
+│   • BGP Unnumbered Interfaces (10)                                          │
+│   • BGP over Loopback (10)                                                  │
+│   • BGP VLAN Integration (10)                                               │
+│   • BGP Path Attributes (8)                                                 │
+│   • BGP Route Policies (10)                                                 │
+│   • BGP Scalability (12)                                                    │
+│   • BGP High Availability (8)                                               │
+│   • BGP Advanced Features (10)                                              │
+│   • BGP Packet Validation (12)                                              │
+│   • BGP Negative Testing (10)                                               │
+│   • BGP Configuration Verification (8)                                      │
+│   • IPv6 Address Family (8)                                                 │
+│   • L2VPN EVPN (6)                                                          │
+│   • ECMP Hardware Limits (4)                                                │
+│   • Peer Groups & Dynamic Peers (6)                                         │
+│   • Next-Hop-Self (4)                                                       │
+│   • Advertisement Intervals (5)                                             │
+│   • Route Map Advanced (8)                                                  │
+│                                                                             │
+│ ⚠️  IMPORTANT: Cannot modify without customer approval                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CATEGORY 2: CLI COMMAND VALIDATION TESTS                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Status:     🆕 NEW - Ready for Automation                                   │
+│ Test Cases: 267                                                             │
+│ Priority:   P1-P2 (High to Medium)                                          │
+│                                                                             │
+│ ┌───────────────────────────────────────────────────────────────────────┐   │
+│ │ 2A. NEIGHBOR CONFIGURATION CLI TESTS (180 TCs)                        │   │
+│ ├───────────────────────────────────────────────────────────────────────┤   │
+│ │ File: BGP_CLI_NEIGHBOR_CONFIG_TEST_CASES.md                          │   │
+│ │ Size: 74 KB                                                           │   │
+│ │                                                                       │   │
+│ │ Commands Covered (12):                                                │   │
+│ │   • bfd check-control-plane-failure (15 TCs)                         │   │
+│ │   • disable-connected-check (15 TCs)                                 │   │
+│ │   • enforce-first-as (15 TCs)                                        │   │
+│ │   • enforce-multihop (15 TCs)                                        │   │
+│ │   • advertisement-interval (15 TCs)                                  │   │
+│ │   • capability dynamic (15 TCs)                                      │   │
+│ │   • capability extended-nexthop (15 TCs)                             │   │
+│ │   • ebgp-multihop (15 TCs)                                           │   │
+│ │   • local-as (15 TCs)                                                │   │
+│ │   • shutdown message (15 TCs)                                        │   │
+│ │   • timers connect (15 TCs)                                          │   │
+│ │   • v6only (15 TCs)                                                  │   │
+│ └───────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│ ┌───────────────────────────────────────────────────────────────────────┐   │
+│ │ 2B. REDISTRIBUTE & VRF IMPORT CLI TESTS (35 TCs)                      │   │
+│ ├───────────────────────────────────────────────────────────────────────┤   │
+│ │ File: BGP_REDISTRIBUTE_VRF_IMPORT_TEST_CASES.md                      │   │
+│ │ Size: 57 KB                                                           │   │
+│ │                                                                       │   │
+│ │ Commands Covered (6 groups):                                          │   │
+│ │   • redistribute ospf / ospfv3 (6 TCs)                               │   │
+│ │   • redistribute metric (3 TCs)                                      │   │
+│ │   • redistribute route-map (4 TCs)                                   │   │
+│ │   • no redistribute variants (6 TCs)                                 │   │
+│ │   • import vrf route-map (8 TCs)                                     │   │
+│ │   • no import vrf variants (8 TCs)                                   │   │
+│ │                                                                       │   │
+│ │ Test Types: Positive (14), Negative (11), Edge (10)                  │   │
+│ └───────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│ ┌───────────────────────────────────────────────────────────────────────┐   │
+│ │ 2C. CLEAR BGP COMMANDS CLI TESTS (52 TCs)                             │   │
+│ ├───────────────────────────────────────────────────────────────────────┤   │
+│ │ File: TC_BGP_CLEAR_COMMANDS_COMPREHENSIVE.md                         │   │
+│ │ Size: 56 KB                                                           │   │
+│ │                                                                       │   │
+│ │ Commands Covered:                                                     │   │
+│ │   • clear bgp all (3 TCs)                                            │   │
+│ │   • clear bgp ipv4 unicast variants (14 TCs)                         │   │
+│ │   • clear bgp ipv6 unicast variants (14 TCs)                         │   │
+│ │   • Soft reconfiguration (12 TCs)                                    │   │
+│ │   • Negative tests (9 TCs)                                           │   │
+│ │                                                                       │   │
+│ │ Test Types: Positive (37), Negative (15)                             │   │
+│ └───────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│ ✅ Can be extended independently without customer approval                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+  📁 FILE INDEX
+═══════════════════════════════════════════════════════════════════════════════
+
+START HERE:
+  00_START_HERE.md                           Quick navigation guide
+
+MASTER PLANS:
+  bgp_testplan.md                            Customer-approved (168 TCs) ✅
+  BGP_CLI_TEST_PLAN_CONSOLIDATED.md          CLI tests consolidated (267 TCs) 🆕
+
+DETAILED CLI TEST CASES:
+  BGP_CLI_NEIGHBOR_CONFIG_TEST_CASES.md      Neighbor config (180 TCs)
+  BGP_REDISTRIBUTE_VRF_IMPORT_TEST_CASES.md  Redistribute/VRF (35 TCs)
+  TC_BGP_CLEAR_COMMANDS_COMPREHENSIVE.md     Clear commands (52 TCs)
+
+DOCUMENTATION:
+  README_BGP_TEST_DOCUMENTATION.md           Complete organization guide
+  BGP_REDIST_VRF_IMPORT_SUMMARY.md          Redistribute/VRF summary
+  README_BGP_REDIST_VRF_IMPORT_TESTS.md     Redistribute/VRF guide
+  BGP_CLI_COMPREHENSIVE_TEST_PLAN.md         CLI master template
+  ORGANIZATION_SUMMARY.txt                   This file
+
+═══════════════════════════════════════════════════════════════════════════════
+  🎯 KEY DIFFERENCES
+═══════════════════════════════════════════════════════════════════════════════
+
+CUSTOMER-APPROVED (Functional):
+  Question: "Does BGP work correctly?"
+  Focus:    End-to-end functionality
+  Examples: - Does peering establish?
+            - Are routes exchanged correctly?
+            - Does failover work?
+  Status:   MUST NOT modify without approval
+
+CLI VALIDATION (Command):
+  Question: "Does each CLI command work correctly?"
+  Focus:    Individual command behavior
+  Examples: - Does command accept valid syntax?
+            - Does it reject invalid input?
+            - Does configuration persist?
+  Status:   Can modify internally
+
+═══════════════════════════════════════════════════════════════════════════════
+  🚀 QUICK COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+View Navigation Guide:
+  cat 00_START_HERE.md
+
+View Customer-Approved Plan:
+  less bgp_testplan.md
+
+View CLI Tests Consolidated:
+  less BGP_CLI_TEST_PLAN_CONSOLIDATED.md
+
+View Organization Guide:
+  less README_BGP_TEST_DOCUMENTATION.md
+
+List All Files:
+  ls -lh
+
+═══════════════════════════════════════════════════════════════════════════════
+  📊 STATISTICS SUMMARY
+═══════════════════════════════════════════════════════════════════════════════
+
+Total Test Cases:          435
+├── Functional (Approved): 168 (39%)
+└── CLI Validation (New):  267 (61%)
+
+Total Documents:           10
+├── Master Plans:          2
+├── Detailed Test Cases:   3
+└── Documentation:         5
+
+Total Documentation Size:  ~1.5 MB
+
+Testbed Required:          testbed_vs_3rr_reg.yaml (3-node Route Reflector)
+
+═══════════════════════════════════════════════════════════════════════════════
+  ✅ STATUS: ORGANIZATION COMPLETE
+═══════════════════════════════════════════════════════════════════════════════
+
+✓ Customer-approved plan preserved and documented
+✓ CLI test plans consolidated and organized
+✓ Clear separation maintained
+✓ Navigation guides created
+✓ Cross-references established
+✓ Ready for test execution and automation
+
+═══════════════════════════════════════════════════════════════════════════════
