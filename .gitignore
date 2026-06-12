@@ -52,5 +52,6 @@ Thumbs.db
 results/
 reports/
 spytest/tests/automation/lldp/reports/
+spytest/tests/automation/vlan/reports/
 test_execution.log
 test_final.log
