@@ -6,6 +6,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SPyTest (SONiC Python Test Framework) is a PyTest-based test automation framework for validating SONiC (Software for Open Networking in the Cloud) network operating systems. The framework provides comprehensive infrastructure for device testing, traffic generation, and feature validation across routing, switching, QoS, and security domains.
 
+# CLAUDE.md — SPYTest QA Framework Routing Brain
+
+Auto-loaded every session. Do not edit without QA lead approval.
+
+---
+
+## ROUTING — Prefix Gate
+
+Inspect every incoming prompt.
+
+- Starts with `/qa` (any variant, e.g. `/qa`, `/qa-plan`) → **QA MODE** (rules below).
+- Does **not** start with `/qa` → normal coding assistant.
+- No bleed-over between modes.
+
+---
+
+## QA MODE
+
+When QA MODE is active:
+
+1. **Ingest** — Read and analyze all files under `@tests/QA-Docs/` and `@tests/automation/<feature>/ProjDoc/` before responding or generating artifacts.
+2. **Ground** — Tie test plans, cases, matrices, and recommendations to project requirements, sprint scope, and QA standards from those folders. No generic LLM filler.
+3. **Test cases** — Follow `@tests/QA-Docs/QA_Rule.md` in full (100% requirement coverage, networking 3-layer validation, platform-specific steps from `@tests/automation/<feature>/ProjDoc/`).
+4. **TestBuilder** — For plan / TC / RTM generation, follow root `TestBuilder.md` (Processes 1–4, validation pipeline, pre-requisites).
+5. **Emit** — Save new QA artifacts only under `reports/` (versioned, append-only). Do not overwrite prior run folders/files in place.
+
+## Knowledge Zones
+
+- `@tests/QA-Docs/` = **HOW** — QA rules, templates, standards.
+
+
+## Normal Mode
+
+Without `/qa` prefix: behave as a standard coding assistant for this repository. Do not apply QA MODE ingestion or output rules unless the user explicitly switches with a `/qa` prefix.
+
 ## Core Architecture
 
 The framework follows a layered architecture:
@@ -28,7 +63,7 @@ Key modules:
 Basic test execution:
 ```bash
 ./bin/spytest --testbed testbeds/testbed_2vs.yaml \
-    routing/static/test_static_route_basic.py \
+    automation/lldp/scripts/test_lldp_01_global_interface_cli.py \
     --logs-path ./logs/test_run
 ```
 
@@ -137,7 +172,8 @@ Modern test pattern with external YAML configuration:
 from pathlib import Path
 import yaml
 
-DEFAULT_VAR_FILE = Path(__file__).resolve().parents[3] / "spytest/vars/feature/vars_file.yaml"
+# Scripts live in tests/automation/<feature>/scripts/, vars in the sibling vars/ dir
+DEFAULT_VAR_FILE = Path(__file__).resolve().parents[1] / "vars/vars_file.yaml"
 
 def initialize_data() -> None:
     """Load test configuration from YAML file"""
@@ -154,7 +190,7 @@ def initialize_data() -> None:
 
 ### Critical Patterns
 
-1. **Test Variables**: Load from YAML files in `spytest/spytest/vars/`
+1. **Test Variables**: Load from YAML files in `spytest/tests/automation/<feature>/vars/`
    ```python
    # Legacy approach
    vars = st.get_testbed_vars()  # Access D1, D2, D1T1P1, etc.
@@ -291,7 +327,7 @@ After test execution, logs appear in `--logs-path` directory:
 4. **Python 3 required** - Framework tested with Python 3.8+
 5. **Entry point** - Always use `./bin/spytest`, not direct pytest invocation
 6. **Working directory** - Commands should be run from the `spytest/` root directory
-7. **Module structure** - Core framework in `spytest/`, feature APIs in `apis/`, tests in `tests/`, utilities in `utilities/`
+7. **Module structure** - Core framework in `spytest/`, feature APIs in `apis/`, tests in `tests/automation/<feature>/scripts/` with YAML vars in `tests/automation/<feature>/vars/`, utilities in `utilities/`
 
 ## Debugging and Development Workflow
 
@@ -299,7 +335,7 @@ After test execution, logs appear in `--logs-path` directory:
 ```bash
 # Run single test with debug logging
 ./bin/spytest --testbed testbeds/testbed_2vs.yaml \
-    tests/routing/static/test_static_route_basic.py::test_my_function \
+    automation/static/scripts/test_static_route_basic.py::test_my_function \
     --logs-path ./logs/debug \
     --log-level debug \
     --skip-init-config

@@ -7,23 +7,27 @@ Use this as **input to Codex** to auto‑generate SpyTest test scripts and APIs 
 ## 0) Scope & Feature → Path Mapping
 Follow these rules to decide the **script path**. If a directory doesn’t exist, create it.
 
-- **Routing features** → `spytest/tests/routing/<feature_name>/<test_meaningfulname>.py`
-- **Switching features** → `spytest/tests/switching/<feature_name>/<test_meaningfulname>.py`
-- **System features** (ntp, lldp, interface, reboot, sflow, snmp, device‑management, ssh, …) → `spytest/tests/system/<feature_name>/<test_meaningfulname>.py`
-- **QoS & ACL** → `spytest/tests/qos/<test_name>.py` or `spytest/tests/qos/acl/<test_name>.py`
+All test scripts now live under a single feature-keyed tree, regardless of category
+(routing, switching, system, qos, acl, …):
+
+- **Test scripts** → `spytest/tests/automation/<feature_name_in_lower_case>/scripts/<test_meaningfulname>.py`
+- **YAML variables** → `spytest/tests/automation/<feature_name_in_lower_case>/vars/vars_<feature>.yaml`
+
+Where `<feature_name_in_lower_case>` is the feature directory name in lower_snake_case
+(e.g. `lldp`, `ecmp`, `ospfv2`, `static`, `ipv4_unnumbered`, `ntp`).
 
 **Feature list (this project) → concrete subpaths**
 
-| Feature | Category | Directory (create if absent) | Example file |
+| Feature | Scripts directory (create if absent) | Vars directory | Example file |
 |---|---|---|---|
-| Interface Events | system | `spytest/tests/system/interface_events/` | `test_interface_link_flap_events.py` |
-| RoCEv2 support | qos | `spytest/tests/qos/rocev2/` | `test_rocev2_pfc_ecn.py` |
-| LLDP | system | `spytest/tests/system/lldp/` | `test_lldp_neighbors_basic.py` |
-| ECMP | routing | `spytest/tests/routing/ecmp/` | `test_ecmp_nexthops_hash.py` |
-| OSPFv2 | routing | `spytest/tests/routing/ospfv2/` | `test_ospfv2_neighbor_states.py` |
-| Static Routing | routing | `spytest/tests/routing/static/` | `test_static_route_basic.py` |
-| IPv4 Unnumbered Interfaces | routing | `spytest/tests/routing/ipv4_unnumbered/` | `test_unnumbered_bgp_ospf_interop.py` |
-| NTP Server & Auth | system | `spytest/tests/system/ntp/` | `test_ntp_server_auth.py` |
+| Interface Events | `spytest/tests/automation/interface_events/scripts/` | `spytest/tests/automation/interface_events/vars/` | `test_interface_link_flap_events.py` |
+| RoCEv2 support | `spytest/tests/automation/rocev2/scripts/` | `spytest/tests/automation/rocev2/vars/` | `test_rocev2_pfc_ecn.py` |
+| LLDP | `spytest/tests/automation/lldp/scripts/` | `spytest/tests/automation/lldp/vars/` | `test_lldp_neighbors_basic.py` |
+| ECMP | `spytest/tests/automation/ecmp/scripts/` | `spytest/tests/automation/ecmp/vars/` | `test_ecmp_nexthops_hash.py` |
+| OSPFv2 | `spytest/tests/automation/ospfv2/scripts/` | `spytest/tests/automation/ospfv2/vars/` | `test_ospfv2_neighbor_states.py` |
+| Static Routing | `spytest/tests/automation/static/scripts/` | `spytest/tests/automation/static/vars/` | `test_static_route_basic.py` |
+| IPv4 Unnumbered Interfaces | `spytest/tests/automation/ipv4_unnumbered/scripts/` | `spytest/tests/automation/ipv4_unnumbered/vars/` | `test_unnumbered_bgp_ospf_interop.py` |
+| NTP Server & Auth | `spytest/tests/automation/ntp/scripts/` | `spytest/tests/automation/ntp/vars/` | `test_ntp_server_auth.py` |
 
 > **Naming**: always begin files with `test_<feature>.py`; keep names short, meaningful, and lower_snake_case.
 
@@ -41,7 +45,7 @@ Author: Athira
 How to run:
   ./bin/spytest  --tryssh 1  \
   --testbed ./testbeds/testbed_vs_2d.yaml  \
-  interface/test_intf_sample.py \
+  automation/interface/scripts/test_intf_sample.py \
   --logs-path ./logs/test_intf_sample_$(date +%F_%H%M%S) \
   --log-level debug --skip-init-config --ifname-type native --get-tech-support none --syslog-check none
 
@@ -89,7 +93,7 @@ Author: Athira
 How to run:
   ./bin/spytest  --tryssh 1  \
   --testbed ./testbeds/testbed_vs_2d.yaml  \
-  routing/static/test_static_ipv4_routes.py \
+  automation/static/scripts/test_static_ipv4_routes.py \
   --logs-path ./logs/test_static_ipv4_routes_$(date +%F_%H%M%S) \
   --log-level debug  --skip-init-config  --ifname-type native  --get-tech-support none --syslog-check none 
 
@@ -133,11 +137,11 @@ from spytest import SpyTestDict, st
 import apis.routing.ip as ip_api
 
 VAR_FILE_ENV = "STATIC_IPV4_VAR_FILE"
+# __file__ = .../tests/automation/static/scripts/test_static_ipv4_routes.py
+# parents[1] = .../tests/automation/static  → vars live in its sibling "vars" dir
 DEFAULT_VAR_FILE = (
-    Path(__file__).resolve().parents[3]
-    / "tests"
-    / "routing"
-    / "static"
+    Path(__file__).resolve().parents[1]
+    / "vars"
     / "vars_static_ipv4.yaml"
 )
 
@@ -553,7 +557,7 @@ class TestStaticIpv4Routes:
 
 ## 3) YAML Test Data / Variables
 
-- Location: `spytest/vars/<feature>/vars_<feature>.yaml`
+- Location: `spytest/tests/automation/<feature_name_in_lower_case>/vars/vars_<feature>.yaml`
 - **Never hardcode** device names, IPs, ports, VLANs. Parameterize via YAML.
 - Provide **defaults** and allow override using environment or CLI `-e`/SpyTest `st.getenv`.
 
@@ -621,7 +625,7 @@ if not st.is_feature_supported(self.dut, "ospf"):
     pytest.skip("OSPF not supported on this image")
 ```
 
-**Sample `spytest/routing/static/vars_static_ipv4.yaml`**
+**Sample `spytest/tests/automation/static/vars/vars_static_ipv4.yaml`**
 
 ```yaml
 defaults:
@@ -741,9 +745,9 @@ testcases:
 
 ## 14) Submission Checklist (for each new script/API)
 
-- [ ] Correct **directory & filename** per mapping
+- [ ] Correct **directory & filename** per mapping (`tests/automation/<feature>/scripts/`)
 - [ ] Docstring banner with **how to run**, **topology**, **prereqs**
-- [ ] No hardcoding; parameters in **YAML**
+- [ ] No hardcoding; parameters in **YAML** under `tests/automation/<feature>/vars/`
 - [ ] APIs added under `spytest/apis/<feature>/...`; existing APIs reused
 - [ ] HW/Virtual aligned or gated with markers
 - [ ] Negative and basic positive cases included
