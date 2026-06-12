@@ -91,7 +91,7 @@ run_pc_test "LACP_FAST_RATE" "./testbeds/testbed_vs_1node_reg.yaml" \
     automation/portchannel/scripts/test_sm_iscli_p2_78_lacp_fast_rate.py
 
 # ==========================================================
-# Batch 3/3 : LACP Comprehensive Tests (testbed_2vs_reg.yaml) - 14 tests
+# Batch 3/3 : LACP Comprehensive Tests (testbed_2vs_reg.yaml) - 16 tests
 # Uses testbed_2vs_reg.yaml (D1=.35, D2=.36) which has 4 live back-to-back
 # D1<->D2 links (Ethernet0,4,8,12) for the LACP bundle. (testbed_lacp_vs.yaml
 # only had 1 of its 4 declared links actually up, which failed the module
@@ -101,11 +101,13 @@ echo "Batch 3/3: LACP Comprehensive Tests"
 run_pc_test "LACP_COMPREHENSIVE" "./testbeds/testbed_2vs_reg.yaml" \
     automation/portchannel/scripts/test_lacp_cli_001_active_portchannel.py \
     automation/portchannel/scripts/test_lacp_cli_002_passive_portchannel.py \
+    automation/portchannel/scripts/test_lacp_cli_003_graceful_shutdown.py \
     automation/portchannel/scripts/test_lacp_cli_004_add_members.py \
     automation/portchannel/scripts/test_lacp_cli_005_remove_members.py \
     automation/portchannel/scripts/test_lacp_cli_006_mtu_configuration.py \
     automation/portchannel/scripts/test_lacp_cli_007_shutdown_enable.py \
     automation/portchannel/scripts/test_lacp_cli_008_running_config.py \
+    automation/portchannel/scripts/test_lacp_feat_006_007_load_balance_bandwidth.py \
     automation/portchannel/scripts/test_lacp_pos_009_traffic_distribution.py \
     automation/portchannel/scripts/test_lacp_pos_010_bidirectional_traffic.py \
     automation/portchannel/scripts/test_lacp_pos_011_pdu_exchange.py \

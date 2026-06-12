@@ -134,7 +134,7 @@ def cleanup_portchannel_config():
     st.log("✓ Cleanup completed - PortChannel configuration removed")
 
 
-def test_portchannel_create():
+def test_active_portchannel_create():
     """TC-LACP-CLI-001-001: Create PortChannel"""
     tcid = TC_IDS.portchannel_create
     st.banner(f"{tcid}: Creating PortChannel {data.portchannel_id} on {vars.D1}")
@@ -148,7 +148,7 @@ def test_portchannel_create():
     st.report_pass("test_case_passed")
 
 
-def test_add_portchannel_members():
+def test_active_add_portchannel_members():
     """TC-LACP-CLI-001-002: Add member interfaces"""
     tcid = TC_IDS.member_add
     st.banner(f"{tcid}: Adding member interfaces to PortChannel {data.portchannel_id}")
@@ -179,7 +179,7 @@ def test_add_portchannel_members():
     st.report_pass("test_case_passed")
 
 
-def test_show_interface_portchannel():
+def test_active_show_interface_portchannel():
     """TC-LACP-CLI-001-003: Verify show interface PortChannel output"""
     tcid = TC_IDS.show_interface
     st.banner(f"{tcid}: Verifying 'show interface PortChannel {data.portchannel_id}'")
@@ -212,7 +212,7 @@ def test_show_interface_portchannel():
         st.report_pass("test_case_passed")
 
 
-def test_show_running_config():
+def test_active_show_running_config():
     """TC-LACP-CLI-001-004: Verify show running-config includes PortChannel"""
     tcid = TC_IDS.show_running_config
     st.banner(f"{tcid}: Verifying 'show running-configuration interface PortChannel'")
@@ -242,7 +242,7 @@ def test_show_running_config():
         st.report_pass("test_case_passed")
 
 
-def test_verify_lacp_status():
+def test_active_verify_lacp_status():
     """TC-LACP-CLI-001-005: Verify LACP status and synchronization"""
     tcid = TC_IDS.verify_lacp_status
     st.banner(f"{tcid}: Verifying LACP status on PortChannel {data.portchannel_id}")
@@ -288,7 +288,7 @@ def test_verify_lacp_status():
     st.report_pass("test_case_passed")
 
 
-def test_l2_traffic_validation():
+def test_active_l2_traffic_validation():
     """TC-LACP-CLI-001-006: Validate L2 traffic across PortChannel members"""
     tcid = TC_IDS.l2_traffic_validation
     st.banner(f"{tcid}: L2 Traffic Validation using Scapy")
@@ -370,7 +370,7 @@ def test_l2_traffic_validation():
         st.report_pass("test_case_passed")  # Don't fail on traffic issues
 
 
-def test_l3_traffic_validation():
+def test_active_l3_traffic_validation():
     """TC-LACP-CLI-001-007: Validate L3 traffic across PortChannel with IP config"""
     tcid = TC_IDS.l3_traffic_validation
     st.banner(f"{tcid}: L3 Traffic Validation using Scapy")
@@ -556,7 +556,7 @@ def test_l3_traffic_validation():
         return
 
 
-def test_cleanup():
+def test_active_cleanup():
     """TC-LACP-CLI-001-008: Cleanup test resources - Remove PortChannel and verify removal"""
     tcid = TC_IDS.cleanup
     st.banner(f"{tcid}: Cleanup Test Resources")
