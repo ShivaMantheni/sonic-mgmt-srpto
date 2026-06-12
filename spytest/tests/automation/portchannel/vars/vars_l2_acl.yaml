@@ -1,0 +1,67 @@
+# L2 ACL Test Configuration Variables
+# Author: SPyTest Framework
+# Description: Default configuration for L2 Access Control List tests
+
+defaults:
+  # Minimum topology requirements for L2 ACL tests
+  min_topology:
+    - D1D2:1  # DUT1-DUT2 link for TX traffic
+    - D1D3:1  # DUT1-DUT3 link for RX traffic
+
+  # CLI type for configuration (klish is default for L2 ACL)
+  cli_type: klish
+
+  # Timeout for verification operations (seconds)
+  verify_timeout: 30
+
+  # Enable cleanup after each test
+  cleanup: true
+
+# DUT L2 Configuration
+dut_l2_config:
+  # L2 mode configurations per DUT
+  default_mode: switchport
+  vlan_mode: trunk
+
+# Test Case Configurations
+testcases:
+  # Test case specific settings can be added here
+  test_l2_01_permit_source_mac:
+    description: "Permit exact source MAC address"
+    packets: 100
+    duration: 10
+
+  test_l2_02_deny_source_mac:
+    description: "Deny source MAC address"
+    packets: 100
+    duration: 10
+
+  test_l2_03_deny_dest_mac:
+    description: "Deny destination MAC address"
+    packets: 100
+    duration: 10
+
+  test_l2_04_deny_broadcast_mac:
+    description: "Deny broadcast MAC (FF:FF:FF:FF:FF:FF)"
+    packets: 100
+    duration: 10
+
+  test_l2_05_deny_arp_ethertype:
+    description: "Deny ARP EtherType (0x0806)"
+    packets: 100
+    duration: 10
+
+  test_l2_06_deny_vlan_100:
+    description: "Deny VLAN 100 traffic"
+    packets: 100
+    duration: 10
+
+  test_l2_07_permit_deny_vlan_mix:
+    description: "Permit VLAN 200, Deny VLAN 300 mix"
+    packets: 100
+    duration: 10
+
+  test_l2_08_acl_rule_priority:
+    description: "ACL rule priority (higher priority takes precedence)"
+    packets: 100
+    duration: 10
