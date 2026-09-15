@@ -5,6 +5,46 @@
 
 ---
 
+## Your SpyTest Command → SRPTO Equivalent
+
+**Single script (what you run today):**
+```bash
+./spytest/bin/spytest --tryssh 1 \
+    --testbed ./testbeds/testbed_vs_1node_reg.yaml \
+    automation/bfd/scripts/test_bfd_prof004_detmult_klish_reject.py \
+    --logs-path ./logs/bfd_prof004_detmult_$(date +%F_%H%M%S) \
+    --log-level debug --skip-init-config --ifname-type native
+```
+
+**SRPTO parallel run (multiple scripts at once):**
+```bash
+./run_srpto.sh \
+    --testbed ./testbeds/testbed_vs_1node_reg.yaml \
+    --logs-dir ./logs \
+    --log-level debug --skip-init-config --ifname-type native --tryssh 1 \
+    automation/bfd/scripts/test_bfd_prof004_detmult_klish_reject.py \
+    automation/bgp/scripts/test_bgp_base.py \
+    automation/acl/scripts/test_acl_v4.py
+```
+
+**What SRPTO does internally per script** (identical to your original command):
+```
+./spytest/bin/spytest
+    --tryssh 1
+    --testbed <subset-testbed-for-allocated-duts>.yaml   ← auto-generated per script
+    automation/bfd/scripts/test_bfd_prof004_detmult_klish_reject.py
+    --logs-path ./logs/test_bfd_prof004_detmult_klish_reject_<timestamp>/
+    --log-level debug
+    --skip-init-config
+    --ifname-type native
+    --get-tech-support none
+    --syslog-check none
+```
+
+> The only difference: `--testbed` points to a **subset** YAML containing only the DUTs allocated to that script. All other flags are identical to your original command.
+
+---
+
 ## Table of Contents
 
 1. [What is SRPTO?](#1-what-is-srpto)
