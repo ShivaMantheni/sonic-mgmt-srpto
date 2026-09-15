@@ -1,9 +1,46 @@
 # SRPTO — SONiC Resource-Aware Parallel Test Orchestrator
 
-> **Parallel test session scheduler for `sonic-mgmt` / SpyTest.**  
-> Runs independent test sessions in parallel by allocating non-conflicting DUT sets from an existing testbed. Each session receives its own subset testbed YAML and isolated workspace directory.
+> **A resource-aware extension to SpyTest's existing batch scheduler.**  
+> SpyTest already parallelizes tests by topology bucket. SRPTO adds **shared-resource conflict awareness, dynamic re-use of freed capacity, and utilization telemetry** — while reusing SpyTest's topology dispatch, rpyc workers, and result mechanisms entirely.  
+> **Zero ElasticTest changes. Zero CI changes. Entirely inside SpyTest's `batch.py`.**
 
 ---
+
+## What SRPTO Is (and Is Not)
+
+```
+❌ "We made SpyTest parallel."
+   SpyTest already does parallel batch execution by topology bucket.
+
+✅ "We make existing SpyTest parallelism resource-aware."
+
+Today:   topology-aware only         (TopoBucket: D1D2:2)
+SRPTO:   topology-aware
+       + shared-resource-aware       (fanout:leaf1, vlan:100, bgp_session:as65001)
+       + dynamic re-bucketing        (freed 4-DUT worker immediately picks up 1-DUT tests)
+       + utilization telemetry       (which modules caused the most serialization?)
+```
+
+## Where It Fits
+
+```
+ElasticTest  ──────────────────────────────────  [UNTOUCHED]
+  Testbed reservation / lifecycle
+        │
+        ▼  hands off to SpyTest
+SpyTest batch.py  ─────────────────────────────  [3 touch points, ~30 lines]
+  Existing topology scheduler (make_scheduler)
+        │
+        ▼  SRPTO layer inserted HERE
+  Resource conflict gate (_schedule_node_locked)
+  Dynamic re-bucketing on worker completion
+  Utilization telemetry
+        │
+        ▼
+spydist workers  ──────────────────────────────  [UNTOUCHED]
+  T1        T2        T3
+```
+
 
 ## Your SpyTest Command → SRPTO Equivalent
 
