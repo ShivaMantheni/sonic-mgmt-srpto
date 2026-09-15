@@ -99,6 +99,13 @@ class SchedulerConfig:
     on_status_change: Optional[Callable[[ScriptResult], None]] = None
     # Enable dry-run (resolve allocations only, no subprocess)
     dry_run: bool = False
+    # Optional shell command run on each allocated DUT after its test finishes.
+    # Prevents "dirty DUT" failures when the next test inherits stale state
+    # (e.g. stale BGP routes, ACLs, VLANs from a previous parallel session).
+    # The command receives each DUT name as a positional arg.
+    # Example: "ssh admin@{dut} sudo config reload -y"
+    # Leave empty to skip scrub (default — matches current sequential behaviour).
+    dut_scrub_cmd: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +396,9 @@ class ParallelScheduler:
         """
         sname = os.path.basename(script_path)
         self._update_status(script_path, "waiting")
+        # Register this request's DUT count for anti-starvation fairness.
+        # The pool won't let smaller requests starve a large pending request.
+        self._pool.register_pending(req.dut_count)
         logger.info(
             "[QUEUE][%s] Waiting for %d DUT(s) (exclusive=%s, ptf=%s)",
             sname, req.dut_count, req.topology_exclusive, req.ptf_required
@@ -415,33 +425,54 @@ class ParallelScheduler:
                                     duration=time.time() - t0)
                 return
 
-            # ── Create subset testbed YAML (mirrors Eka _create_subset_testbed)
-            subset_cfg = _create_subset_testbed(self._testbed_config, allocated)
-            tmp_tb = tempfile.NamedTemporaryFile(
-                suffix=f"_srpto_s{slot_idx}.yaml", delete=False
-            )
-            yaml.dump(subset_cfg, tmp_tb, default_flow_style=False)
-            tmp_tb.close()
-
-            # ── Build log directory ───────────────────────────────────────────
+            # ── Create isolated workspace per script ──────────────────────────
+            # Each script gets its own directory so SpyTest artifacts
+            # (results.csv, spytest.html, syslog, pcaps) NEVER collide between
+            # parallel sessions. This is the subprocess isolation boundary.
             ts = int(time.time())
-            log_dir = os.path.join(
-                self.cfg.logs_dir, f"{sname}_{ts}"
+            workspace = os.path.join(
+                self.cfg.logs_dir, f"run_{sname}_{ts}"
             )
+            os.makedirs(workspace, exist_ok=True)
+
+            # ── Write subset testbed YAML into the workspace ──────────────────
+            # *** SpyTestSessionBinder ***
+            # SpyTest receives a testbed YAML that contains ONLY the DUTs
+            # allocated to this script. It physically cannot see or touch busy
+            # DUTs. This is what actually enforces DUT isolation — not just the
+            # Python lock. Without this, all subprocesses would share the same
+            # testbed topology and use whatever DUTs it provides.
+            subset_cfg = _create_subset_testbed(self._testbed_config, allocated)
+            subset_tb_path = os.path.join(workspace, "testbed_subset.yaml")
+            with open(subset_tb_path, "w") as f:
+                yaml.dump(subset_cfg, f, default_flow_style=False)
+
+            # Write a human-readable allocation record for debugging
+            with open(os.path.join(workspace, "srpto_allocation.txt"), "w") as f:
+                f.write(f"Script   : {script_path}\n")
+                f.write(f"DUTs     : {allocated}\n")
+                f.write(f"Testbed  : {self.cfg.testbed_path}\n")
+                f.write(f"Subset   : {subset_tb_path}\n")
+                f.write(f"PTF      : {req.ptf_required}\n")
+                f.write(f"Exclusive: {req.topology_exclusive}\n")
+                f.write(f"Resources: {sorted(req.shared_resources)}\n")
+
+            log_dir = os.path.join(workspace, "logs")
             os.makedirs(log_dir, exist_ok=True)
 
             # ── Launch subprocess ─────────────────────────────────────────────
-            cmd = _build_command(self.cfg, script_path, tmp_tb.name, log_dir)
+            # subset_tb_path → SpyTest sees ONLY allocated DUTs
+            # cwd=workspace  → all SpyTest output files stay in this dir
+            cmd = _build_command(self.cfg, script_path, subset_tb_path, log_dir)
             log_file = os.path.join(log_dir, "stdout.log")
+            logger.info("[RUN][%s] workspace: %s", sname, workspace)
+            logger.info(
+                "[RUN][%s] subset testbed: %s (DUTs: %s)",
+                sname, subset_tb_path, allocated
+            )
             logger.info("[RUN][%s] CMD: %s", sname, " ".join(cmd))
 
-            rc = self._run_process(cmd, log_file, script_path, sname)
-
-            # ── Cleanup ───────────────────────────────────────────────────────
-            try:
-                os.unlink(tmp_tb.name)
-            except Exception:
-                pass
+            rc = self._run_process(cmd, log_file, script_path, sname, cwd=workspace)
 
             dur = time.time() - t0
             if self._stop_event.is_set() and rc != 0:
@@ -463,15 +494,59 @@ class ParallelScheduler:
                                 error=str(e), duration=time.time() - t0)
             raise
         finally:
+            # Unregister pending count — may allow starvation guard to relax
+            self._pool.unregister_pending(req.dut_count)
+            # Optional: scrub DUTs before returning to pool to prevent
+            # "dirty DUT" state from affecting the next parallel test.
+            if allocated and self.cfg.dut_scrub_cmd:
+                self._scrub_duts(allocated, sname)
             if allocated:
                 self._pool.release(allocated, sname, req)
 
+    def _scrub_duts(self, duts: List[str], sname: str):
+        """
+        Optional post-test DUT cleanup.
+
+        Runs cfg.dut_scrub_cmd on each allocated DUT before releasing them
+        back to the pool. This prevents a test from leaving stale BGP routes,
+        ACL rules, VLAN configs, or PortChannel state that would cause the
+        NEXT parallel test to fail on a "dirty" DUT.
+
+        cfg.dut_scrub_cmd example:
+            "ssh -o StrictHostKeyChecking=no admin@{dut} sudo config reload -y"
+
+        The string {dut} is replaced with each DUT name. Failures are logged
+        but do NOT prevent DUT release — a failed scrub is better than a
+        deadlocked pool.
+        """
+        for dut in duts:
+            cmd_str = self.cfg.dut_scrub_cmd.replace("{dut}", dut)
+            try:
+                logger.info("[SCRUB][%s] %s → %s", sname, dut, cmd_str)
+                result = subprocess.run(
+                    cmd_str, shell=True, timeout=120,
+                    capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    logger.warning(
+                        "[SCRUB][%s] %s scrub failed (rc=%d): %s",
+                        sname, dut, result.returncode, result.stderr[:300]
+                    )
+                else:
+                    logger.info("[SCRUB][%s] %s scrubbed OK", sname, dut)
+            except subprocess.TimeoutExpired:
+                logger.warning("[SCRUB][%s] %s scrub timed out (120s)", sname, dut)
+            except Exception as exc:
+                logger.warning("[SCRUB][%s] %s scrub error: %s", sname, dut, exc)
+
     def _run_process(
-        self, cmd: List[str], log_file: str, script_path: str, sname: str
+        self, cmd: List[str], log_file: str, script_path: str, sname: str,
+        cwd: Optional[str] = None,
     ) -> int:
         """
         Launch a subprocess and tail its output.
-        Mirrors Eka's nohup + poll pattern but runs locally.
+        cwd= isolates all SpyTest output artifacts (results.csv, spytest.html,
+        syslog, pcaps) to the per-script workspace directory.
         """
         with open(log_file, "w") as lf:
             proc = subprocess.Popen(
@@ -479,6 +554,7 @@ class ParallelScheduler:
                 stdout=lf,
                 stderr=subprocess.STDOUT,
                 text=True,
+                cwd=cwd,      # ← SpyTest writes all relative-path files here
             )
 
         last_pos = 0

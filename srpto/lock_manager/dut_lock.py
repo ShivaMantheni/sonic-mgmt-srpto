@@ -111,6 +111,13 @@ class DUTPool:
         self._poll_interval = poll_interval
         self._max_wait = max_wait_seconds
 
+        # Anti-starvation: track the largest DUT count currently pending.
+        # While a 3-DUT test is waiting, the pool will not keep allocating
+        # 1-DUT tests if that would leave < 3 DUTs free — preventing the
+        # large test from ever getting its hardware.
+        self._max_pending_dut_count: int = 0
+        self._pending_count_lock = threading.Lock()
+
         # Status snapshot for the UI / websocket equivalent
         self._status_callbacks: List = []
 
@@ -221,6 +228,25 @@ class DUTPool:
         """Register a callable(status_dict) to be invoked on every state change."""
         self._status_callbacks.append(cb)
 
+    def register_pending(self, dut_count: int):
+        """
+        Called by a worker thread entering the 'waiting' state.
+        Records the largest pending DUT request so _try_allocate can apply
+        the anti-starvation guard.
+        """
+        with self._pending_count_lock:
+            if dut_count > self._max_pending_dut_count:
+                self._max_pending_dut_count = dut_count
+
+    def unregister_pending(self, dut_count: int):
+        """
+        Called when a worker acquires DUTs or is cancelled.
+        Conservatively resets the max so the guard can relax.
+        """
+        with self._pending_count_lock:
+            if dut_count >= self._max_pending_dut_count:
+                self._max_pending_dut_count = 0
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -278,6 +304,24 @@ class DUTPool:
         else:
             # Simple FIFO (Eka default path)
             selected = free[: req.dut_count]
+
+        # ── Anti-starvation guard ─────────────────────────────────────────────
+        # If a LARGER request is currently pending and allocating to THIS
+        # (smaller) request would leave fewer free DUTs than the larger request
+        # needs, hold off. This prevents a stream of 1-DUT tests from
+        # indefinitely starving a 3-DUT or 4-DUT test.
+        with self._pending_count_lock:
+            max_pending = self._max_pending_dut_count
+        if max_pending > req.dut_count:
+            # How many DUTs would remain free after this allocation?
+            remaining = len(free) - req.dut_count
+            if remaining < max_pending:
+                logger.debug(
+                    "[%s] Anti-starvation hold: a %d-DUT request is pending "
+                    "(free=%d, would leave=%d < %d needed)",
+                    script_name, max_pending, len(free), remaining, max_pending
+                )
+                return None
 
         # ── Commit allocation ─────────────────────────────────────────────────
         for d in selected:

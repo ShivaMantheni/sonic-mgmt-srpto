@@ -1,7 +1,7 @@
 # SRPTO — SONiC Resource-Aware Parallel Test Orchestrator
 
-> **Drop-in parallel scheduler for `sonic-mgmt` / SpyTest.**  
-> Runs multiple test scripts simultaneously across idle DUTs — no testbed changes required.
+> **Parallel test session scheduler for `sonic-mgmt` / SpyTest.**  
+> Runs independent test sessions in parallel by allocating non-conflicting DUT sets from an existing testbed. Each session receives its own subset testbed YAML and isolated workspace directory.
 
 ---
 
@@ -42,6 +42,68 @@
 ```
 
 > The only difference: `--testbed` points to a **subset** YAML containing only the DUTs allocated to that script. All other flags are identical to your original command.
+
+---
+
+## How DUT Isolation Actually Works — The SpyTestSessionBinder
+
+The key piece that makes SRPTO safe is the **subset testbed YAML**, not just the Python lock.
+
+```
+Without SRPTO (wrong approach):
+  SRPTO allocates DUT1+DUT2 in Python
+       ↓
+  spytest --testbed original_testbed.yaml   ← still sees ALL DUTs!
+  → SpyTest ignores the Python lock and uses whatever topology it wants
+
+With SRPTO (correct):
+  SRPTO allocates DUT1+DUT2
+       ↓
+  writes testbed_subset.yaml (contains ONLY DUT1, DUT2)
+       ↓
+  spytest --testbed testbed_subset.yaml     ← physically cannot see DUT3, DUT4
+  → SpyTest runs ONLY on DUT1+DUT2
+```
+
+For every script, SRPTO creates:
+```
+srpto_logs/
+└── run_test_bgp_gr_1726389001/          ← isolated workspace per script
+    ├── testbed_subset.yaml              ← subset testbed (allocated DUTs only)
+    ├── srpto_allocation.txt             ← allocation record for debugging
+    └── logs/
+        └── stdout.log                   ← captured spytest output
+```
+
+SpyTest's `cwd` is set to that workspace, so **all relative-path output files** (`results.csv`, `spytest.html`, syslog captures, PCAPs) land inside it and never collide with parallel sessions.
+
+> [!IMPORTANT]
+> **What SRPTO cannot fully control:** SONiC's control plane (Redis DB, BGP daemon, Orchagent) is shared across all DUTs. If Test A generates a massive routing table update on DUT1, it may spike CPU and cause Test B's strict timers (BGP keepalives, LLDP) on DUT3 to timeout. Keep this in mind when deciding which tests to parallelize.
+
+---
+
+## v1 Scope — What SRPTO v1 Supports
+
+**Supported:**
+- ✅ 1-DUT and 2-DUT tests (explicit resource map)
+- ✅ Topology-aware DUT matching (`min_topology: D1D2:2`)
+- ✅ Topology-exclusive tests (`warm-reboot`, `config-reload`)
+- ✅ PTF-exclusive (global lock in v1 — one PTF user at a time)
+- ✅ Shared-resource serialization (`vlan:100`, `portchannel:Po1`)
+- ✅ Anti-starvation: large N-DUT tests are not blocked by streams of 1-DUT tests
+- ✅ Per-test isolated workspace directory
+- ✅ Subset testbed YAML per session (SpyTestSessionBinder)
+- ✅ Optional DUT scrub before pool release (`dut_scrub_cmd`)
+- ✅ JSON result aggregation
+
+**Not supported in v1 (explicit limitations):**
+- ❌ PTF port-level locking (global PTF lock only)
+- ❌ Auto-detection of shared resources (must be declared explicitly in resource map)
+- ❌ pytest-xdist integration (do not combine `--srpto-run-parallel` with `-n auto` — this creates uncontrolled double parallelism)
+- ❌ Automatic DUT state validation before allocation
+- ❌ Control-plane CPU contention detection
+
+**Shared resources must be declared explicitly.** Auto-detection from script source is best-effort. If a test creates a VLAN dynamically via API, SRPTO cannot infer that without an explicit entry in `resources.yaml`.
 
 ---
 
@@ -692,28 +754,45 @@ cat /tmp/auto_resources.yaml
 
 ---
 
-## 12. Performance Impact
+## 12. Performance Impact (Expected / Target)
 
-**Runtime — 200-test regression, 4-DUT testbed:**
-\`\`\`
-Without SRPTO  ████████████████████  20 hours
-With SRPTO     █████████████         13 hours
-\`\`\`
+> [!NOTE]
+> The numbers below are **design targets, not measured results**. Actual improvement depends on your test suite composition, DUT topology, and how many tests can safely run in parallel. Measure on your own lab before quoting these numbers.
 
-**DUT Utilization:**
-\`\`\`
-Without SRPTO  ███░░░░░░░░░░░░░░░░░  ~30%
-With SRPTO     █████████████████░░░  ~87%
-\`\`\`
+**Expected runtime improvement — 200-test regression, 4-DUT testbed:**
+```
+Without SRPTO  ████████████████████  ~20 hours  (sequential)
+With SRPTO     █████████████         ~13 hours  (3-4 parallel sessions)
+```
 
-**Summary table:**
+**Expected DUT utilization:**
+```
+Without SRPTO  ███░░░░░░░░░░░░░░░░░  ~25-30%
+With SRPTO     █████████████████░░░  ~80-87%
+```
 
-| | Without SRPTO | With SRPTO |
-|-|--------------|------------|
+**Target summary:**
+
+| | Without SRPTO | With SRPTO (target) |
+|-|--------------|---------------------|
 | Testbeds required | 10 | 6–7 |
 | Parallel scripts | 1 | 3–4 |
-| DUT utilization | 25–50% | 85–90% |
-| Total wall-clock time | 20h | 12–14h |
+| DUT utilization | 25–50% | 80–90% |
+| Total wall-clock time | ~20h | ~12–14h |
+
+**How to measure on your lab (recommended before claiming speedup):**
+```bash
+# Step 1 — baseline: run 10 representative tests sequentially and time them
+time for t in tests/bgp/test_bgp_gr.py tests/acl/test_acl.py ...; do
+    ./spytest/bin/spytest --testbed testbed.yaml "$t" ...
+done
+
+# Step 2 — with SRPTO: same 10 tests in parallel
+time ./run_srpto.sh --testbed testbed.yaml tests/bgp/test_bgp_gr.py \
+    tests/acl/test_acl.py ... --log-level debug
+
+# Step 3 — compare wall-clock time and check srpto_results.json for pass/fail
+```
 
 ---
 
